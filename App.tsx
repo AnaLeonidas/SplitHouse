@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
 import { WelcomeScreen } from './src/screens/auth/WelcomeScreen';
+import { LoginScreen } from './src/screens/auth/LoginScreen';
 
-type Screen = 'splash' | 'welcome';
+type Screen = 'splash' | 'welcome' | 'login';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
 
   return (
     <>
@@ -18,8 +19,18 @@ export default function App() {
 
       {currentScreen === 'welcome' && (
         <WelcomeScreen
-          onLoginPress={() => {}}
+          onLoginPress={() => setCurrentScreen('login')}
           onRegisterPress={() => {}}
+        />
+      )}
+
+      {currentScreen === 'login' && (
+        <LoginScreen
+          onBackPress={() => setCurrentScreen('welcome')}
+          onLoginSubmit={(email, password) => {}}
+          onForgotPasswordPress={() => {}}
+          onRegisterPress={() => {}}
+          onGooglePress={() => {}}
         />
       )}
     </>
