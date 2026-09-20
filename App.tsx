@@ -7,7 +7,7 @@ import { LoginScreen } from './src/screens/auth/LoginScreen';
 type Screen = 'splash' | 'welcome' | 'login';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
 
   return (
     <>

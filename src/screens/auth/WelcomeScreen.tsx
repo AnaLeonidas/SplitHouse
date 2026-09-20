@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 28,
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) + 8 : 24,
-    paddingBottom: Platform.OS === 'android' ? 52 : 36,
+    paddingBottom: Platform.OS === 'android' ? 68 : 48,
   },
   centerContainer: {
     flex: 1,
