@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { View, TouchableOpacity, Text, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
 import { WelcomeScreen } from './src/screens/auth/WelcomeScreen';
 import { LoginScreen } from './src/screens/auth/LoginScreen';
@@ -12,6 +14,13 @@ import { InviteQrScreen } from './src/screens/house/InviteQrScreen';
 import { JoinHouseScreen } from './src/screens/house/JoinHouseScreen';
 import { PendingRequestScreen } from './src/screens/house/PendingRequestScreen';
 import { ManageMembersScreen } from './src/screens/house/ManageMembersScreen';
+import { HomeScreen } from './src/screens/house/HomeScreen';
+import { ExpensesListScreen } from './src/screens/house/ExpensesListScreen';
+import { NewExpenseScreen } from './src/screens/house/NewExpenseScreen';
+import { ExpenseDetailsScreen } from './src/screens/house/ExpenseDetailsScreen';
+import { SettleUpScreen } from './src/screens/house/SettleUpScreen';
+import { ConfirmPaymentScreen } from './src/screens/house/ConfirmPaymentScreen';
+import { ReportScreen } from './src/screens/house/ReportScreen';
 
 type Screen =
   | 'splash'
@@ -25,7 +34,14 @@ type Screen =
   | 'invite_qr'
   | 'join_house'
   | 'pending_request'
-  | 'manage_members';
+  | 'manage_members'
+  | 'home'
+  | 'expenses_list'
+  | 'new_expense'
+  | 'expense_details'
+  | 'settle_up'
+  | 'payment_validation'
+  | 'report';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('create_house');
@@ -60,15 +76,15 @@ export default function App() {
           onBackPress={() => setCurrentScreen('welcome')}
           onRegisterSubmit={(name, email, password) => setCurrentScreen('house_selection')}
           onLoginPress={() => setCurrentScreen('login')}
-          onTermsPress={() => {}}
-          onPrivacyPress={() => {}}
+          onTermsPress={() => { }}
+          onPrivacyPress={() => { }}
         />
       )}
 
       {currentScreen === 'forgot_password' && (
         <ForgotPasswordScreen
           onBackPress={() => setCurrentScreen('login')}
-          onSubmit={(email) => {}}
+          onSubmit={(email) => { }}
           onLoginPress={() => setCurrentScreen('login')}
         />
       )}
@@ -103,7 +119,7 @@ export default function App() {
           houseName="República do Sexteto Sinistro"
           houseCode="SPLIT-8924"
           onBackPress={() => setCurrentScreen('setup_rules')}
-          onContinuePress={() => setCurrentScreen('manage_members')}
+          onContinuePress={() => setCurrentScreen('home')}
         />
       )}
 
@@ -128,6 +144,98 @@ export default function App() {
           onBackPress={() => setCurrentScreen('invite_qr')}
           onViewQrPress={() => setCurrentScreen('invite_qr')}
         />
+      )}
+
+      {currentScreen === 'home' && (
+        <HomeScreen
+          onExpensesTabPress={() => setCurrentScreen('expenses_list')}
+          onNewExpensePress={() => setCurrentScreen('new_expense')}
+          onSettleUpPress={() => setCurrentScreen('settle_up')}
+          onReportPress={() => setCurrentScreen('report')}
+        />
+      )}
+
+      {currentScreen === 'expenses_list' && (
+        <ExpensesListScreen
+          onAddPress={() => setCurrentScreen('new_expense')}
+          onExpenseDetailsPress={() => setCurrentScreen('expense_details')}
+        />
+      )}
+
+      {currentScreen === 'new_expense' && (
+        <NewExpenseScreen
+          onBackPress={() => setCurrentScreen('expenses_list')}
+          onSubmitPress={() => setCurrentScreen('expenses_list')}
+        />
+      )}
+
+      {currentScreen === 'expense_details' && (
+        <ExpenseDetailsScreen
+          onBackPress={() => setCurrentScreen('expenses_list')}
+          onNudgePress={() => alert('Moradores notificados!')}
+        />
+      )}
+
+      {currentScreen === 'settle_up' && (
+        <SettleUpScreen
+          onBackPress={() => setCurrentScreen('home')}
+          onPayPress={() => setCurrentScreen('payment_validation')}
+        />
+      )}
+
+      {currentScreen === 'payment_validation' && (
+        <ConfirmPaymentScreen
+          onBackPress={() => setCurrentScreen('settle_up')}
+          onConfirmPress={() => setCurrentScreen('home')}
+          onRejectPress={() => setCurrentScreen('settle_up')}
+        />
+      )}
+
+      {currentScreen === 'report' && (
+        <ReportScreen
+          onBackPress={() => setCurrentScreen('home')}
+        />
+      )}
+
+      {(currentScreen === 'home' || currentScreen === 'expenses_list') && (
+        <View style={{
+          flexDirection: 'row',
+          backgroundColor: '#FCFCFC',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(132, 130, 143, 0.2)',
+          paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+          paddingTop: 12,
+          justifyContent: 'space-around',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}>
+          <TouchableOpacity style={{ alignItems: 'center', width: 60 }} onPress={() => setCurrentScreen('home')}>
+            <Feather name="home" size={24} color={currentScreen === 'home' ? '#5E2B97' : '#84828F'} />
+            <Text style={{ fontSize: 10, marginTop: 4, fontWeight: currentScreen === 'home' ? 'bold' : '600', color: currentScreen === 'home' ? '#5E2B97' : '#84828F' }}>Início</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ alignItems: 'center', width: 60 }} onPress={() => setCurrentScreen('expenses_list')}>
+            <Feather name="dollar-sign" size={24} color={currentScreen === 'expenses_list' ? '#5E2B97' : '#84828F'} />
+            <Text style={{ fontSize: 10, marginTop: 4, fontWeight: currentScreen === 'expenses_list' ? 'bold' : '600', color: currentScreen === 'expenses_list' ? '#5E2B97' : '#84828F' }}>Despesas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ alignItems: 'center', width: 60 }} onPress={() => { }}>
+            <Feather name="check-square" size={24} color="#84828F" />
+            <Text style={{ fontSize: 10, marginTop: 4, fontWeight: '600', color: '#84828F' }}>Tarefas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ alignItems: 'center', width: 60 }} onPress={() => { }}>
+            <Feather name="award" size={24} color="#84828F" />
+            <Text style={{ fontSize: 10, marginTop: 4, fontWeight: '600', color: '#84828F' }}>Ranking</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ alignItems: 'center', width: 60 }} onPress={() => { }}>
+            <Feather name="user" size={24} color="#84828F" />
+            <Text style={{ fontSize: 10, marginTop: 4, fontWeight: '600', color: '#84828F' }}>Perfil</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </>
   );
