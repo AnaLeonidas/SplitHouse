@@ -16,6 +16,7 @@ interface HomeScreenProps {
     onExpensesTabPress?: () => void;
     onSettleUpPress?: () => void;
     onReportPress?: () => void;
+    onManageMembersPress?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -23,6 +24,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     onExpensesTabPress,
     onSettleUpPress,
     onReportPress,
+    onManageMembersPress,
 }) => {
     return (
         <View style={styles.wrapper}>
@@ -42,10 +44,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                     <Text style={styles.levelText}>Nv. 4</Text>
                                 </View>
                             </View>
-                            <View style={styles.houseRow}>
+                            <TouchableOpacity
+                                style={styles.houseRow}
+                                activeOpacity={0.7}
+                                onPress={onManageMembersPress}
+                            >
                                 <Feather name="home" size={12} color={Colors.primary} />
                                 <Text style={styles.houseName}>República do Sexteto Sinistro</Text>
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -164,7 +170,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         paddingHorizontal: 20,
         paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) + 16 : 48,
-        paddingBottom: 100,
+        paddingBottom: 120,
     },
     header: {
         flexDirection: 'row',

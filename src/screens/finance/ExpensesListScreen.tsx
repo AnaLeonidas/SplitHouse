@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) + 16 : 48,
-        paddingBottom: 100,
+        paddingBottom: 120,
     },
     header: {
         flexDirection: 'row',
