@@ -28,6 +28,7 @@ import { ExpenseDetailsScreen } from './src/screens/finance/ExpenseDetailsScreen
 import { SettleUpScreen } from './src/screens/finance/SettleUpScreen';
 import { ConfirmPaymentScreen } from './src/screens/finance/ConfirmPaymentScreen';
 import { ReportScreen } from './src/screens/finance/ReportScreen';
+import { TasksListScreen } from './src/screens/tasks/TasksListScreen';
 
 type Screen =
   | 'splash'
@@ -44,6 +45,7 @@ type Screen =
   | 'manage_members'
   | 'home'
   | 'expenses_list'
+  | 'tasks_list'
   | 'new_expense'
   | 'expense_details'
   | 'settle_up'
@@ -54,7 +56,9 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
 
   const isMainTabScreen =
-    currentScreen === 'home' || currentScreen === 'expenses_list';
+    currentScreen === 'home' ||
+    currentScreen === 'expenses_list' ||
+    currentScreen === 'tasks_list';
 
   const panResponder = useRef(
     PanResponder.create({
@@ -68,9 +72,13 @@ export default function App() {
         if (gestureState.dx < -50) {
           if (currentScreen === 'home') {
             setCurrentScreen('expenses_list');
+          } else if (currentScreen === 'expenses_list') {
+            setCurrentScreen('tasks_list');
           }
         } else if (gestureState.dx > 50) {
-          if (currentScreen === 'expenses_list') {
+          if (currentScreen === 'tasks_list') {
+            setCurrentScreen('expenses_list');
+          } else if (currentScreen === 'expenses_list') {
             setCurrentScreen('home');
           }
         }
@@ -183,7 +191,9 @@ export default function App() {
           {currentScreen === 'home' && (
             <HomeScreen
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
+              onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
+              onNewTaskPress={() => {}}
               onSettleUpPress={() => setCurrentScreen('settle_up')}
               onReportPress={() => setCurrentScreen('report')}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
@@ -194,6 +204,14 @@ export default function App() {
             <ExpensesListScreen
               onAddPress={() => setCurrentScreen('new_expense')}
               onExpenseDetailsPress={() => setCurrentScreen('expense_details')}
+            />
+          )}
+
+          {currentScreen === 'tasks_list' && (
+            <TasksListScreen
+              onNewTaskPress={() => {}}
+              onValidatePress={() => {}}
+              onTaskPress={() => {}}
             />
           )}
         </View>
@@ -279,10 +297,21 @@ export default function App() {
           <TouchableOpacity
             style={styles.navTab}
             activeOpacity={0.7}
-            onPress={() => alert('Quadro de tarefas em desenvolvimento para a próxima etapa.')}
+            onPress={() => setCurrentScreen('tasks_list')}
           >
-            <Feather name="check-square" size={24} color="#84828F" />
-            <Text style={styles.navTabText}>Tarefas</Text>
+            <Feather
+              name="check-square"
+              size={24}
+              color={currentScreen === 'tasks_list' ? '#5E2B97' : '#84828F'}
+            />
+            <Text
+              style={[
+                styles.navTabText,
+                currentScreen === 'tasks_list' && styles.navTabTextActive,
+              ]}
+            >
+              Tarefas
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity

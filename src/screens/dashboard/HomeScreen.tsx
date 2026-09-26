@@ -14,6 +14,8 @@ import { Colors } from '../../constants/theme';
 interface HomeScreenProps {
     onNewExpensePress?: () => void;
     onExpensesTabPress?: () => void;
+    onTasksTabPress?: () => void;
+    onNewTaskPress?: () => void;
     onSettleUpPress?: () => void;
     onReportPress?: () => void;
     onManageMembersPress?: () => void;
@@ -22,6 +24,8 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({
     onNewExpensePress,
     onExpensesTabPress,
+    onTasksTabPress,
+    onNewTaskPress,
     onSettleUpPress,
     onReportPress,
     onManageMembersPress,
@@ -97,7 +101,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <Text style={styles.actionText}>Nova despesa</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionCard}>
+                    <TouchableOpacity
+                        style={styles.actionCard}
+                        onPress={onNewTaskPress}
+                    >
                         <View style={styles.actionIconWrapper}>
                             <Feather name="plus" size={20} color={Colors.primary} />
                         </View>
@@ -117,7 +124,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Suas tarefas para hoje</Text>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={onTasksTabPress}>
                         <Text style={styles.seeAllText}>Ver todas</Text>
                     </TouchableOpacity>
                 </View>
