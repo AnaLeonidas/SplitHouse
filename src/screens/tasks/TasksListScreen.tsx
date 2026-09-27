@@ -15,7 +15,7 @@ interface TasksListScreenProps {
   houseName?: string;
   tasks?: TaskItem[];
   onNewTaskPress?: () => void;
-  onValidatePress?: () => void;
+  onValidatePress?: (taskId: string) => void;
   onTaskPress?: (taskId: string) => void;
 }
 
@@ -234,7 +234,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
                   key={task.id}
                   style={styles.validationCard}
                   activeOpacity={0.8}
-                  onPress={onValidatePress}
+                  onPress={() => onValidatePress && onValidatePress(task.id)}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardTitleGroup}>
@@ -266,7 +266,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
                     </Text>
                     <TouchableOpacity
                       activeOpacity={0.7}
-                      onPress={onValidatePress}
+                      onPress={() => onValidatePress && onValidatePress(task.id)}
                     >
                       <Text style={styles.validationActionText}>
                         Avaliar foto →

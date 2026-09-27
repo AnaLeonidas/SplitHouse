@@ -16,6 +16,7 @@ interface HomeScreenProps {
     onExpensesTabPress?: () => void;
     onTasksTabPress?: () => void;
     onNewTaskPress?: () => void;
+    onTaskPress?: (taskTitle: string) => void;
     onSettleUpPress?: () => void;
     onReportPress?: () => void;
     onManageMembersPress?: () => void;
@@ -26,6 +27,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     onExpensesTabPress,
     onTasksTabPress,
     onNewTaskPress,
+    onTaskPress,
     onSettleUpPress,
     onReportPress,
     onManageMembersPress,
@@ -130,7 +132,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </View>
 
                 <View style={styles.tasksList}>
-                    <TouchableOpacity style={styles.taskCard}>
+                    <TouchableOpacity
+                        style={styles.taskCard}
+                        activeOpacity={0.8}
+                        onPress={() => onTaskPress && onTaskPress('Lavar louça do almoço')}
+                    >
                         <View style={styles.checkbox} />
                         <View style={styles.taskInfo}>
                             <Text style={styles.taskTitle}>Lavar louça do almoço</Text>
@@ -141,7 +147,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         </View>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.taskCard}>
+                    <TouchableOpacity
+                        style={styles.taskCard}
+                        activeOpacity={0.8}
+                        onPress={() => onTaskPress && onTaskPress('Tirar lixo reciclável')}
+                    >
                         <View style={styles.checkbox} />
                         <View style={styles.taskInfo}>
                             <Text style={styles.taskTitle}>Tirar lixo reciclável</Text>

@@ -30,6 +30,8 @@ import { ConfirmPaymentScreen } from './src/screens/finance/ConfirmPaymentScreen
 import { ReportScreen } from './src/screens/finance/ReportScreen';
 import { TasksListScreen, TaskItem, mockTasks } from './src/screens/tasks/TasksListScreen';
 import { NewTaskScreen } from './src/screens/tasks/NewTaskScreen';
+import { TaskDetailsScreen } from './src/screens/tasks/TaskDetailsScreen';
+import { ValidateTaskScreen } from './src/screens/tasks/ValidateTaskScreen';
 
 type Screen =
   | 'splash'
@@ -47,7 +49,9 @@ type Screen =
   | 'home'
   | 'expenses_list'
   | 'tasks_list'
-    'new_task'
+  | 'new_task'
+  | 'task_details'
+  | 'task_validation'
   | 'new_expense'
   | 'expense_details'
   | 'settle_up'
@@ -57,6 +61,9 @@ type Screen =
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [tasks, setTasks] = useState<TaskItem[]>(mockTasks);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId);
 
   const isMainTabScreen =
     currentScreen === 'home' ||
@@ -197,6 +204,17 @@ export default function App() {
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
               onNewTaskPress={() => setCurrentScreen('new_task')}
+              onTaskPress={(title) => {
+                const found = tasks.find((t) => t.title === title) || tasks[0];
+                if (found) {
+                  setSelectedTaskId(found.id);
+                  if (found.requiresValidation) {
+                    setCurrentScreen('task_validation');
+                  } else {
+                    setCurrentScreen('task_details');
+                  }
+                }
+              }}
               onSettleUpPress={() => setCurrentScreen('settle_up')}
               onReportPress={() => setCurrentScreen('report')}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
@@ -214,8 +232,17 @@ export default function App() {
             <TasksListScreen
               tasks={tasks}
               onNewTaskPress={() => setCurrentScreen('new_task')}
-              onValidatePress={() => {}}
-              onTaskPress={() => {}}
+              onValidatePress={(taskId) => {
+                const targetId = taskId || tasks.find((t) => t.requiresValidation)?.id;
+                if (targetId) {
+                  setSelectedTaskId(targetId);
+                  setCurrentScreen('task_validation');
+                }
+              }}
+              onTaskPress={(taskId) => {
+                setSelectedTaskId(taskId);
+                setCurrentScreen('task_details');
+              }}
             />
           )}
         </View>
@@ -249,6 +276,99 @@ export default function App() {
                 taskData.type === 'Emergencial' ? '#EF4444' : '#5E2B97',
             };
             setTasks((prev) => [newTask, ...prev]);
+            setCurrentScreen('tasks_list');
+          }}
+        />
+      )}
+
+      {currentScreen === 'task_details' && (
+        <TaskDetailsScreen
+          task={
+            selectedTask
+              ? {
+                  id: selectedTask.id,
+                  title: selectedTask.title,
+                  type: selectedTask.type,
+                  location: selectedTask.location,
+                  deadline: selectedTask.deadline,
+                  assignee:
+                    selectedTask.assignee === 'Você'
+                      ? 'Norman Osborn (Você)'
+                      : selectedTask.assignee,
+                  xp: selectedTask.xp,
+                  points: selectedTask.points,
+                }
+              : undefined
+          }
+          onBackPress={() => setCurrentScreen('tasks_list')}
+          onSubmitValidation={() => {
+            if (selectedTaskId) {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === selectedTaskId
+                    ? {
+                        ...t,
+                        status: 'Aguardando validação',
+                        requiresValidation: true,
+                        executorInfo: `Executada por ${t.assignee} com foto`,
+                      }
+                    : t
+                )
+              );
+            }
+            setCurrentScreen('tasks_list');
+          }}
+        />
+      )}
+
+      {currentScreen === 'task_validation' && (
+        <ValidateTaskScreen
+          task={
+            selectedTask
+              ? {
+                  id: selectedTask.id,
+                  title: selectedTask.title,
+                  executorName:
+                    selectedTask.assignee === 'Você'
+                      ? 'Norman Osborn'
+                      : selectedTask.assignee,
+                  executedAt: selectedTask.deadline,
+                  xp: selectedTask.xp,
+                  points: selectedTask.points,
+                }
+              : undefined
+          }
+          onBackPress={() => setCurrentScreen('tasks_list')}
+          onApprovePress={() => {
+            if (selectedTaskId) {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === selectedTaskId
+                    ? {
+                        ...t,
+                        status: 'Concluída',
+                        requiresValidation: false,
+                      }
+                    : t
+                )
+              );
+            }
+            setCurrentScreen('tasks_list');
+          }}
+          onRejectPress={() => {
+            if (selectedTaskId) {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === selectedTaskId
+                    ? {
+                        ...t,
+                        status: 'Pendente',
+                        requiresValidation: false,
+                      }
+                    : t
+                )
+              );
+            }
             setCurrentScreen('tasks_list');
           }}
         />
