@@ -28,7 +28,8 @@ import { ExpenseDetailsScreen } from './src/screens/finance/ExpenseDetailsScreen
 import { SettleUpScreen } from './src/screens/finance/SettleUpScreen';
 import { ConfirmPaymentScreen } from './src/screens/finance/ConfirmPaymentScreen';
 import { ReportScreen } from './src/screens/finance/ReportScreen';
-import { TasksListScreen } from './src/screens/tasks/TasksListScreen';
+import { TasksListScreen, TaskItem, mockTasks } from './src/screens/tasks/TasksListScreen';
+import { NewTaskScreen } from './src/screens/tasks/NewTaskScreen';
 
 type Screen =
   | 'splash'
@@ -46,6 +47,7 @@ type Screen =
   | 'home'
   | 'expenses_list'
   | 'tasks_list'
+    'new_task'
   | 'new_expense'
   | 'expense_details'
   | 'settle_up'
@@ -54,6 +56,7 @@ type Screen =
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+  const [tasks, setTasks] = useState<TaskItem[]>(mockTasks);
 
   const isMainTabScreen =
     currentScreen === 'home' ||
@@ -193,7 +196,7 @@ export default function App() {
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
-              onNewTaskPress={() => {}}
+              onNewTaskPress={() => setCurrentScreen('new_task')}
               onSettleUpPress={() => setCurrentScreen('settle_up')}
               onReportPress={() => setCurrentScreen('report')}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
@@ -209,7 +212,8 @@ export default function App() {
 
           {currentScreen === 'tasks_list' && (
             <TasksListScreen
-              onNewTaskPress={() => {}}
+              tasks={tasks}
+              onNewTaskPress={() => setCurrentScreen('new_task')}
               onValidatePress={() => {}}
               onTaskPress={() => {}}
             />
@@ -217,6 +221,39 @@ export default function App() {
         </View>
       )}
 
+      {currentScreen === 'new_task' && (
+        <NewTaskScreen
+          onBackPress={() => setCurrentScreen('tasks_list')}
+          onSubmitPress={(taskData) => {
+            const newTask: TaskItem = {
+              id: String(Date.now()),
+              title: taskData.title,
+              type: taskData.type,
+              location: taskData.location,
+              deadline: taskData.deadline,
+              xp: taskData.xp,
+              points: taskData.points,
+              assignee: taskData.assignee.includes('Norman') ? 'Você' : taskData.assignee,
+              status: 'Pendente',
+              icon:
+                taskData.type === 'Emergencial'
+                  ? 'alert-triangle'
+                  : 'check-circle',
+              iconBg:
+                taskData.type === 'Rotativa'
+                  ? 'rgba(94, 43, 151, 0.1)'
+                  : taskData.type === 'Emergencial'
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(204, 146, 194, 0.25)',
+              iconColor:
+                taskData.type === 'Emergencial' ? '#EF4444' : '#5E2B97',
+            };
+            setTasks((prev) => [newTask, ...prev]);
+            setCurrentScreen('tasks_list');
+          }}
+        />
+      )}
+      
       {currentScreen === 'new_expense' && (
         <NewExpenseScreen
           onBackPress={() => setCurrentScreen('expenses_list')}

@@ -13,6 +13,7 @@ import { Colors } from '../../constants/theme';
 
 interface TasksListScreenProps {
   houseName?: string;
+  tasks?: TaskItem[];
   onNewTaskPress?: () => void;
   onValidatePress?: () => void;
   onTaskPress?: (taskId: string) => void;
@@ -20,7 +21,7 @@ interface TasksListScreenProps {
 
 type FilterTab = 'my_tasks' | 'house' | 'validate';
 
-interface TaskItem {
+export interface TaskItem {
   id: string;
   title: string;
   type: 'Rotativa' | 'Fixa' | 'Emergencial';
@@ -37,7 +38,7 @@ interface TaskItem {
   executorInfo?: string;
 }
 
-const mockTasks: TaskItem[] = [
+export const mockTasks: TaskItem[] = [
   {
     id: '1',
     title: 'Lavar louça do almoço',
@@ -113,30 +114,32 @@ const mockTasks: TaskItem[] = [
 
 export const TasksListScreen: React.FC<TasksListScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
+  tasks,
   onNewTaskPress,
   onValidatePress,
   onTaskPress,
 }) => {
   const [activeTab, setActiveTab] = useState<FilterTab>('my_tasks');
+  const taskList = tasks || mockTasks;
 
   const getFilteredTasks = () => {
     switch (activeTab) {
       case 'my_tasks':
-        return mockTasks.filter(
+        return taskList.filter(
           (t) => t.assignee === 'Você' || t.requiresValidation
         );
       case 'house':
-        return mockTasks;
+        return taskList;
       case 'validate':
-        return mockTasks.filter((t) => t.requiresValidation);
+        return taskList.filter((t) => t.requiresValidation);
       default:
-        return mockTasks;
+        return taskList;
     }
   };
 
   const filteredTasks = getFilteredTasks();
-  const myTasksCount = mockTasks.filter((t) => t.assignee === 'Você').length;
-  const houseTasksCount = mockTasks.length;
+  const myTasksCount = taskList.filter((t) => t.assignee === 'Você').length;
+  const houseTasksCount = taskList.length;
 
   return (
     <View style={styles.wrapper}>
@@ -538,6 +541,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 10,
+  },
+  typeBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
   },
   typeBadgeRotativa: {
     backgroundColor: 'rgba(94, 43, 151, 0.1)',
