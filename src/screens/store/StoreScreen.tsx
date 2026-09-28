@@ -234,9 +234,20 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       </Svg>
 
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Loja da casa</Text>
-          <Text style={styles.headerSubtitle}>{houseName}</Text>
+        <View style={styles.headerLeftGroup}>
+          {onBackPress && (
+            <TouchableOpacity
+              style={styles.backButton}
+              activeOpacity={0.8}
+              onPress={onBackPress}
+            >
+              <Feather name="chevron-left" size={20} color={Colors.text} />
+            </TouchableOpacity>
+          )}
+          <View>
+            <Text style={styles.headerTitle}>Loja da casa</Text>
+            <Text style={styles.headerSubtitle}>{houseName}</Text>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -573,6 +584,21 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) + 14 : 52,
     paddingBottom: 8,
     zIndex: 10,
+  },
+  headerLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(132, 130, 143, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 24,

@@ -33,6 +33,7 @@ interface RankingScreenProps {
   daysRemaining?: number;
   rankingList?: ResidentRankingItem[];
   onNudgePress?: (residentName: string) => void;
+  onStorePress?: () => void;
 }
 
 const defaultRankingList: ResidentRankingItem[] = [
@@ -87,6 +88,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
   daysRemaining = 19,
   rankingList = defaultRankingList,
   onNudgePress,
+  onStorePress,
 }) => {
   const [nudgedMembers, setNudgedMembers] = useState<string[]>([]);
 
@@ -127,9 +129,20 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
           <Text style={styles.headerSubtitle}>{houseName}</Text>
         </View>
 
-        <View style={styles.cycleBadge}>
-          <View style={styles.cycleDot} />
-          <Text style={styles.cycleBadgeText}>{cycleName}</Text>
+        <View style={styles.headerRightRow}>
+          <TouchableOpacity
+            style={styles.storeBadge}
+            activeOpacity={0.8}
+            onPress={onStorePress}
+          >
+            <Feather name="shopping-bag" size={13} color={Colors.primary} />
+            <Text style={styles.storeBadgeText}>Loja</Text>
+          </TouchableOpacity>
+
+          <View style={styles.cycleBadge}>
+            <View style={styles.cycleDot} />
+            <Text style={styles.cycleBadgeText}>{cycleName}</Text>
+          </View>
         </View>
       </View>
 
@@ -224,7 +237,11 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                       )}
                     </View>
 
-                    <View style={styles.tasksAndCoinsRow}>
+                    <TouchableOpacity
+                      style={styles.tasksAndCoinsRow}
+                      activeOpacity={item.isCurrentUser && onStorePress ? 0.7 : 1}
+                      onPress={item.isCurrentUser ? onStorePress : undefined}
+                    >
                       <Text style={styles.residentMetaText}>{item.tasksCompleted} tarefas •</Text>
                       <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
                         <Circle
@@ -245,7 +262,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                         />
                       </Svg>
                       <Text style={styles.residentMetaText}>{item.coins} moedas</Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -346,6 +363,27 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 1,
   },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  storeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 100,
+    backgroundColor: 'rgba(94, 43, 151, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(94, 43, 151, 0.25)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  storeBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
   cycleBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -371,7 +409,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 120,
     gap: 14,
   },
   leaderCard: {

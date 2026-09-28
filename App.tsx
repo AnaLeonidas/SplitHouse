@@ -32,6 +32,9 @@ import { TasksListScreen, TaskItem, mockTasks } from './src/screens/tasks/TasksL
 import { NewTaskScreen } from './src/screens/tasks/NewTaskScreen';
 import { TaskDetailsScreen } from './src/screens/tasks/TaskDetailsScreen';
 import { ValidateTaskScreen } from './src/screens/tasks/ValidateTaskScreen';
+import { RankingScreen } from './src/screens/ranking/RankingScreen';
+import { StoreScreen } from './src/screens/store/StoreScreen';
+import { NotificationsScreen } from './src/screens/notifications/NotificationsScreen';
 
 type Screen =
   | 'splash'
@@ -49,6 +52,9 @@ type Screen =
   | 'home'
   | 'expenses_list'
   | 'tasks_list'
+  | 'ranking'
+  | 'store'
+  | 'notifications'
   | 'new_task'
   | 'task_details'
   | 'task_validation'
@@ -68,7 +74,8 @@ export default function App() {
   const isMainTabScreen =
     currentScreen === 'home' ||
     currentScreen === 'expenses_list' ||
-    currentScreen === 'tasks_list';
+    currentScreen === 'tasks_list' ||
+    currentScreen === 'ranking';
 
   const panResponder = useRef(
     PanResponder.create({
@@ -84,9 +91,13 @@ export default function App() {
             setCurrentScreen('expenses_list');
           } else if (currentScreen === 'expenses_list') {
             setCurrentScreen('tasks_list');
+          } else if (currentScreen === 'tasks_list') {
+            setCurrentScreen('ranking');
           }
         } else if (gestureState.dx > 50) {
-          if (currentScreen === 'tasks_list') {
+          if (currentScreen === 'ranking') {
+            setCurrentScreen('tasks_list');
+          } else if (currentScreen === 'tasks_list') {
             setCurrentScreen('expenses_list');
           } else if (currentScreen === 'expenses_list') {
             setCurrentScreen('home');
@@ -215,6 +226,8 @@ export default function App() {
                   }
                 }
               }}
+              onNotificationsPress={() => setCurrentScreen('notifications')}
+              onRankingPress={() => setCurrentScreen('ranking')}
               onSettleUpPress={() => setCurrentScreen('settle_up')}
               onReportPress={() => setCurrentScreen('report')}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
@@ -243,6 +256,12 @@ export default function App() {
                 setSelectedTaskId(taskId);
                 setCurrentScreen('task_details');
               }}
+            />
+          )}
+
+          {currentScreen === 'ranking' && (
+            <RankingScreen
+              onStorePress={() => setCurrentScreen('store')}
             />
           )}
         </View>
@@ -409,6 +428,35 @@ export default function App() {
         />
       )}
 
+      {currentScreen === 'store' && (
+        <StoreScreen
+          onBackPress={() => setCurrentScreen('ranking')}
+        />
+      )}
+
+      {currentScreen === 'notifications' && (
+        <NotificationsScreen
+          onBackPress={() => setCurrentScreen('home')}
+          onNotificationAction={(notification) => {
+            if (notification.categoryFilter === 'Validações') {
+              const valTask = tasks.find((t) => t.requiresValidation) || tasks[0];
+              if (valTask) {
+                setSelectedTaskId(valTask.id);
+                setCurrentScreen('task_validation');
+              }
+            } else if (notification.categoryFilter === 'Finanças') {
+              setCurrentScreen('expense_details');
+            } else {
+              const myTask = tasks.find((t) => t.assignee === 'Você') || tasks[0];
+              if (myTask) {
+                setSelectedTaskId(myTask.id);
+                setCurrentScreen('task_details');
+              }
+            }
+          }}
+        />
+      )}
+
       {isMainTabScreen && (
         <View style={styles.bottomNav}>
           <TouchableOpacity
@@ -474,10 +522,21 @@ export default function App() {
           <TouchableOpacity
             style={styles.navTab}
             activeOpacity={0.7}
-            onPress={() => alert('Ranking dos moradores em desenvolvimento para a próxima etapa.')}
+            onPress={() => setCurrentScreen('ranking')}
           >
-            <Feather name="award" size={24} color="#84828F" />
-            <Text style={styles.navTabText}>Ranking</Text>
+            <Feather
+              name="award"
+              size={24}
+              color={currentScreen === 'ranking' ? '#5E2B97' : '#84828F'}
+            />
+            <Text
+              style={[
+                styles.navTabText,
+                currentScreen === 'ranking' && styles.navTabTextActive,
+              ]}
+            >
+              Ranking
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity

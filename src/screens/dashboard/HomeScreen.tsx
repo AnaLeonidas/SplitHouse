@@ -17,6 +17,8 @@ interface HomeScreenProps {
     onTasksTabPress?: () => void;
     onNewTaskPress?: () => void;
     onTaskPress?: (taskTitle: string) => void;
+    onNotificationsPress?: () => void;
+    onRankingPress?: () => void;
     onSettleUpPress?: () => void;
     onReportPress?: () => void;
     onManageMembersPress?: () => void;
@@ -28,6 +30,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     onTasksTabPress,
     onNewTaskPress,
     onTaskPress,
+    onNotificationsPress,
+    onRankingPress,
     onSettleUpPress,
     onReportPress,
     onManageMembersPress,
@@ -65,7 +69,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <TouchableOpacity style={styles.iconButton} onPress={onReportPress}>
                             <Feather name="bar-chart-2" size={20} color={Colors.text} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton}>
+                        <TouchableOpacity style={styles.iconButton} onPress={onNotificationsPress}>
                             <Feather name="bell" size={20} color={Colors.text} />
                             <View style={styles.notificationDot} />
                         </TouchableOpacity>
@@ -163,7 +167,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity style={styles.rankingCard}>
+                <TouchableOpacity
+                    style={styles.rankingCard}
+                    activeOpacity={0.8}
+                    onPress={onRankingPress}
+                >
                     <View style={styles.rankingIconWrapper}>
                         <Feather name="award" size={24} color={Colors.primary} />
                     </View>
