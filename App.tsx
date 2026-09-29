@@ -7,6 +7,7 @@ import {
   Platform,
   PanResponder,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
@@ -35,6 +36,12 @@ import { ValidateTaskScreen } from './src/screens/tasks/ValidateTaskScreen';
 import { RankingScreen } from './src/screens/ranking/RankingScreen';
 import { StoreScreen } from './src/screens/store/StoreScreen';
 import { NotificationsScreen } from './src/screens/notifications/NotificationsScreen';
+import { ProfileScreen } from './src/screens/profile/ProfileScreen';
+import { ProposeRewardScreen } from './src/screens/store/ProposeRewardScreen';
+import { EditProfileScreen } from './src/screens/profile/EditProfileScreen';
+import { HouseRulesScreen } from './src/screens/profile/HouseRulesScreen';
+import { EditHouseRulesScreen } from './src/screens/profile/EditHouseRulesScreen';
+import { LeaveHouseScreen } from './src/screens/profile/LeaveHouseScreen';
 
 type Screen =
   | 'splash'
@@ -53,7 +60,9 @@ type Screen =
   | 'expenses_list'
   | 'tasks_list'
   | 'ranking'
+  | 'profile'
   | 'store'
+  | 'propose_reward'
   | 'notifications'
   | 'new_task'
   | 'task_details'
@@ -62,7 +71,11 @@ type Screen =
   | 'expense_details'
   | 'settle_up'
   | 'payment_validation'
-  | 'report';
+  | 'report'
+  | 'edit_profile'
+  | 'house_rules'
+  | 'edit_house_rules'
+  | 'leave_house';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
@@ -75,7 +88,8 @@ export default function App() {
     currentScreen === 'home' ||
     currentScreen === 'expenses_list' ||
     currentScreen === 'tasks_list' ||
-    currentScreen === 'ranking';
+    currentScreen === 'ranking' ||
+    currentScreen === 'profile';
 
   const panResponder = useRef(
     PanResponder.create({
@@ -93,9 +107,13 @@ export default function App() {
             setCurrentScreen('tasks_list');
           } else if (currentScreen === 'tasks_list') {
             setCurrentScreen('ranking');
+          } else if (currentScreen === 'ranking') {
+            setCurrentScreen('profile');
           }
         } else if (gestureState.dx > 50) {
-          if (currentScreen === 'ranking') {
+          if (currentScreen === 'profile') {
+            setCurrentScreen('ranking');
+          } else if (currentScreen === 'ranking') {
             setCurrentScreen('tasks_list');
           } else if (currentScreen === 'tasks_list') {
             setCurrentScreen('expenses_list');
@@ -262,6 +280,19 @@ export default function App() {
           {currentScreen === 'ranking' && (
             <RankingScreen
               onStorePress={() => setCurrentScreen('store')}
+            />
+          )}
+
+          {currentScreen === 'profile' && (
+            <ProfileScreen
+              onEditProfilePress={() => setCurrentScreen('edit_profile')}
+              onNotificationsPress={() => setCurrentScreen('notifications')}
+              onManageMembersPress={() => setCurrentScreen('manage_members')}
+              onHouseRulesPress={() => setCurrentScreen('house_rules')}
+              onLeaveHousePress={() => setCurrentScreen('leave_house')}
+              onStorePress={() => setCurrentScreen('store')}
+              onTasksPress={() => setCurrentScreen('tasks_list')}
+              onLogoutPress={() => setCurrentScreen('welcome')}
             />
           )}
         </View>
@@ -431,6 +462,43 @@ export default function App() {
       {currentScreen === 'store' && (
         <StoreScreen
           onBackPress={() => setCurrentScreen('ranking')}
+          onProposePress={() => setCurrentScreen('propose_reward')}
+        />
+      )}
+
+      {currentScreen === 'propose_reward' && (
+        <ProposeRewardScreen
+          onBackPress={() => setCurrentScreen('store')}
+          onSubmitSuccess={() => setCurrentScreen('store')}
+        />
+      )}
+
+      {currentScreen === 'edit_profile' && (
+        <EditProfileScreen
+          onBackPress={() => setCurrentScreen('profile')}
+          onSaveSuccess={() => setCurrentScreen('profile')}
+        />
+      )}
+
+      {currentScreen === 'house_rules' && (
+        <HouseRulesScreen
+          onBackPress={() => setCurrentScreen('profile')}
+          onEditPress={() => setCurrentScreen('edit_house_rules')}
+        />
+      )}
+
+      {currentScreen === 'edit_house_rules' && (
+        <EditHouseRulesScreen
+          onBackPress={() => setCurrentScreen('house_rules')}
+          onSaveSuccess={() => setCurrentScreen('house_rules')}
+        />
+      )}
+
+      {currentScreen === 'leave_house' && (
+        <LeaveHouseScreen
+          onBackPress={() => setCurrentScreen('profile')}
+          onCancelPress={() => setCurrentScreen('profile')}
+          onConfirmSuccess={() => setCurrentScreen('welcome')}
         />
       )}
 
@@ -542,10 +610,21 @@ export default function App() {
           <TouchableOpacity
             style={styles.navTab}
             activeOpacity={0.7}
-            onPress={() => alert('Perfil do morador em desenvolvimento para a próxima etapa.')}
+            onPress={() => setCurrentScreen('profile')}
           >
-            <Feather name="user" size={24} color="#84828F" />
-            <Text style={styles.navTabText}>Perfil</Text>
+            <Feather
+              name="user"
+              size={24}
+              color={currentScreen === 'profile' ? '#5E2B97' : '#84828F'}
+            />
+            <Text
+              style={[
+                styles.navTabText,
+                currentScreen === 'profile' && styles.navTabTextActive,
+              ]}
+            >
+              Perfil
+            </Text>
           </TouchableOpacity>
         </View>
       )}
