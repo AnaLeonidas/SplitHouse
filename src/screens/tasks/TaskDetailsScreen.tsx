@@ -13,25 +13,50 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Estrutura de dados detalhada de uma tarefa para visualização completa.
+ */
 export interface TaskDetailsData {
+  /** Identificador único da tarefa */
   id?: string;
+  /** Título da atividade */
   title?: string;
+  /** Descrição detalhada do que deve ser feito */
   description?: string;
+  /** Tipologia de rotatividade */
   type?: 'Fixa' | 'Rotativa' | 'Emergencial';
+  /** Cômodo de execução */
   location?: string;
+  /** Horário ou data limite */
   deadline?: string;
+  /** Morador responsável */
   assignee?: string;
+  /** Pontos de experiência */
   xp?: number;
+  /** Moedas a serem recebidas */
   points?: number;
 }
 
+/**
+ * Propriedades e callbacks da tela de detalhes de tarefa.
+ */
 interface TaskDetailsScreenProps {
+  /** Objeto com os detalhes da tarefa selecionada */
   task?: TaskDetailsData;
+  /** Callback para voltar ao quadro de tarefas */
   onBackPress?: () => void;
+  /** Callback para opções avançadas de edição ou exclusão */
   onOptionsPress?: () => void;
+  /** Callback para envio da tarefa para validação com foto */
   onSubmitValidation?: () => void;
 }
 
+/**
+ * Tela de detalhamento, regras e conclusão de uma tarefa doméstica (Tela 22).
+ * Exibe instruções específicas, foto de exemplo do cômodo limpo, histórico de conclusões e botão para anexar foto de comprovação.
+ *
+ * @param props Dados da tarefa e ações de retorno, menu e validação.
+ */
 export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   task,
   onBackPress,

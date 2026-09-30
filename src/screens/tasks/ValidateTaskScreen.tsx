@@ -16,24 +16,48 @@ import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-nativ
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Dados da tarefa enviada para auditoria e validação coletiva.
+ */
 export interface TaskValidationData {
+  /** Identificador da tarefa */
   id?: string;
+  /** Título da atividade executada */
   title?: string;
+  /** Nome do morador que concluiu a tarefa */
   executorName?: string;
+  /** Data e hora em que a tarefa foi marcada como feita */
   executedAt?: string;
+  /** Nome do arquivo da foto comprobatória */
   photoFilename?: string;
+  /** Timestamp gravado no registro da foto */
   photoTimestamp?: string;
+  /** Quantidade de XP a ser liberada se aprovada */
   xp?: number;
+  /** Moedas a serem creditadas se aprovada */
   points?: number;
 }
 
+/**
+ * Propriedades e callbacks da tela de validação de tarefa.
+ */
 interface ValidateTaskScreenProps {
+  /** Dados da tarefa a ser inspecionada */
   task?: TaskValidationData;
+  /** Callback para voltar à lista de tarefas */
   onBackPress?: () => void;
+  /** Callback para aprovar a conclusão da tarefa com justificativa opcional */
   onApprovePress?: (justification?: string) => void;
+  /** Callback para rejeitar a conclusão exigindo justificativa obrigatória */
   onRejectPress?: (justification: string) => void;
 }
 
+/**
+ * Tela de validação coletiva com foto de tarefas domésticas (Tela 23).
+ * Permite aos colegas de república inspecionar a foto enviada pelo executor e aprovar ou recusar a tarefa com justificativa.
+ *
+ * @param props Dados da tarefa para validação e ações de aprovação ou rejeição.
+ */
 export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   task,
   onBackPress,

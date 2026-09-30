@@ -15,25 +15,47 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Dados coletados pelo formulário de criação de nova tarefa.
+ */
 export interface TaskFormData {
+  /** Título descritivo da atividade */
   title: string;
+  /** Cômodo ou ambiente de execução */
   location: string;
+  /** Tipo de atribuição: Fixa, Rotativa ou Emergencial */
   type: 'Fixa' | 'Rotativa' | 'Emergencial';
+  /** Nome do morador selecionado para a responsabilidade */
   assignee: string;
+  /** Iniciais do morador para exibição em avatar */
   assigneeInitials: string;
+  /** Prazo limite de conclusão */
   deadline: string;
+  /** Quantidade de experiência (XP) atribuída à tarefa */
   xp: number;
+  /** Quantidade de moedas distribuídas */
   points: number;
 }
 
+/**
+ * Propriedades e callbacks da tela de criação de tarefa.
+ */
 interface NewTaskScreenProps {
+  /** Callback para voltar ao quadro de tarefas */
   onBackPress?: () => void;
+  /** Callback de submissão dos dados da nova tarefa */
   onSubmitPress?: (taskData: TaskFormData) => void;
 }
 
+/**
+ * Opção de membro da república para atribuição de responsabilidades.
+ */
 interface MemberOption {
+  /** Identificador do membro */
   id: string;
+  /** Nome de exibição */
   name: string;
+  /** Iniciais do avatar */
   initials: string;
 }
 
@@ -61,6 +83,12 @@ const ROOM_SUGGESTIONS = [
   'Quarto',
 ];
 
+/**
+ * Tela de criação e atribuição de novas tarefas domésticas (Tela 21).
+ * Permite selecionar o responsável, tipo de rotatividade, cômodo da casa, prazo e recompensas em XP e moedas.
+ *
+ * @param props Handlers para retorno e submissão da tarefa criada.
+ */
 export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   onBackPress,
   onSubmitPress,
