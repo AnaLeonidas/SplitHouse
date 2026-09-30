@@ -14,12 +14,24 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de edição do estatuto da república.
+ */
 interface EditHouseRulesScreenProps {
+  /** Nome da república */
   republicName?: string;
+  /** Callback para voltar à visualização de regras */
   onBackPress?: () => void;
+  /** Callback executado após a gravação das novas regras da casa */
   onSaveSuccess?: () => void;
 }
 
+/**
+ * Tela de edição e atualização das regras de convivência da república (Tela 31).
+ * Permite ao morador administrador atualizar horários de silêncio, política de visitas, tolerância de tarefas e inadimplência.
+ *
+ * @param props Handlers para retorno e salvamento do estatuto revisado.
+ */
 export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
   republicName = 'República do Sexteto Sinistro',
   onBackPress,

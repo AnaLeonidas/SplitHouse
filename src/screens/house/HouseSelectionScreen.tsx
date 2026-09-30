@@ -12,14 +12,28 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de seleção ou vínculo à moradia.
+ */
 interface HouseSelectionScreenProps {
+  /** Nome de exibição do usuário logado */
   userName?: string;
+  /** Iniciais do usuário para exibição no avatar */
   userInitials?: string;
+  /** Callback para iniciar fluxo de cadastro de uma nova república */
   onCreateHousePress?: () => void;
+  /** Callback para iniciar fluxo de entrada em uma república existente */
   onJoinHousePress?: () => void;
+  /** Callback para encerrar a sessão do usuário */
   onLogoutPress?: () => void;
 }
 
+/**
+ * Tela de decisão de vínculo a uma moradia (Tela 06).
+ * Permite ao usuário sem moradia escolher entre cadastrar uma nova república ou ingressar via código/convite.
+ *
+ * @param props Dados do usuário logado e ações de navegação de moradia.
+ */
 export const HouseSelectionScreen: React.FC<HouseSelectionScreenProps> = ({
   userName = 'Norman Osborn',
   userInitials = 'NO',

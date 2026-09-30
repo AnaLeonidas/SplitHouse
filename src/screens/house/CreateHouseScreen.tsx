@@ -14,8 +14,13 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do fluxo de criação de moradia.
+ */
 interface CreateHouseScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback de submissão com os dados cadastrais da república */
   onSubmit?: (houseData: {
     name: string;
     address: string;
@@ -24,6 +29,12 @@ interface CreateHouseScreenProps {
   }) => void;
 }
 
+/**
+ * Tela de cadastro e configuração inicial de uma nova moradia (Tela 07).
+ * Coleta nome da república, endereço, tipologia do imóvel e previsão de vagas/moradores.
+ *
+ * @param props Callbacks de submissão do formulário e retorno.
+ */
 export const CreateHouseScreen: React.FC<CreateHouseScreenProps> = ({
   onBackPress,
   onSubmit,

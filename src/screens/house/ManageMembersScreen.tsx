@@ -12,29 +12,58 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo de dados de um usuário aguardando aprovação para ingressar na república.
+ */
 interface PendingMember {
+  /** Identificador único da solicitação */
   id: string;
+  /** Nome completo do solicitante */
   name: string;
+  /** E-mail de contato do solicitante */
   email: string;
+  /** Iniciais para renderização do avatar */
   initials: string;
 }
 
+/**
+ * Modelo de dados de um morador ativo na república.
+ */
 interface ActiveMember {
+  /** Identificador único do morador */
   id: string;
+  /** Nome completo do morador */
   name: string;
+  /** E-mail do morador */
   email?: string;
+  /** Texto descritivo de status ou ocupação */
   statusText?: string;
+  /** Iniciais para renderização do avatar */
   initials: string;
+  /** Indica se o membro possui privilégios de administração */
   isAdmin?: boolean;
+  /** Indica se é o perfil do usuário logado atualmente */
   isCurrentUser?: boolean;
 }
 
+/**
+ * Propriedades e callbacks da tela de gerenciamento de moradores da república.
+ */
 interface ManageMembersScreenProps {
+  /** Nome da república */
   houseName?: string;
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback para exibir o QR Code e código de convite */
   onViewQrPress?: () => void;
 }
 
+/**
+ * Tela de gestão de membros e solicitações de ingresso da moradia (Tela 12).
+ * Permite aos administradores aceitar/recusar solicitações pendentes e gerenciar moradores ativos.
+ *
+ * @param props Dados da moradia e callbacks de navegação e convite.
+ */
 export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   onBackPress,

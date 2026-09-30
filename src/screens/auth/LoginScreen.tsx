@@ -14,14 +14,28 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks de autenticação da tela de login.
+ */
 interface LoginScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback de submissão das credenciais de e-mail e senha */
   onLoginSubmit?: (email: string, pass: string) => void;
+  /** Callback para iniciar fluxo de recuperação de senha */
   onForgotPasswordPress?: () => void;
+  /** Callback para navegação à tela de criação de conta */
   onRegisterPress?: () => void;
+  /** Callback para autenticação social via conta Google */
   onGooglePress?: () => void;
 }
 
+/**
+ * Tela de autenticação e acesso de moradores ao SplitHouse (Tela 03).
+ * Oferece validação de credenciais, alternância de visibilidade de senha, 'lembrar-me' e login social.
+ *
+ * @param props Callbacks de submissão, navegação e recuperação de acesso.
+ */
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onBackPress,
   onLoginSubmit,

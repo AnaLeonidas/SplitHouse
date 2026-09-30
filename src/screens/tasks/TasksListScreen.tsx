@@ -11,30 +11,58 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de listagem de tarefas da república.
+ */
 interface TasksListScreenProps {
+  /** Nome da república */
   houseName?: string;
+  /** Lista opcional de tarefas customizadas para exibição */
   tasks?: TaskItem[];
+  /** Callback para abrir formulário de cadastro de nova tarefa */
   onNewTaskPress?: () => void;
+  /** Callback para abrir tela de validação coletiva de uma tarefa pendente de aprovação */
   onValidatePress?: (taskId: string) => void;
+  /** Callback para abrir os detalhes e histórico de execução de uma tarefa */
   onTaskPress?: (taskId: string) => void;
 }
 
+/**
+ * Filtros de visualização de tarefas disponíveis na listagem.
+ */
 type FilterTab = 'my_tasks' | 'house' | 'validate';
 
+/**
+ * Modelo de dados que representa uma tarefa doméstica no sistema de gamificação do SplitHouse.
+ */
 export interface TaskItem {
+  /** Identificador único da tarefa */
   id: string;
+  /** Título descritivo da atividade */
   title: string;
+  /** Tipologia da tarefa: rotativa entre moradores, fixa ou emergencial */
   type: 'Rotativa' | 'Fixa' | 'Emergencial';
+  /** Cômodo ou local da moradia onde a tarefa ocorre */
   location: string;
+  /** Prazo limite de execução da atividade */
   deadline: string;
+  /** Quantidade de pontos de experiência (XP) concedidos */
   xp: number;
+  /** Moedas do SplitHouse concedidas ao morador */
   points?: number;
+  /** Nome do morador responsável pela execução */
   assignee: string;
+  /** Estado atual da tarefa no ciclo de vida */
   status: 'Pendente' | 'Concluída' | 'Aguardando validação';
+  /** Ícone representativo do Feather Icons */
   icon: keyof typeof Feather.glyphMap;
+  /** Cor de fundo do ícone */
   iconBg: string;
+  /** Cor do traço do ícone */
   iconColor: string;
+  /** Indica se a conclusão da tarefa necessita de aprovação com foto pelos outros membros */
   requiresValidation?: boolean;
+  /** Informações de execução para tarefas em validação */
   executorInfo?: string;
 }
 
@@ -112,6 +140,12 @@ export const mockTasks: TaskItem[] = [
   },
 ];
 
+/**
+ * Tela do painel e quadro geral de tarefas domésticas da república (Tela 20).
+ * Apresenta abas de filtro (Minhas tarefas, Tarefas da casa, Aguardando validação) e atalhos rápidos de criação.
+ *
+ * @param props Lista de tarefas e callbacks de navegação e validação.
+ */
 export const TasksListScreen: React.FC<TasksListScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   tasks,

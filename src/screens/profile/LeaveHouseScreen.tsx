@@ -14,20 +14,37 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo de dados de um morador elegível para assumir a administração da moradia.
+ */
 interface CandidateMember {
+  /** Identificador único do morador */
   id: string;
+  /** Nome de exibição */
   name: string;
+  /** Iniciais para renderização do avatar */
   initials: string;
+  /** Nível e resumo de engajamento do membro */
   levelInfo: string;
+  /** Cor de fundo do avatar */
   avatarBg: string;
+  /** Cor do texto do avatar */
   avatarTextColor: string;
 }
 
+/**
+ * Propriedades e callbacks do fluxo de desvinculação da república.
+ */
 interface LeaveHouseScreenProps {
+  /** Nome da república */
   republicName?: string;
+  /** Saldo financeiro do morador a ser liquidado */
   balance?: number;
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback executado após a confirmação com sucesso da desvinculação */
   onConfirmSuccess?: () => void;
+  /** Callback para cancelar o processo de saída */
   onCancelPress?: () => void;
 }
 
@@ -58,6 +75,12 @@ const defaultCandidates: CandidateMember[] = [
   },
 ];
 
+/**
+ * Tela de desvinculação e saída da república (Tela 32).
+ * Exige transferência do papel de administração para outro morador ativo, verificação de pendências financeiras e confirmação de senha.
+ *
+ * @param props Dados da república, saldo devedor/credor e callbacks de confirmação ou cancelamento.
+ */
 export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
   republicName = 'República do Sexteto Sinistro',
   balance = 95.0,

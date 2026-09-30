@@ -13,23 +13,43 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo de dados que representa um alerta ou notificação enviada ao morador.
+ */
 export interface NotificationItem {
+  /** Identificador único da notificação */
   id: string;
+  /** Tipo temático da notificação */
   type: 'Validação' | 'Cutucada' | 'Vencimento' | 'Concluída';
+  /** Categoria para filtragem rápida */
   categoryFilter: 'Validações' | 'Finanças' | 'Cutucadas';
+  /** Indica se a notificação já foi visualizada pelo morador */
   isRead: boolean;
+  /** Tempo transcorrido desde o disparo (ex.: 'Há 15 min') */
   timeAgo: string;
+  /** Título do alerta */
   title: string;
+  /** Descrição detalhada do evento ocorrido */
   description: string;
+  /** Rótulo da ação interativa no card (ex.: 'Validar agora') */
   actionText?: string;
+  /** Estilo de destaque do botão de ação */
   actionType?: 'primary' | 'secondary';
+  /** Metadados adicionais de contexto */
   extraMeta?: string;
+  /** Sinaliza se a notificação envolve ganho ou gasto de moedas */
   hasCoinIcon?: boolean;
 }
 
+/**
+ * Propriedades e callbacks da central de notificações do morador.
+ */
 interface NotificationsScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback disparado ao clicar no botão de ação de um item */
   onNotificationAction?: (notification: NotificationItem) => void;
+  /** Callback para limpar as notificações já lidas */
   onClearReadPress?: () => void;
 }
 
@@ -82,6 +102,12 @@ const defaultNotifications: NotificationItem[] = [
 
 type FilterCategory = 'Todas' | 'Validações' | 'Finanças' | 'Cutucadas';
 
+/**
+ * Tela da central de notificações e avisos da república (Tela 26).
+ * Exibe convites para validação de tarefas, alertas financeiros de vencimento, cutucadas de moradores e avisos de gamificação.
+ *
+ * @param props Callbacks de navegação de retorno, execução de ações da notificação e limpeza de lidas.
+ */
 export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onBackPress,
   onNotificationAction,

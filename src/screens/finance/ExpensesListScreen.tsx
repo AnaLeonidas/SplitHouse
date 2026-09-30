@@ -11,11 +11,22 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de listagem de despesas da moradia.
+ */
 interface ExpensesListScreenProps {
+    /** Callback para abertura do formulário de criação de nova despesa */
     onAddPress?: () => void;
+    /** Callback para visualização dos detalhes e comprovantes de uma despesa */
     onExpenseDetailsPress?: () => void;
 }
 
+/**
+ * Tela de listagem e controle de despesas coletivas (Tela 14).
+ * Exibe histórico de contas, filtros por categoria/status (Todos, Pendentes, Pagas, Recorrentes) e atalhos de ação.
+ *
+ * @param props Callbacks para adicionar despesa e navegar para detalhes.
+ */
 export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
     onAddPress,
     onExpenseDetailsPress,

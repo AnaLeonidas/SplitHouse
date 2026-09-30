@@ -3,11 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusB
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de acerto de contas.
+ */
 interface SettleUpScreenProps {
+    /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
+    /** Callback para iniciar fluxo de liquidação ou pagamento de dívida */
     onPayPress?: () => void;
 }
 
+/**
+ * Tela de balanço líquido e acerto de contas entre moradores (Tela 17).
+ * Calcula e simplifica as dívidas cruzadas da casa, indicando quem deve a quem com o menor número possível de transferências.
+ *
+ * @param props Callbacks de navegação de retorno e liquidação de dívidas.
+ */
 export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({ onBackPress, onPayPress }) => {
     return (
         <View style={styles.wrapper}>

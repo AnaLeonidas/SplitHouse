@@ -11,19 +11,38 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do painel principal (Dashboard) da moradia.
+ */
 interface HomeScreenProps {
+    /** Callback para cadastrar nova despesa */
     onNewExpensePress?: () => void;
+    /** Callback para navegar para a aba de despesas */
     onExpensesTabPress?: () => void;
+    /** Callback para navegar para a aba de tarefas */
     onTasksTabPress?: () => void;
+    /** Callback para criar nova tarefa doméstica */
     onNewTaskPress?: () => void;
+    /** Callback ao clicar em uma tarefa do quadro rápido */
     onTaskPress?: (taskTitle: string) => void;
+    /** Callback para abrir central de notificações */
     onNotificationsPress?: () => void;
+    /** Callback para abrir o ranking da moradia */
     onRankingPress?: () => void;
+    /** Callback para acerto rápido de contas */
     onSettleUpPress?: () => void;
+    /** Callback para visualização dos relatórios mensais */
     onReportPress?: () => void;
+    /** Callback para gestão de membros e convites */
     onManageMembersPress?: () => void;
 }
 
+/**
+ * Tela do painel principal e visão geral da moradia (Tela 13).
+ * Centraliza resumo financeiro pessoal, próximas tarefas a vencer, destaques da convivência e atalhos rápidos.
+ *
+ * @param props Callbacks de navegação para os diferentes módulos integrados do SplitHouse.
+ */
 export const HomeScreen: React.FC<HomeScreenProps> = ({
     onNewExpensePress,
     onExpensesTabPress,

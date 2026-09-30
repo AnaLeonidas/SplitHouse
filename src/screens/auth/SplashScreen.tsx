@@ -12,10 +12,20 @@ import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { SplitHouseLogo } from '../../components/SplitHouseLogo';
 
+/**
+ * Propriedades do componente SplashScreen.
+ */
 interface SplashScreenProps {
+  /** Callback disparado automaticamente após timeout ou toque na tela para avançar */
   onFinish?: () => void;
 }
 
+/**
+ * Tela de abertura e apresentação da marca SplitHouse (Tela 01).
+ * Exibe animação visual, logotipo da moradia e faz a transição programada para o fluxo inicial.
+ *
+ * @param props Callback de finalização da splash screen.
+ */
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   useEffect(() => {
     if (!onFinish) {

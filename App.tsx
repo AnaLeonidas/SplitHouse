@@ -43,6 +43,10 @@ import { HouseRulesScreen } from './src/screens/profile/HouseRulesScreen';
 import { EditHouseRulesScreen } from './src/screens/profile/EditHouseRulesScreen';
 import { LeaveHouseScreen } from './src/screens/profile/LeaveHouseScreen';
 
+/**
+ * União de todos os identificadores de rotas e telas do SplitHouse.
+ * Permite navegação declarativa entre os 32 fluxos da aplicação.
+ */
 type Screen =
   | 'splash'
   | 'welcome'
@@ -77,6 +81,11 @@ type Screen =
   | 'edit_house_rules'
   | 'leave_house';
 
+/**
+ * Componente raiz do aplicativo SplitHouse.
+ * Responsável por gerenciar o estado global de navegação, barra inferior com 5 abas,
+ * controle por gestos de arraste lateral (swipe) e renderização condicional das 32 telas.
+ */
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [tasks, setTasks] = useState<TaskItem[]>(mockTasks);

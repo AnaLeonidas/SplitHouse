@@ -11,10 +11,20 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de relatórios financeiros.
+ */
 interface ReportScreenProps {
+    /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
 }
 
+/**
+ * Tela de relatórios e métricas de gastos mensais da moradia (Tela 19).
+ * Apresenta comparativos de consumo por categoria (aluguel, mercado, utilidades), histórico mensal e opção de exportação.
+ *
+ * @param props Handler para retorno da navegação.
+ */
 export const ReportScreen: React.FC<ReportScreenProps> = ({ onBackPress }) => {
     return (
         <View style={styles.wrapper}>
