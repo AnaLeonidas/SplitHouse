@@ -14,11 +14,22 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de ingresso em moradia por código ou QR Code.
+ */
 interface JoinHouseScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback de submissão do código alfanumérico digitado ou lido via scanner */
   onSubmitCode?: (code: string) => void;
 }
 
+/**
+ * Tela de entrada em república via leitura de QR Code ou digitação de código (Tela 10).
+ * Simula visor de câmera para escaneamento de QR Code e fornece formulário alternativo de código manual.
+ *
+ * @param props Handlers de submissão do código e retorno.
+ */
 export const JoinHouseScreen: React.FC<JoinHouseScreenProps> = ({
   onBackPress,
   onSubmitCode,

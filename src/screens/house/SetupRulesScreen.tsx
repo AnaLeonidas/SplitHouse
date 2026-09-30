@@ -14,18 +14,36 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Estrutura de dados que descreve uma regra ou combinados de convivência.
+ */
 interface RuleItem {
+  /** Identificador único da regra */
   id: string;
+  /** Título temático da regra (ex.: Horário de Silêncio, Limpeza) */
   title: string;
+  /** Descrição detalhada ou especificação da regra */
   value: string;
 }
 
+/**
+ * Propriedades e callbacks da tela de configuração inicial das regras da casa.
+ */
 interface SetupRulesScreenProps {
+  /** Nome da república onde as regras estão sendo estabelecidas */
   houseName?: string;
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback de submissão do conjunto de regras configuradas */
   onSubmit?: (rules: RuleItem[]) => void;
 }
 
+/**
+ * Tela de definição de regras e combinados de convivência da república (Tela 08).
+ * Permite ao criador da casa cadastrar diretrizes essenciais sobre silêncio, visitas, compras e limpeza.
+ *
+ * @param props Nome da casa e callbacks de submissão e retorno.
+ */
 export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
   houseName = 'Moradia Compartilhada',
   onBackPress,

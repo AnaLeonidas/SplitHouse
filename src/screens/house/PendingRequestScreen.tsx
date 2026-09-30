@@ -12,13 +12,26 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de solicitação de entrada pendente.
+ */
 interface PendingRequestScreenProps {
+  /** Nome da república à qual a entrada foi solicitada */
   houseName?: string;
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback para verificar o status atual da aprovação */
   onRefreshPress?: () => void;
+  /** Callback para cancelar o pedido de entrada pendente */
   onCancelPress?: () => void;
 }
 
+/**
+ * Tela de acompanhamento de solicitação de ingresso pendente (Tela 11).
+ * Informa ao morador que sua solicitação aguarda aprovação por um administrador da república.
+ *
+ * @param props Dados da república solicitada e ações de atualização ou cancelamento.
+ */
 export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   onBackPress,

@@ -13,14 +13,28 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de compartilhamento de convite e QR Code.
+ */
 interface InviteQrScreenProps {
+  /** Nome da república */
   houseName?: string;
+  /** Código alfanumérico exclusivo para adesão à moradia */
   houseCode?: string;
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback para acionar a folha de compartilhamento nativa */
   onSharePress?: () => void;
+  /** Callback para avançar ao painel principal da república */
   onContinuePress?: () => void;
 }
 
+/**
+ * Tela de convite de moradores via QR Code e código alfanumérico (Tela 09).
+ * Apresenta o QR Code da república, código copiável e atalho de compartilhamento rápido nativo.
+ *
+ * @param props Dados da moradia e callbacks de navegação e compartilhamento.
+ */
 export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   houseCode = 'SPLIT-8924',
