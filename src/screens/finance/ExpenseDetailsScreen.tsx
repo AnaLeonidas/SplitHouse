@@ -3,11 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusB
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de detalhes de despesa.
+ */
 interface ExpenseDetailsScreenProps {
+    /** Callback para voltar à listagem de despesas */
     onBackPress?: () => void;
+    /** Callback para enviar lembrete amigável (cutucada) aos membros pendentes */
     onNudgePress?: () => void;
 }
 
+/**
+ * Tela de detalhamento de despesa e acompanhamento de pagamentos individuais (Tela 16).
+ * Apresenta valor total, categoria, comprovante, pagador principal e o status de quitação de cada morador.
+ *
+ * @param props Handlers para navegação de retorno e envio de lembrete.
+ */
 export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({ onBackPress, onNudgePress }) => {
     return (
         <View style={styles.wrapper}>

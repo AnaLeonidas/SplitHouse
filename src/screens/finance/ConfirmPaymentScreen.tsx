@@ -11,12 +11,24 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks da tela de validação e confirmação de pagamento.
+ */
 interface ConfirmPaymentScreenProps {
+    /** Callback para voltar à tela anterior */
     onBackPress?: () => void;
+    /** Callback para aprovar e dar baixa no comprovante de pagamento */
     onConfirmPress?: () => void;
+    /** Callback para rejeitar o comprovante submetido */
     onRejectPress?: () => void;
 }
 
+/**
+ * Tela de validação de transferência e quitação de despesa (Tela 18).
+ * Permite ao credor inspecionar o comprovante de pagamento anexado por outro morador e confirmar ou recusar a baixa.
+ *
+ * @param props Handlers para retorno, aprovação ou recusa do pagamento.
+ */
 export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     onBackPress,
     onConfirmPress,

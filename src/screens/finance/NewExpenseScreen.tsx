@@ -13,11 +13,22 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do formulário de cadastro de nova despesa.
+ */
 interface NewExpenseScreenProps {
+    /** Callback para voltar à listagem de despesas */
     onBackPress?: () => void;
+    /** Callback para submeter os dados e salvar a nova despesa */
     onSubmitPress?: () => void;
 }
 
+/**
+ * Tela de criação e rateio de nova despesa coletiva (Tela 15).
+ * Permite definir valor, descrição, pagador responsável, data de vencimento e modalidade de divisão (igualitária, personalizada ou percentual).
+ *
+ * @param props Callbacks de cancelamento/retorno e submissão.
+ */
 export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     onBackPress,
     onSubmitPress,
