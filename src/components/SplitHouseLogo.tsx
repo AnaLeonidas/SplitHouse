@@ -2,13 +2,26 @@ import React from 'react';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { Colors } from '../constants/theme';
 
+/**
+ * Propriedades de customização visual do logotipo vetorial SplitHouse.
+ */
 interface SplitHouseLogoProps {
+  /** Dimensão em pixels (largura e altura) do ícone */
   size?: number;
+  /** Espessura do traço vetorial */
   strokeWidth?: number;
+  /** Cor do contorno da casa */
   houseColor?: string;
+  /** Cor da linha tracejada divisória central */
   splitColor?: string;
 }
 
+/**
+ * Componente vetorial SVG representando a logo oficial do SplitHouse.
+ * Exibe a silhueta de uma moradia com traço central pontilhado, simbolizando a divisão harmoniosa da casa.
+ *
+ * @param props Configurações de dimensão e paleta do ícone.
+ */
 export const SplitHouseLogo: React.FC<SplitHouseLogoProps> = ({
   size = 56,
   strokeWidth = 2.1,

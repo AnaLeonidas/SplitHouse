@@ -1,3 +1,7 @@
+/**
+ * Paleta de cores oficial do aplicativo SplitHouse.
+ * Define tons primários, secundários, neutros e cores de estado (sucesso, perigo, aviso).
+ */
 export const Colors = {
   primary: '#5E2B97',
   primaryDark: '#4A2278',
@@ -15,6 +19,9 @@ export const Colors = {
   warning: '#F59E0B',
 };
 
+/**
+ * Escala padronizada de espaçamentos (paddings e margins) do design system.
+ */
 export const Spacing = {
   xs: 4,
   sm: 8,
@@ -23,6 +30,9 @@ export const Spacing = {
   xl: 32,
 };
 
+/**
+ * Escala de raios de curvatura de borda (border-radius) para componentes e cartões.
+ */
 export const BorderRadius = {
   sm: 8,
   md: 12,
@@ -30,4 +40,5 @@ export const BorderRadius = {
   xl: 24,
   full: 9999,
 };
+
 

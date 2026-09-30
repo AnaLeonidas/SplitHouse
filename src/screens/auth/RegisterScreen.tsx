@@ -14,14 +14,28 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e eventos da tela de cadastro de novo morador.
+ */
 interface RegisterScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback para submeter os dados de registro (nome, e-mail e senha) */
   onRegisterSubmit?: (name: string, email: string, pass: string) => void;
+  /** Callback para redirecionar à tela de login */
   onLoginPress?: () => void;
+  /** Callback para exibir os termos de uso */
   onTermsPress?: () => void;
+  /** Callback para exibir a política de privacidade */
   onPrivacyPress?: () => void;
 }
 
+/**
+ * Tela de criação de conta e perfil inicial do morador (Tela 04).
+ * Coleta nome, e-mail, confirmação de senha com indicador de força e aceitação dos termos de serviço.
+ *
+ * @param props Handlers de submissão de cadastro e links institucionais.
+ */
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onBackPress,
   onRegisterSubmit,

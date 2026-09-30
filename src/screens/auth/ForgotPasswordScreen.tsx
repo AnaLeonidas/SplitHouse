@@ -14,12 +14,24 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do fluxo de recuperação de senha.
+ */
 interface ForgotPasswordScreenProps {
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback de submissão do e-mail para envio do link de redefinição */
   onSubmit?: (email: string) => void;
+  /** Callback para retornar à tela de login */
   onLoginPress?: () => void;
 }
 
+/**
+ * Tela de recuperação e redefinição de senha de acesso (Tela 05).
+ * Permite ao usuário informar o e-mail cadastrado para receber instruções de recuperação.
+ *
+ * @param props Handlers de submissão do pedido e retorno ao login.
+ */
 export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBackPress,
   onSubmit,

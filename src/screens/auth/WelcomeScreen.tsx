@@ -14,11 +14,22 @@ import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { SplitHouseLogo } from '../../components/SplitHouseLogo';
 
+/**
+ * Propriedades e eventos de navegação da tela de boas-vindas.
+ */
 interface WelcomeScreenProps {
+  /** Callback para redirecionar o usuário à tela de login */
   onLoginPress: () => void;
+  /** Callback para redirecionar o usuário à tela de criação de conta */
   onRegisterPress: () => void;
 }
 
+/**
+ * Tela de boas-vindas e introdução aos pilares do aplicativo (Tela 02).
+ * Apresenta proposta de valor (divisão de contas, tarefas e convivência) e opções de entrada.
+ *
+ * @param props Ações de navegação para entrar ou cadastrar-se.
+ */
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onLoginPress,
   onRegisterPress,
