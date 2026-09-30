@@ -14,13 +14,27 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do formulário de proposição de nova recompensa.
+ */
 interface ProposeRewardScreenProps {
+  /** Callback para voltar à loja de recompensas */
   onBackPress?: () => void;
+  /** Callback executado após submissão bem-sucedida da proposta */
   onSubmitSuccess?: () => void;
 }
 
+/**
+ * Categorias disponíveis para classificação de uma recompensa proposta.
+ */
 type RewardCategory = 'Convivência' | 'Folga de tarefa' | 'Bônus coletivo' | 'Outros';
 
+/**
+ * Tela de proposição de nova recompensa para a loja da república (Tela 28).
+ * Permite a qualquer morador sugerir um novo benefício coletivo com categoria, custo em moedas e limite por ciclo.
+ *
+ * @param props Handlers para retorno e conclusão do envio da proposta.
+ */
 export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   onBackPress,
   onSubmitSuccess,

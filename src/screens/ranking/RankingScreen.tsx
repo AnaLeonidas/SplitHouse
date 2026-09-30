@@ -13,26 +13,49 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo de dados que descreve a pontuação e posição de um morador na tabela de classificação.
+ */
 export interface ResidentRankingItem {
+  /** Identificador único do morador */
   id: string;
+  /** Posição na tabela de classificação */
   rank: number;
+  /** Nome de exibição do morador */
   name: string;
+  /** Iniciais para renderização do avatar */
   initials: string;
+  /** Indica se é o perfil do usuário logado */
   isCurrentUser?: boolean;
+  /** Quantidade total de tarefas cumpridas no ciclo */
   tasksCompleted: number;
+  /** Moedas acumuladas para resgate na loja */
   coins: number;
+  /** Total de pontos de experiência (XP) acumulados */
   xp: number;
+  /** Nível atingido na moradia */
   level: number;
+  /** Quantidade de tarefas pendentes ou próximas de vencer */
   pendingTasksCount?: number;
+  /** Sinaliza se o botão de cutucada amigável deve ser destacado */
   highlightNudge?: boolean;
 }
 
+/**
+ * Propriedades e callbacks da tela de ranking e gamificação.
+ */
 interface RankingScreenProps {
+  /** Nome da república */
   houseName?: string;
+  /** Identificação do ciclo corrente de pontuação */
   cycleName?: string;
+  /** Dias restantes para o fechamento do ciclo */
   daysRemaining?: number;
+  /** Lista opcional de moradores ordenada por classificação */
   rankingList?: ResidentRankingItem[];
+  /** Callback para notificar/cutucar morador com pendências */
   onNudgePress?: (residentName: string) => void;
+  /** Callback para navegar até a loja de recompensas da república */
   onStorePress?: () => void;
 }
 
@@ -82,6 +105,12 @@ const defaultRankingList: ResidentRankingItem[] = [
   },
 ];
 
+/**
+ * Tela de ranking de moradores, gamificação e pódio da república (Tela 24).
+ * Apresenta o líder do ciclo, posições, pontuações de XP, moedas e recurso de cutucada para tarefas pendentes.
+ *
+ * @param props Dados do ciclo, lista de moradores e callbacks de cutucada e loja.
+ */
 export const RankingScreen: React.FC<RankingScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   cycleName = 'Ciclo Setembro',

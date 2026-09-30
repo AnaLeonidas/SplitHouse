@@ -15,23 +15,43 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo de dados que descreve uma recompensa resgatável na lojinha da moradia.
+ */
 export interface StoreItem {
+  /** Identificador único do item */
   id: string;
+  /** Título da recompensa (ex.: Isenção da louça, Escolha do filme) */
   title: string;
+  /** Categoria da recompensa: Folga de tarefa, Convivência ou Bônus especial */
   category: 'Folga' | 'Convivência' | 'Bônus';
+  /** Subtítulo descritivo */
   subtitle: string;
+  /** Custo em moedas SplitHouse para resgate */
   cost: number;
+  /** Descrição das condições e regras do resgate */
   description: string;
+  /** Quantidade disponível no estoque do ciclo */
   availability: string;
+  /** Tipo de ícone representativo */
   iconType: 'minus-circle' | 'tv' | 'sofa' | 'pizza';
 }
 
+/**
+ * Propriedades e callbacks da tela da loja da moradia.
+ */
 interface StoreScreenProps {
+  /** Nome da república */
   houseName?: string;
+  /** Saldo inicial de moedas do morador */
   initialCoins?: number;
+  /** Lista opcional de recompensas cadastradas */
   items?: StoreItem[];
+  /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Callback para propor uma nova recompensa */
   onProposePress?: () => void;
+  /** Callback para resgatar uma recompensa específica */
   onRedeemPress?: (item: StoreItem) => void;
 }
 
@@ -84,6 +104,12 @@ const defaultItems: StoreItem[] = [
 
 type CategoryFilter = 'all' | 'Folga' | 'Convivência' | 'Bônus';
 
+/**
+ * Tela da loja de recompensas da república (Tela 25).
+ * Permite aos moradores trocar moedas conquistadas por benefícios coletivos, folgas de tarefas e propor novas recompensas.
+ *
+ * @param props Saldo de moedas, itens da loja e callbacks de navegação e resgate.
+ */
 export const StoreScreen: React.FC<StoreScreenProps> = ({
   houseName = 'República do Sexteto Sinistro',
   initialCoins = 420,
