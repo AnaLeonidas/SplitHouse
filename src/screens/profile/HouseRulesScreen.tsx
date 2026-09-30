@@ -12,22 +12,41 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Modelo descritivo de uma cláusula ou combinativo de convivência da república.
+ */
 export interface HouseRule {
+  /** Identificador único da regra */
   id: string;
+  /** Ordem numérica da regra no estatuto */
   number: number;
+  /** Título do tópico de convivência */
   title: string;
+  /** Destaque ou resumo sucinto da regra */
   highlight: string;
+  /** Texto completo com a especificação da diretriz */
   description: string;
+  /** Ícone representativo do Feather Icons */
   iconName: keyof typeof Feather.glyphMap;
+  /** Cor de fundo do ícone */
   iconBgColor?: string;
+  /** Cor do traço do ícone */
   iconColor?: string;
 }
 
+/**
+ * Propriedades e callbacks da tela de estatuto e regras da casa.
+ */
 interface HouseRulesScreenProps {
+  /** Nome da república */
   republicName?: string;
+  /** Data da última revisão das regras */
   updatedDate?: string;
+  /** Lista opcional de regras cadastradas */
   rules?: HouseRule[];
+  /** Callback para voltar ao perfil */
   onBackPress?: () => void;
+  /** Callback para abrir tela de edição do estatuto */
   onEditPress?: () => void;
 }
 
@@ -78,6 +97,12 @@ const defaultRules: HouseRule[] = [
   },
 ];
 
+/**
+ * Tela de consulta às regras de convivência da moradia (Tela 30).
+ * Apresenta as cláusulas de silêncio, visitas, tarefas e pagamentos, com data da última revisão e atalho para edição.
+ *
+ * @param props Dados da república, lista de regras e handlers de retorno e edição.
+ */
 export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
   republicName = 'República do Sexteto Sinistro',
   updatedDate = '01/Set/2026',

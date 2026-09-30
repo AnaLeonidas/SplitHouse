@@ -12,30 +12,57 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Interface que define os dados exibidos no perfil do morador.
+ */
 export interface UserProfileData {
+  /** Nome completo do morador */
   name: string;
+  /** Papel na moradia ('Admin' ou 'Morador') */
   role: string;
+  /** E-mail de cadastro */
   email: string;
+  /** Nome da república vinculada */
   republicName: string;
+  /** Nível de gamificação do morador */
   level: number;
+  /** Título de honra associado ao nível atual (ex.: 'Morador Mestre') */
   levelTitle: string;
+  /** Pontos de experiência atuais */
   xp: number;
+  /** Experiência necessária para alcançar o próximo nível */
   nextLevelXp: number;
+  /** Saldo financeiro líquido na república */
   balance: number;
+  /** Moedas acumuladas para uso na loja */
   coins: number;
+  /** Quantidade total de tarefas finalizadas */
   completedTasks: number;
+  /** Porcentagem de tarefas executadas rigorosamente dentro do prazo */
   onTimePercentage: number;
 }
 
+/**
+ * Propriedades e callbacks da tela de perfil do morador.
+ */
 interface ProfileScreenProps {
+  /** Dados opcionais do usuário para exibição */
   user?: UserProfileData;
+  /** Callback para editar dados pessoais do perfil */
   onEditProfilePress?: () => void;
+  /** Callback para abrir central de notificações */
   onNotificationsPress?: () => void;
+  /** Callback para gerenciar membros da república */
   onManageMembersPress?: () => void;
+  /** Callback para consultar o estatuto/regras da casa */
   onHouseRulesPress?: () => void;
+  /** Callback para iniciar fluxo de desvinculação da moradia */
   onLeaveHousePress?: () => void;
+  /** Callback para acessar a lojinha de recompensas */
   onStorePress?: () => void;
+  /** Callback para navegar ao quadro de tarefas */
   onTasksPress?: () => void;
+  /** Callback para desconectar da conta */
   onLogoutPress?: () => void;
 }
 
@@ -54,6 +81,12 @@ const defaultUserData: UserProfileData = {
   onTimePercentage: 100,
 };
 
+/**
+ * Tela de visualização do perfil individual do morador (Tela 27).
+ * Exibe dados pessoais, nível de gamificação, barra de progresso de XP, saldo financeiro e atalhos de gestão da moradia.
+ *
+ * @param props Dados do morador e callbacks de navegação e logout.
+ */
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   user = defaultUserData,
   onEditProfilePress,

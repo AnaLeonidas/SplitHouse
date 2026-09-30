@@ -14,11 +14,22 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
+/**
+ * Propriedades e callbacks do formulário de edição de perfil do usuário.
+ */
 interface EditProfileScreenProps {
+  /** Callback para voltar à visualização do perfil */
   onBackPress?: () => void;
+  /** Callback executado após a gravação das novas informações do usuário */
   onSaveSuccess?: () => void;
 }
 
+/**
+ * Tela de edição dos dados cadastrais do perfil do morador (Tela 29).
+ * Permite alterar nome completo, e-mail de contato, chave Pix para reembolsos e atualização de senha.
+ *
+ * @param props Handlers para cancelamento e persistência das alterações.
+ */
 export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   onBackPress,
   onSaveSuccess,
