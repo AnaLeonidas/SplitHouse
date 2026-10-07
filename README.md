@@ -5,8 +5,7 @@ O SplitHouse é uma aplicação mobile estruturada para centralizar a gestão de
 o gerenciamente manual por processos automatizados, promovendo transparência, organização financeira e operacional entre os moradores de um imóvel.
 
 ## Status do Projeto
-O projeto está em fase de desenvolvimento. A etapa atual consiste na finalização da prototipação e do Front-end. A estruturação do banco de dados 
-e a integração com o Back-end estão planejadas para as próximas entregas do cronograma.
+O projeto está em fase de desenvolvimento. A etapa atual consiste na modelagem do banco de dados. A integração com o Back-end e testes estão planejadas para as próximas entregas do cronograma.
 
 ## Funcionalidades/Telas do Sistema
 A interface atual está modularizada em pastas:
