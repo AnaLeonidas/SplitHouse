@@ -22,8 +22,26 @@ e configuração inicial de regras.
 
 ## Tecnologias e Arquitetura
 A arquitetura do projeto segue o padrão Cliente-Servidor (MVC). As ferramentas definidas para o ecossistema incluem:
-- Front-end (Fase Atual): React Native, Expo, TypeScript e Expo Router. Responsável pela renderização nativa, captura de entradas e rotas de navegação.
+- Front-end: React Native, Expo, TypeScript e Expo Router. Responsável pela renderização nativa, captura de entradas e rotas de navegação.
+- Back-end e Banco de Dados: Supabase (PostgreSQL). Responsável pelo gerenciamento de autenticação, persistência relacional de dados e armazenamento de mídias (Storage).
 - Prototipação: Figma.
+
+## Modelagem do Banco de Dados (Supabase)
+O banco de dados relacional foi estruturado em tabelas modulares para atender aos fluxos operacionais, financeiros e de gamificação da moradia:
+- perfis: Dados cadastrais dos moradores vinculados à autenticação, chave Pix e foto de perfil.
+- moradias: Informações cadastrais do imóvel compartilhado, endereço, tipo e código de convite via QR Code.
+- membros_moradia: Relação entre usuários e repúblicas, permissões de acesso (admin/morador), status de aprovação e progresso no ranking (nível, XP e moedas).
+- regras_moradia: Estatuto e regras de convivência estabelecidas para a casa.
+- despesas: Registro de contas coletivas da moradia, valores, datas de vencimento, pagador e anexos de faturas.
+- rateios_despesa: Divisão da cota-parte de cada morador em uma despesa e respectivo status de pagamento.
+- pagamentos_acerto: Registro de liquidação de saldos e transferências entre moradores, aguardando confirmação do credor.
+- historico_atividades: Linha do tempo e registro de movimentações recentes da república (RN-11).
+- tarefas: Afazeres domésticos da moradia (rotativas, fixas e emergenciais), atribuição de responsáveis, prazos e recompensas.
+- validacoes_tarefa: Auditoria e validação de conclusão de tarefas via foto por pares, sem autoconfirmação (RN-09).
+- recompensas_loja: Catálogo de benefícios e folgas de tarefas disponíveis para troca por moedas acumuladas.
+- resgates_recompensa: Histórico de resgate de itens e benefícios da loja da casa.
+- notificacoes: Central de alertas, lembretes de vencimento, cutucadas amigáveis e avisos de validação.
+- transferencias_admin: Controle de solicitação e aceite de posse de administração na saída de um morador líder.
 
 ## Como Executar a Aplicação (Front-end)
 1. Faça o clone do repositório para o seu ambiente local.
