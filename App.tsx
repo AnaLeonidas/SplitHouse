@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -42,6 +42,7 @@ import { EditProfileScreen } from './src/screens/profile/EditProfileScreen';
 import { HouseRulesScreen } from './src/screens/profile/HouseRulesScreen';
 import { EditHouseRulesScreen } from './src/screens/profile/EditHouseRulesScreen';
 import { LeaveHouseScreen } from './src/screens/profile/LeaveHouseScreen';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 /**
  * União de todos os identificadores de rotas e telas do SplitHouse.
@@ -86,10 +87,25 @@ type Screen =
  * Responsável por gerenciar o estado global de navegação, barra inferior com 5 abas,
  * controle por gestos de arraste lateral (swipe) e renderização condicional das 32 telas.
  */
-export default function App() {
+function MainApp() {
+  const { user, profile, loading, signOut } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [tasks, setTasks] = useState<TaskItem[]>(mockTasks);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !loading &&
+      !user &&
+      currentScreen !== 'splash' &&
+      currentScreen !== 'welcome' &&
+      currentScreen !== 'login' &&
+      currentScreen !== 'register' &&
+      currentScreen !== 'forgot_password'
+    ) {
+      setCurrentScreen('welcome');
+    }
+  }, [user, loading, currentScreen]);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
 
@@ -139,7 +155,15 @@ export default function App() {
       <StatusBar style={currentScreen === 'splash' ? 'light' : 'dark'} />
 
       {currentScreen === 'splash' && (
-        <SplashScreen onFinish={() => setCurrentScreen('welcome')} />
+        <SplashScreen
+          onFinish={() => {
+            if (user) {
+              setCurrentScreen('house_selection');
+            } else {
+              setCurrentScreen('welcome');
+            }
+          }}
+        />
       )}
 
       {currentScreen === 'welcome' && (
@@ -179,11 +203,23 @@ export default function App() {
 
       {currentScreen === 'house_selection' && (
         <HouseSelectionScreen
-          userName="Norman Osborn"
-          userInitials="NO"
+          userName={profile?.nome_completo || user?.email?.split('@')[0] || 'Morador'}
+          userInitials={
+            profile?.nome_completo
+              ? profile.nome_completo
+                  .split(' ')
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase()
+              : 'SH'
+          }
           onCreateHousePress={() => setCurrentScreen('create_house')}
           onJoinHousePress={() => setCurrentScreen('join_house')}
-          onLogoutPress={() => setCurrentScreen('welcome')}
+          onLogoutPress={async () => {
+            await signOut();
+            setCurrentScreen('welcome');
+          }}
         />
       )}
 
@@ -301,7 +337,10 @@ export default function App() {
               onLeaveHousePress={() => setCurrentScreen('leave_house')}
               onStorePress={() => setCurrentScreen('store')}
               onTasksPress={() => setCurrentScreen('tasks_list')}
-              onLogoutPress={() => setCurrentScreen('welcome')}
+              onLogoutPress={async () => {
+                await signOut();
+                setCurrentScreen('welcome');
+              }}
             />
           )}
         </View>
@@ -638,6 +677,18 @@ export default function App() {
         </View>
       )}
     </>
+  );
+}
+
+/**
+ * Componente raiz do aplicativo SplitHouse.
+ * Envolve a aplicação com o AuthProvider para controle global de autenticação e sessão.
+ */
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 
