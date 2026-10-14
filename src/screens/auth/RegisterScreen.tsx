@@ -56,6 +56,11 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [agreeTerms, setAgreeTerms] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Processa a submissão do formulário de cadastro de novo morador.
+   * Realiza a validação dos campos, checagem de força e igualdade de senhas,
+   * e despacha a requisição de criação de conta para o Supabase Auth.
+   */
   const handleRegister = async () => {
     if (!name.trim()) {
       Alert.alert('Atenção', 'Por favor, informe seu nome completo.');

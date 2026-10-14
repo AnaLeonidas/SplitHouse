@@ -45,6 +45,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Valida o e-mail informado e solicita o envio de link de recuperação
+   * de acesso ao Supabase Auth, exibindo feedback de confirmação ao morador.
+   */
   const handleResetPassword = async () => {
     if (!email.trim()) {
       Alert.alert('Atenção', 'Por favor, informe seu e-mail cadastrado.');

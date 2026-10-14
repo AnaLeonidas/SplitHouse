@@ -54,6 +54,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Valida as credenciais preenchidas e despacha a requisição de autenticação
+   * para o Supabase Auth via contexto, tratando mensagens de erro amigáveis.
+   */
   const handleLogin = async () => {
     if (!email.trim()) {
       Alert.alert('Atenção', 'Por favor, informe seu e-mail.');
