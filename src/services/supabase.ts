@@ -2,6 +2,11 @@ import 'react-native-url-polyfill/auto';
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 
+/**
+ * Adaptador de armazenamento seguro para o cliente Supabase.
+ * Utiliza o Expo SecureStore para persistir
+ * os tokens JWT de autenticação e refresh tokens de forma criptografada no dispositivo.
+ */
 const ExpoSecureStoreAdapter = {
   getItem: (key: string) => {
     return SecureStore.getItemAsync(key);
@@ -23,6 +28,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+/**
+ * Instância cliente singleton do Supabase para o SplitHouse.
+ * Configurada com persistência de sessão nativa, renovação automática de tokens
+ * e integração com os serviços de Auth, Database, Storage e Realtime.
+ */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: ExpoSecureStoreAdapter,
