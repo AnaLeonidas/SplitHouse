@@ -9,10 +9,13 @@ import {
   Platform,
   ScrollView,
   StatusBar as RNStatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Propriedades e callbacks de autenticação da tela de login.
@@ -43,10 +46,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onRegisterPress,
   onGooglePress,
 }) => {
+  const { signIn } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe seu e-mail.');
+      return;
+    }
+
+    if (!password) {
+      Alert.alert('Atenção', 'Por favor, informe sua senha.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signIn(email.trim(), password);
+      if (onLoginSubmit) {
+        onLoginSubmit(email.trim(), password);
+      }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('Invalid login credentials')) {
+        Alert.alert('Erro no login', 'E-mail ou senha incorretos.');
+      } else if (msg.includes('Email not confirmed')) {
+        Alert.alert('Atenção', 'Por favor, confirme seu e-mail antes de acessar.');
+      } else {
+        Alert.alert('Erro no login', msg || 'Não foi possível entrar. Verifique seus dados.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -75,6 +112,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             style={styles.backButton}
             activeOpacity={0.8}
             onPress={onBackPress}
+            disabled={loading}
           >
             <Feather name="chevron-left" size={22} color={Colors.text} />
           </TouchableOpacity>
@@ -108,6 +146,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                 </View>
               </View>
@@ -130,6 +169,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                   <TouchableOpacity
                     style={styles.eyeButton}
@@ -150,6 +190,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   style={styles.rememberMe}
                   activeOpacity={0.8}
                   onPress={() => setRememberMe(!rememberMe)}
+                  disabled={loading}
                 >
                   <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
                     {rememberMe && <Feather name="check" size={11} color={Colors.white} />}
@@ -160,18 +201,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={onForgotPasswordPress}
+                  disabled={loading}
                 >
                   <Text style={styles.forgotPasswordText}>Esqueci a senha?</Text>
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 activeOpacity={0.85}
-                onPress={() => onLoginSubmit && onLoginSubmit(email, password)}
+                onPress={handleLogin}
+                disabled={loading}
               >
-                <Text style={styles.submitButtonText}>Entrar</Text>
-                <Feather name="arrow-right" size={18} color={Colors.white} />
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.submitButtonText}>Entrar</Text>
+                    <Feather name="arrow-right" size={18} color={Colors.white} />
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -366,6 +415,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: Colors.white,
