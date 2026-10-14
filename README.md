@@ -5,11 +5,11 @@ O SplitHouse é uma aplicação mobile estruturada para centralizar a gestão de
 o gerenciamente manual por processos automatizados, promovendo transparência, organização financeira e operacional entre os moradores de um imóvel.
 
 ## Status do Projeto
-O projeto está em fase de desenvolvimento. A etapa atual consiste na modelagem do banco de dados. A integração com o Back-end e testes estão planejadas para as próximas entregas do cronograma.
+O projeto está em fase de desenvolvimento. O módulo de autenticação e perfis já está integrado ao Supabase (PostgreSQL). As próximas etapas do cronograma incluem a integração dos módulos de moradia, despesas e tarefas.
 
 ## Funcionalidades/Telas do Sistema
 A interface atual está modularizada em pastas:
-- Autenticação e Acesso (auth): Telas de abertura, login, cadastro de usuário e recuperação de senha.
+- Autenticação e Acesso (auth): Telas de abertura, login, cadastro de usuário integrado com criação de perfil no banco, recuperação de senha e persistência de sessão.
 - Painel Principal (finance): Módulo contendo a lista de despesas, cadastro de nova conta, detalhes do rateio, acerto de contas. confirmação de pagamentos e relatório financeiro mensal.
 - Gestão de Imóvel (house): Fluxos de seleção, criação e entrada em uma casa, geração de convite via código QR, gerenciamento de moradores, tela de solicitações pendentes
 e configuração inicial de regras.
@@ -42,12 +42,17 @@ O banco de dados relacional foi estruturado em tabelas modulares para atender ao
 - notificacoes: Central de alertas, lembretes de vencimento, cutucadas amigáveis e avisos de validação.
 - transferencias_admin: Controle de solicitação e aceite de posse de administração na saída de um morador líder.
 
-## Como Executar a Aplicação (Front-end)
+## Como Executar a Aplicação
 1. Faça o clone do repositório para o seu ambiente local.
 2. Acesse a pasta raiz do projeto através do terminal.
-3. Instale as dependências executando o comando npm install (ou yarn install).
-4. Inicie o servidor do Expo com o comando npx expo start --tunnel.
-5. Leia o QR Code gerado no terminal utilizando o aplicativo Expo Go em um aparelho físico ou no emulador.
+3. Instale as dependências executando o comando `npm install` (ou `yarn install`).
+4. Crie um arquivo `.env` na raiz do projeto com as chaves do Supabase:
+   ```env
+   EXPO_PUBLIC_SUPABASE_URL=url_do_supabase
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=chave_do_supabase
+   ```
+5. Inicie o servidor do Expo com o comando `npx expo start --tunnel`.
+6. Leia o QR Code gerado no terminal utilizando o aplicativo Expo Go em um aparelho físico ou no emulador.
 
 ## Equipe Desenvolvedora
 - Ana Paula Pereira Leonidas

@@ -9,10 +9,13 @@ import {
   Platform,
   ScrollView,
   StatusBar as RNStatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Propriedades e callbacks do fluxo de recuperação de senha.
@@ -37,7 +40,40 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onSubmit,
   onLoginPress,
 }) => {
+  const { resetPassword } = useAuth();
+
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  /**
+   * Valida o e-mail informado e solicita o envio de link de recuperação
+   * de acesso ao Supabase Auth, exibindo feedback de confirmação ao morador.
+   */
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe seu e-mail cadastrado.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await resetPassword(email.trim());
+      Alert.alert(
+        'E-mail enviado',
+        'Se o e-mail estiver cadastrado, enviamos as instruções para redefinição de senha na sua caixa de entrada.'
+      );
+      if (onSubmit) {
+        onSubmit(email.trim());
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Erro ao recuperar senha',
+        error?.message || 'Não foi possível enviar o e-mail de recuperação. Tente novamente.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -66,6 +102,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             style={styles.backButton}
             activeOpacity={0.8}
             onPress={onBackPress}
+            disabled={loading}
           >
             <Feather name="chevron-left" size={22} color={Colors.text} />
           </TouchableOpacity>
@@ -115,17 +152,25 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                 </View>
               </View>
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 activeOpacity={0.85}
-                onPress={() => onSubmit && onSubmit(email)}
+                onPress={handleResetPassword}
+                disabled={loading}
               >
-                <Text style={styles.submitButtonText}>Enviar instruções</Text>
-                <Feather name="send" size={17} color={Colors.white} />
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.submitButtonText}>Enviar instruções</Text>
+                    <Feather name="send" size={17} color={Colors.white} />
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -146,6 +191,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 style={styles.backToLoginRow}
                 activeOpacity={0.75}
                 onPress={onLoginPress}
+                disabled={loading}
               >
                 <Feather name="arrow-left" size={14} color={Colors.primary} />
                 <Text style={styles.backToLoginText}>Voltar para o login</Text>
@@ -276,6 +322,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: Colors.white,

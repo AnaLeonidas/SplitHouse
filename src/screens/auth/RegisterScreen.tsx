@@ -9,10 +9,13 @@ import {
   Platform,
   ScrollView,
   StatusBar as RNStatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Propriedades e eventos da tela de cadastro de novo morador.
@@ -43,12 +46,65 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onTermsPress,
   onPrivacyPress,
 }) => {
+  const { signUp } = useAuth();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  /**
+   * Processa a submissão do formulário de cadastro de novo morador.
+   * Realiza a validação dos campos, checagem de força e igualdade de senhas,
+   * e despacha a requisição de criação de conta para o Supabase Auth.
+   */
+  const handleRegister = async () => {
+    if (!name.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe seu nome completo.');
+      return;
+    }
+
+    if (!email.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe seu e-mail.');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Atenção', 'A confirmação de senha não coincide com a senha informada.');
+      return;
+    }
+
+    if (!agreeTerms) {
+      Alert.alert('Atenção', 'Você precisa concordar com os Termos de Uso e Política de Privacidade.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signUp(email.trim(), password, name.trim());
+      Alert.alert('Sucesso', 'Conta criada com sucesso!');
+      if (onRegisterSubmit) {
+        onRegisterSubmit(name.trim(), email.trim(), password);
+      }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('already registered') || msg.includes('unique')) {
+        Alert.alert('Erro no cadastro', 'Este e-mail já está cadastrado no sistema.');
+      } else {
+        Alert.alert('Erro no cadastro', msg || 'Não foi possível criar sua conta. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -77,6 +133,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             style={styles.backButton}
             activeOpacity={0.8}
             onPress={onBackPress}
+            disabled={loading}
           >
             <Feather name="chevron-left" size={22} color={Colors.text} />
           </TouchableOpacity>
@@ -109,6 +166,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                     onChangeText={setName}
                     autoCapitalize="words"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                 </View>
               </View>
@@ -131,6 +189,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                 </View>
               </View>
@@ -146,13 +205,14 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   />
                   <TextInput
                     style={[styles.input, styles.passwordInput]}
-                    placeholder="Mínimo de 8 caracteres"
+                    placeholder="Mínimo de 6 caracteres"
                     placeholderTextColor={Colors.textSecondary}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                   <TouchableOpacity
                     style={styles.eyeButton}
@@ -186,6 +246,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    editable={!loading}
                   />
                 </View>
               </View>
@@ -195,6 +256,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   style={styles.checkboxTouch}
                   activeOpacity={0.8}
                   onPress={() => setAgreeTerms(!agreeTerms)}
+                  disabled={loading}
                 >
                   <View style={[styles.checkbox, agreeTerms && styles.checkboxActive]}>
                     {agreeTerms && <Feather name="check" size={11} color={Colors.white} />}
@@ -215,12 +277,19 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
               </View>
 
               <TouchableOpacity
-                style={styles.submitButton}
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 activeOpacity={0.85}
-                onPress={() => onRegisterSubmit && onRegisterSubmit(name, email, password)}
+                onPress={handleRegister}
+                disabled={loading}
               >
-                <Text style={styles.submitButtonText}>Cadastrar</Text>
-                <Feather name="arrow-right" size={18} color={Colors.white} />
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.submitButtonText}>Cadastrar</Text>
+                    <Feather name="arrow-right" size={18} color={Colors.white} />
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -383,6 +452,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitButtonText: {
     color: Colors.white,
