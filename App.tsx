@@ -43,6 +43,7 @@ import { HouseRulesScreen } from './src/screens/profile/HouseRulesScreen';
 import { EditHouseRulesScreen } from './src/screens/profile/EditHouseRulesScreen';
 import { LeaveHouseScreen } from './src/screens/profile/LeaveHouseScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { tasksService } from './src/services/tasksService';
 
 /**
  * União de todos os identificadores de rotas e telas do SplitHouse.
@@ -106,6 +107,16 @@ function MainApp() {
       setCurrentScreen('welcome');
     }
   }, [user, loading, currentScreen]);
+
+  useEffect(() => {
+    async function loadTasks() {
+      const fetched = await tasksService.fetchTasks();
+      if (fetched && fetched.length > 0) {
+        setTasks(fetched);
+      }
+    }
+    loadTasks();
+  }, [user]);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
 
@@ -274,6 +285,7 @@ function MainApp() {
         <View style={styles.tabContentContainer} {...panResponder.panHandlers}>
           {currentScreen === 'home' && (
             <HomeScreen
+              tasks={tasks}
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
@@ -349,31 +361,9 @@ function MainApp() {
       {currentScreen === 'new_task' && (
         <NewTaskScreen
           onBackPress={() => setCurrentScreen('tasks_list')}
-          onSubmitPress={(taskData) => {
-            const newTask: TaskItem = {
-              id: String(Date.now()),
-              title: taskData.title,
-              type: taskData.type,
-              location: taskData.location,
-              deadline: taskData.deadline,
-              xp: taskData.xp,
-              points: taskData.points,
-              assignee: taskData.assignee.includes('Norman') ? 'Você' : taskData.assignee,
-              status: 'Pendente',
-              icon:
-                taskData.type === 'Emergencial'
-                  ? 'alert-triangle'
-                  : 'check-circle',
-              iconBg:
-                taskData.type === 'Rotativa'
-                  ? 'rgba(94, 43, 151, 0.1)'
-                  : taskData.type === 'Emergencial'
-                  ? 'rgba(239, 68, 68, 0.12)'
-                  : 'rgba(204, 146, 194, 0.25)',
-              iconColor:
-                taskData.type === 'Emergencial' ? '#EF4444' : '#5E2B97',
-            };
-            setTasks((prev) => [newTask, ...prev]);
+          onSubmitPress={async (taskData) => {
+            const created = await tasksService.createTask(taskData, user?.id);
+            setTasks((prev) => [created, ...prev]);
             setCurrentScreen('tasks_list');
           }}
         />
@@ -391,7 +381,7 @@ function MainApp() {
                   deadline: selectedTask.deadline,
                   assignee:
                     selectedTask.assignee === 'Você'
-                      ? 'Norman Osborn (Você)'
+                      ? (profile?.nome_completo ? `${profile.nome_completo} (Você)` : 'Norman Osborn (Você)')
                       : selectedTask.assignee,
                   xp: selectedTask.xp,
                   points: selectedTask.points,
@@ -399,8 +389,12 @@ function MainApp() {
               : undefined
           }
           onBackPress={() => setCurrentScreen('tasks_list')}
-          onSubmitValidation={() => {
+          onSubmitValidation={async () => {
             if (selectedTaskId) {
+              const executor = selectedTask?.assignee === 'Você'
+                ? (profile?.nome_completo || 'Você')
+                : (selectedTask?.assignee || 'Morador');
+              await tasksService.submitTaskValidation(selectedTaskId, undefined, executor);
               setTasks((prev) =>
                 prev.map((t) =>
                   t.id === selectedTaskId
@@ -408,7 +402,7 @@ function MainApp() {
                         ...t,
                         status: 'Aguardando validação',
                         requiresValidation: true,
-                        executorInfo: `Executada por ${t.assignee} com foto`,
+                        executorInfo: `Executada por ${executor} com foto`,
                       }
                     : t
                 )
@@ -428,7 +422,7 @@ function MainApp() {
                   title: selectedTask.title,
                   executorName:
                     selectedTask.assignee === 'Você'
-                      ? 'Norman Osborn'
+                      ? (profile?.nome_completo || 'Norman Osborn')
                       : selectedTask.assignee,
                   executedAt: selectedTask.deadline,
                   xp: selectedTask.xp,
@@ -437,8 +431,15 @@ function MainApp() {
               : undefined
           }
           onBackPress={() => setCurrentScreen('tasks_list')}
-          onApprovePress={() => {
+          onApprovePress={async () => {
             if (selectedTaskId) {
+              await tasksService.validateTask(
+                selectedTaskId,
+                user?.id || 'anon',
+                true,
+                undefined,
+                profile?.nome_completo || 'Morador'
+              );
               setTasks((prev) =>
                 prev.map((t) =>
                   t.id === selectedTaskId
@@ -453,8 +454,15 @@ function MainApp() {
             }
             setCurrentScreen('tasks_list');
           }}
-          onRejectPress={() => {
+          onRejectPress={async (justification) => {
             if (selectedTaskId) {
+              await tasksService.validateTask(
+                selectedTaskId,
+                user?.id || 'anon',
+                false,
+                justification,
+                profile?.nome_completo || 'Morador'
+              );
               setTasks((prev) =>
                 prev.map((t) =>
                   t.id === selectedTaskId

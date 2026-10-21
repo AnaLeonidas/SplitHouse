@@ -5,7 +5,7 @@ O SplitHouse é uma aplicação mobile estruturada para centralizar a gestão de
 o gerenciamente manual por processos automatizados, promovendo transparência, organização financeira e operacional entre os moradores de um imóvel.
 
 ## Status do Projeto
-O projeto está em fase de desenvolvimento. O módulo de autenticação e perfis já está integrado ao Supabase (PostgreSQL). As próximas etapas do cronograma incluem a integração dos módulos de moradia, despesas e tarefas.
+O projeto está em fase de desenvolvimento. Os módulos de autenticação, perfis, painel principal (Home) e tarefas da casa já estão integrados ao Supabase (PostgreSQL). As próximas etapas do cronograma incluem a integração dos módulos de moradia e despesas.
 
 ## Funcionalidades/Telas do Sistema
 A interface atual está modularizada em pastas:

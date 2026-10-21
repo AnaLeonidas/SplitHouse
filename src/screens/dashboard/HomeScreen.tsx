@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { TaskItem } from '../tasks/TasksListScreen';
 
 /**
  * Propriedades e callbacks do painel principal (Dashboard) da moradia.
@@ -35,6 +37,8 @@ interface HomeScreenProps {
     onReportPress?: () => void;
     /** Callback para gestão de membros e convites */
     onManageMembersPress?: () => void;
+    /** Lista de tarefas sincronizadas com o backend */
+    tasks?: TaskItem[];
 }
 
 /**
@@ -54,7 +58,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     onSettleUpPress,
     onReportPress,
     onManageMembersPress,
+    tasks,
 }) => {
+    const { profile } = useAuth();
+    const userName = profile?.nome_completo || 'Norman Osborn';
+    const initials = profile?.nome_completo
+        ? profile.nome_completo
+            .split(' ')
+            .map((n) => n[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()
+        : 'NO';
+
+    const todayTasks = tasks && tasks.length > 0
+        ? tasks.filter((t) => t.status !== 'Concluída').slice(0, 3)
+        : null;
     return (
         <View style={styles.wrapper}>
             <ScrollView
@@ -64,11 +83,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <View style={styles.header}>
                     <View style={styles.userInfo}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>NO</Text>
+                            <Text style={styles.avatarText}>{initials}</Text>
                         </View>
                         <View>
                             <View style={styles.nameRow}>
-                                <Text style={styles.userName}>Norman Osborn</Text>
+                                <Text style={styles.userName}>{userName}</Text>
                                 <View style={styles.levelBadge}>
                                     <Text style={styles.levelText}>Nv. 4</Text>
                                 </View>
@@ -155,35 +174,59 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </View>
 
                 <View style={styles.tasksList}>
-                    <TouchableOpacity
-                        style={styles.taskCard}
-                        activeOpacity={0.8}
-                        onPress={() => onTaskPress && onTaskPress('Lavar louça do almoço')}
-                    >
-                        <View style={styles.checkbox} />
-                        <View style={styles.taskInfo}>
-                            <Text style={styles.taskTitle}>Lavar louça do almoço</Text>
-                            <Text style={styles.taskSubtitle}>Cozinha • Prazo: hoje às 14:00</Text>
-                        </View>
-                        <View style={styles.xpBadge}>
-                            <Text style={styles.xpText}>+30 XP</Text>
-                        </View>
-                    </TouchableOpacity>
+                    {todayTasks && todayTasks.length > 0 ? (
+                        todayTasks.map((task) => (
+                            <TouchableOpacity
+                                key={task.id}
+                                style={styles.taskCard}
+                                activeOpacity={0.8}
+                                onPress={() => onTaskPress && onTaskPress(task.title)}
+                            >
+                                <View style={styles.checkbox} />
+                                <View style={styles.taskInfo}>
+                                    <Text style={styles.taskTitle}>{task.title}</Text>
+                                    <Text style={styles.taskSubtitle}>
+                                        {task.location} • Prazo: {task.deadline}
+                                    </Text>
+                                </View>
+                                <View style={styles.xpBadge}>
+                                    <Text style={styles.xpText}>+{task.xp} XP</Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    ) : (
+                        <>
+                            <TouchableOpacity
+                                style={styles.taskCard}
+                                activeOpacity={0.8}
+                                onPress={() => onTaskPress && onTaskPress('Lavar louça do almoço')}
+                            >
+                                <View style={styles.checkbox} />
+                                <View style={styles.taskInfo}>
+                                    <Text style={styles.taskTitle}>Lavar louça do almoço</Text>
+                                    <Text style={styles.taskSubtitle}>Cozinha • Prazo: hoje às 14:00</Text>
+                                </View>
+                                <View style={styles.xpBadge}>
+                                    <Text style={styles.xpText}>+30 XP</Text>
+                                </View>
+                            </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.taskCard}
-                        activeOpacity={0.8}
-                        onPress={() => onTaskPress && onTaskPress('Tirar lixo reciclável')}
-                    >
-                        <View style={styles.checkbox} />
-                        <View style={styles.taskInfo}>
-                            <Text style={styles.taskTitle}>Tirar lixo reciclável</Text>
-                            <Text style={styles.taskSubtitle}>Área externa • Prazo: hoje às 19:00</Text>
-                        </View>
-                        <View style={styles.xpBadge}>
-                            <Text style={styles.xpText}>+15 XP</Text>
-                        </View>
-                    </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.taskCard}
+                                activeOpacity={0.8}
+                                onPress={() => onTaskPress && onTaskPress('Tirar lixo reciclável')}
+                            >
+                                <View style={styles.checkbox} />
+                                <View style={styles.taskInfo}>
+                                    <Text style={styles.taskTitle}>Tirar lixo reciclável</Text>
+                                    <Text style={styles.taskSubtitle}>Área externa • Prazo: hoje às 19:00</Text>
+                                </View>
+                                <View style={styles.xpBadge}>
+                                    <Text style={styles.xpText}>+15 XP</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </>
+                    )}
                 </View>
 
                 <TouchableOpacity
