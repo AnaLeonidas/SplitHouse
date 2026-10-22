@@ -17,6 +17,18 @@ import { Colors } from '../../constants/theme';
 interface ReportScreenProps {
     /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
+    /** Total de despesas */
+    totalAmount?: string;
+    /** Média por morador */
+    averagePerResident?: string;
+    /** Histórico de movimentações */
+    history?: {
+        id: string;
+        title: string;
+        subtitle: string;
+        value: string;
+        isIncome?: boolean;
+    }[];
 }
 
 /**
@@ -25,7 +37,12 @@ interface ReportScreenProps {
  *
  * @param props Handler para retorno da navegação.
  */
-export const ReportScreen: React.FC<ReportScreenProps> = ({ onBackPress }) => {
+export const ReportScreen: React.FC<ReportScreenProps> = ({
+    onBackPress,
+    totalAmount = '0,00',
+    averagePerResident = '0,00',
+    history = [],
+}) => {
     return (
         <View style={styles.wrapper}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -35,7 +52,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({ onBackPress }) => {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.monthSelector}>
-                        <Text style={styles.monthText}>Setembro 2026</Text>
+                        <Text style={styles.monthText}>Mês Atual</Text>
                         <Feather name="chevron-down" size={16} color={Colors.text} />
                     </TouchableOpacity>
 
@@ -47,72 +64,43 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({ onBackPress }) => {
                 <Text style={styles.pageTitle}>Histórico e Gráficos</Text>
 
                 <View style={styles.totalCard}>
-                    <Text style={styles.totalLabel}>TOTAL DE DESPESAS DA CASA EM SETEMBRO</Text>
+                    <Text style={styles.totalLabel}>TOTAL DE DESPESAS DA CASA NO CICLO</Text>
                     <View style={styles.totalValueRow}>
                         <Text style={styles.currencySymbol}>R$ </Text>
-                        <Text style={styles.totalValue}>1.840,00</Text>
+                        <Text style={styles.totalValue}>{totalAmount}</Text>
                     </View>
-                    <Text style={styles.totalSubtitle}>Média de <Text style={styles.totalSubtitleBold}>R$ 460,00</Text> por morador (4 pessoas).</Text>
-                </View>
-
-                <View style={styles.chartCard}>
-                    <Text style={styles.cardTitle}>Divisão por Categorias</Text>
-
-                    <View style={styles.progressBarContainer}>
-                        <View style={[styles.progressSegment, { flex: 5, backgroundColor: Colors.primary }]} />
-                        <View style={[styles.progressSegment, { flex: 2.5, backgroundColor: '#CC92C2' }]} />
-                        <View style={[styles.progressSegment, { flex: 1.5, backgroundColor: '#84828F' }]} />
-                        <View style={[styles.progressSegment, { flex: 1, backgroundColor: '#1A1A1A' }]} />
-                    </View>
-
-                    <View style={styles.legendContainer}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
-                            <Text style={styles.legendText}>Aluguel: <Text style={styles.legendValue}>R$ 920</Text></Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#CC92C2' }]} />
-                            <Text style={styles.legendText}>Energia/Água: <Text style={styles.legendValue}>R$ 460</Text></Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#84828F' }]} />
-                            <Text style={styles.legendText}>Mercado: <Text style={styles.legendValue}>R$ 276</Text></Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#1A1A1A' }]} />
-                            <Text style={styles.legendText}>Internet: <Text style={styles.legendValue}>R$ 184</Text></Text>
-                        </View>
-                    </View>
+                    <Text style={styles.totalSubtitle}>Média calculada de <Text style={styles.totalSubtitleBold}>R$ {averagePerResident}</Text> por morador.</Text>
                 </View>
 
                 <View style={styles.historyCard}>
-                    <Text style={styles.cardTitle}>Registro de Movimentações Recentes (RN-11)</Text>
+                    <Text style={styles.cardTitle}>Registro de Movimentações Recentes</Text>
 
-                    <View style={styles.historyItem}>
-                        <View style={styles.historyInfo}>
-                            <Text style={styles.historyItemTitle}>Internet Fibra 600MB cadastrada</Text>
-                            <Text style={styles.historyItemSubtitle}>Por Norman Osborn • 10/09 às 14:22</Text>
+                    {history.length === 0 ? (
+                        <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                            <Feather name="clock" size={28} color={Colors.textSecondary} style={{ marginBottom: 8 }} />
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 }}>
+                                Nenhuma movimentação recente
+                            </Text>
+                            <Text style={{ fontSize: 12, color: Colors.textSecondary, textAlign: 'center' }}>
+                                As despesas e quitações registradas aparecerão aqui.
+                            </Text>
                         </View>
-                        <Text style={[styles.historyItemValue, { color: Colors.primary }]}>+ R$ 140,00</Text>
-                    </View>
-                    <View style={styles.divider} />
-
-                    <View style={styles.historyItem}>
-                        <View style={styles.historyInfo}>
-                            <Text style={styles.historyItemTitle}>Quitação confirmada: Lagarto</Text>
-                            <Text style={styles.historyItemSubtitle}>Por Norman Osborn • 09/09 às 18:10</Text>
-                        </View>
-                        <Text style={[styles.historyItemValue, { color: '#10B981' }]}>R$ 35,00</Text>
-                    </View>
-                    <View style={styles.divider} />
-
-                    <View style={styles.historyItem}>
-                        <View style={styles.historyInfo}>
-                            <Text style={styles.historyItemTitle}>Compras de Limpeza quitada</Text>
-                            <Text style={styles.historyItemSubtitle}>Por Lagarto • 08/09 às 11:05</Text>
-                        </View>
-                        <Text style={[styles.historyItemValue, { color: Colors.text }]}>R$ 68,00</Text>
-                    </View>
+                    ) : (
+                        history.map((item, index) => (
+                            <React.Fragment key={item.id}>
+                                <View style={styles.historyItem}>
+                                    <View style={styles.historyInfo}>
+                                        <Text style={styles.historyItemTitle}>{item.title}</Text>
+                                        <Text style={styles.historyItemSubtitle}>{item.subtitle}</Text>
+                                    </View>
+                                    <Text style={[styles.historyItemValue, { color: item.isIncome ? '#10B981' : Colors.primary }]}>
+                                        {item.value}
+                                    </Text>
+                                </View>
+                                {index < history.length - 1 && <View style={styles.divider} />}
+                            </React.Fragment>
+                        ))
+                    )}
                 </View>
 
             </ScrollView>

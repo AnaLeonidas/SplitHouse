@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusB
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
+import { useAuth } from '../../contexts/AuthContext';
+
 /**
  * Propriedades e callbacks da tela de acerto de contas.
  */
@@ -11,6 +13,18 @@ interface SettleUpScreenProps {
     onBackPress?: () => void;
     /** Callback para iniciar fluxo de liquidação ou pagamento de dívida */
     onPayPress?: () => void;
+    /** Lista de pendências bilaterais */
+    debts?: {
+        id: string;
+        debtorName: string;
+        debtorInitials: string;
+        debtorStatus: string;
+        debtAmount: string;
+        refText?: string;
+        isSettled?: boolean;
+    }[];
+    /** Saldo líquido formatado */
+    netBalance?: string;
 }
 
 /**
@@ -19,7 +33,15 @@ interface SettleUpScreenProps {
  *
  * @param props Callbacks de navegação de retorno e liquidação de dívidas.
  */
-export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({ onBackPress, onPayPress }) => {
+export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
+    onBackPress,
+    onPayPress,
+    debts = [],
+    netBalance = 'R$ 0,00',
+}) => {
+    const { profile } = useAuth();
+    const displayName = profile?.nome_completo ? profile.nome_completo.toUpperCase() : 'SUA SITUAÇÃO';
+
     return (
         <View style={styles.wrapper}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -35,68 +57,64 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({ onBackPress, onP
 
                 <View style={styles.statusCard}>
                     <View style={styles.statusTopRow}>
-                        <Text style={styles.statusLabel}>SITUAÇÃO DE NORMAN OSBORN</Text>
+                        <Text style={styles.statusLabel}>SITUAÇÃO DE {displayName}</Text>
                         <View style={styles.creditorBadge}>
-                            <Text style={styles.creditorBadgeText}>Credor Geral</Text>
+                            <Text style={styles.creditorBadgeText}>Tudo em dia</Text>
                         </View>
                     </View>
                     <View style={styles.statusValueRow}>
-                        <Text style={styles.balanceLabel}>Saldo líquido a receber: </Text>
-                        <Text style={styles.balanceValue}>R$ 85,50</Text>
+                        <Text style={styles.balanceLabel}>Saldo líquido: </Text>
+                        <Text style={styles.balanceValue}>{netBalance}</Text>
                     </View>
                 </View>
 
                 <Text style={styles.sectionTitle}>Pendências bilaterais na casa</Text>
 
-                <View style={styles.debtCard}>
-                    <View style={styles.debtMain}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>DO</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.debtorName}>Doutor Octopus</Text>
-                            <Text style={styles.debtorStatus}>deve para você</Text>
+                {debts.length === 0 ? (
+                    <View style={{ backgroundColor: Colors.white, borderRadius: 16, padding: 32, alignItems: 'center', marginVertical: 20, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                        <Feather name="check-circle" size={32} color="#10B981" style={{ marginBottom: 12 }} />
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 }}>
+                            Tudo acertado!
+                        </Text>
+                        <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center' }}>
+                            Nenhum acerto de contas pendente entre os moradores no momento.
+                        </Text>
+                    </View>
+                ) : (
+                    debts.map((item) => (
+                        <View key={item.id} style={styles.debtCard}>
+                            <View style={[styles.debtMain, item.isSettled && { marginBottom: 0 }]}>
+                                <View style={[styles.avatar, item.isSettled && { backgroundColor: '#F3F4F6' }]}>
+                                    <Text style={styles.avatarText}>{item.debtorInitials}</Text>
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 12 }}>
+                                    <Text style={styles.debtorName}>{item.debtorName}</Text>
+                                    <Text style={[styles.debtorStatus, item.isSettled && { color: '#10B981', fontWeight: 'bold' }]}>
+                                        {item.debtorStatus}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.debtAmount, item.isSettled && { color: Colors.textSecondary }]}>
+                                    {item.debtAmount}
+                                </Text>
+                            </View>
+                            {item.refText && !item.isSettled && (
+                                <View style={styles.debtFooter}>
+                                    <Text style={styles.refText}>{item.refText}</Text>
+                                    <TouchableOpacity style={styles.smallNudgeBtn}>
+                                        <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
-                        <Text style={styles.debtAmount}>R$ 50,50</Text>
-                    </View>
-                    <View style={styles.debtFooter}>
-                        <Text style={styles.refText}>Ref: Internet Fibra + Padaria</Text>
-                        <TouchableOpacity style={styles.smallNudgeBtn}>
-                            <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                    ))
+                )}
 
-                <View style={styles.debtCard}>
-                    <View style={styles.debtMain}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>HA</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.debtorName}>Homem-Areia</Text>
-                            <Text style={styles.debtorStatus}>deve para você</Text>
-                        </View>
-                        <Text style={styles.debtAmount}>R$ 35,00</Text>
-                    </View>
-                    <View style={styles.debtFooter}>
-                        <Text style={styles.refText}>Ref: Internet Fibra</Text>
-                        <TouchableOpacity style={styles.smallNudgeBtn}>
-                            <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                <View style={styles.debtCard}>
-                    <View style={[styles.debtMain, { marginBottom: 0 }]}>
-                        <View style={[styles.avatar, { backgroundColor: '#F3F4F6' }]}><Text style={styles.avatarText}>LG</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.debtorName}>Lagarto</Text>
-                            <Text style={[styles.debtorStatus, { color: '#10B981', fontWeight: 'bold' }]}>Tudo quitado com você</Text>
-                        </View>
-                        <Text style={[styles.debtAmount, { color: Colors.textSecondary }]}>R$ 0,00</Text>
-                    </View>
-                </View>
-
-                <TouchableOpacity style={styles.payButton} onPress={onPayPress}>
-                    <Feather name="credit-card" size={18} color={Colors.white} />
-                    <Text style={styles.payButtonText}>Informar pagamento efetuado</Text>
-                </TouchableOpacity>
+                {onPayPress && debts.length > 0 && (
+                    <TouchableOpacity style={styles.payButton} onPress={onPayPress}>
+                        <Feather name="credit-card" size={18} color={Colors.white} />
+                        <Text style={styles.payButtonText}>Informar pagamento efetuado</Text>
+                    </TouchableOpacity>
+                )}
 
             </ScrollView>
         </View>

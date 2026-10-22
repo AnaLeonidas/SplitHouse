@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Propriedades e callbacks do formulário de cadastro de nova despesa.
@@ -33,8 +34,9 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     onBackPress,
     onSubmitPress,
 }) => {
-    const [value, setValue] = useState('140,00');
-    const [description, setDescription] = useState('Internet Fibra 600MB');
+    const { profile } = useAuth();
+    const [value, setValue] = useState('');
+    const [description, setDescription] = useState('');
     const [divisionType, setDivisionType] = useState('igualitaria');
     const [payer, setPayer] = useState('voce');
 
@@ -101,7 +103,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                             onPress={() => setPayer('voce')}
                         >
                             <Text style={[styles.payerBtnText, payer === 'voce' && styles.payerBtnTextActive]}>
-                                Norman Osborn (Você)
+                                {profile?.nome_completo ? `${profile.nome_completo} (Você)` : 'Você'}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -139,10 +141,10 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                     </View>
 
                     <View style={styles.divisionResultRow}>
-                        <Text style={styles.divisionResultText}>Dividir com todos (4 moradores)</Text>
-                        <Text style={styles.divisionResultValue}>R$ 35,00 / pessoa</Text>
+                        <Text style={styles.divisionResultText}>Dividir com todos os moradores</Text>
+                        <Text style={styles.divisionResultValue}>Rateio proporcional</Text>
                     </View>
-                    <Text style={styles.divisionMembersText}>Norman Osborn, Doutor Octopus, Lagarto e Homem-Areia.</Text>
+                    <Text style={styles.divisionMembersText}>A despesa será dividida igualmente entre os membros da moradia.</Text>
                 </View>
 
                 <TouchableOpacity style={styles.attachCard}>

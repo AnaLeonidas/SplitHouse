@@ -147,14 +147,14 @@ export const mockTasks: TaskItem[] = [
  * @param props Lista de tarefas e callbacks de navegação e validação.
  */
 export const TasksListScreen: React.FC<TasksListScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
+  houseName = 'Sua moradia',
   tasks,
   onNewTaskPress,
   onValidatePress,
   onTaskPress,
 }) => {
   const [activeTab, setActiveTab] = useState<FilterTab>('my_tasks');
-  const taskList = tasks || mockTasks;
+  const taskList = tasks ?? [];
 
   const getFilteredTasks = () => {
     switch (activeTab) {
@@ -261,7 +261,28 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
         </View>
 
         <View style={styles.tasksListContainer}>
-          {filteredTasks.map((task) => {
+          {filteredTasks.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIconBox}>
+                <Feather name="check-circle" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>Nenhuma tarefa cadastrada</Text>
+              <Text style={styles.emptySubtitle}>
+                {activeTab === 'validate'
+                  ? 'Não há tarefas aguardando validação no momento.'
+                  : 'Sua casa ainda não possui tarefas nesta lista. Adicione a primeira atividade!'}
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyAddButton}
+                activeOpacity={0.85}
+                onPress={onNewTaskPress}
+              >
+                <Feather name="plus" size={16} color={Colors.white} />
+                <Text style={styles.emptyAddButtonText}>Criar nova tarefa</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            filteredTasks.map((task) => {
             if (task.requiresValidation) {
               return (
                 <TouchableOpacity
@@ -395,7 +416,8 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
                 </View>
               </TouchableOpacity>
             );
-          })}
+          })
+          )}
         </View>
       </ScrollView>
     </View>
@@ -693,5 +715,58 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.primary,
     textDecorationLine: 'underline',
+  },
+  emptyCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(132, 130, 143, 0.18)',
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  emptyIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(94, 43, 151, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 12,
+  },
+  emptyAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+  },
+  emptyAddButtonText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

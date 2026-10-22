@@ -67,17 +67,17 @@ interface ProfileScreenProps {
 }
 
 const defaultUserData: UserProfileData = {
-  name: 'Norman Osborn',
-  role: 'Admin',
-  email: 'norman.osborn@oscorp.com',
-  republicName: 'República do Sexteto Sinistro',
-  level: 4,
-  levelTitle: 'Morador Mestre',
-  xp: 1450,
-  nextLevelXp: 2000,
-  balance: 95.0,
-  coins: 420,
-  completedTasks: 18,
+  name: 'Morador',
+  role: 'Morador',
+  email: '',
+  republicName: 'Minha Moradia',
+  level: 1,
+  levelTitle: 'Morador Iniciante',
+  xp: 0,
+  nextLevelXp: 100,
+  balance: 0,
+  coins: 0,
+  completedTasks: 0,
   onTimePercentage: 100,
 };
 

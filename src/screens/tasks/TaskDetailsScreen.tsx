@@ -65,14 +65,14 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 }) => {
   const [hasPhoto, setHasPhoto] = useState(false);
 
-  const title = task?.title || 'Lavar louça do almoço';
+  const title = task?.title || 'Tarefa';
   const description =
     task?.description ||
-    'Lavar os pratos, panelas e talheres utilizados no almoço coletivo, secar e guardar nos armários.';
+    'Realize as atividades descritas para pontuar no ciclo da moradia.';
   const type = task?.type || 'Rotativa';
-  const location = task?.location || 'Cozinha';
-  const deadline = task?.deadline || 'Hoje às 14:00';
-  const assignee = task?.assignee || 'Norman Osborn (Você)';
+  const location = task?.location || 'Geral';
+  const deadline = task?.deadline || 'Hoje';
+  const assignee = task?.assignee || 'Você';
   const xp = task?.xp ?? 30;
   const points = task?.points ?? 10;
 

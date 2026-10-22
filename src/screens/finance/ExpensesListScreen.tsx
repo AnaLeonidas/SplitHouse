@@ -19,6 +19,10 @@ interface ExpensesListScreenProps {
     onAddPress?: () => void;
     /** Callback para visualização dos detalhes e comprovantes de uma despesa */
     onExpenseDetailsPress?: () => void;
+    /** Nome da moradia conectada */
+    houseName?: string;
+    /** Lista de despesas reais da moradia */
+    expenses?: any[];
 }
 
 /**
@@ -30,6 +34,8 @@ interface ExpensesListScreenProps {
 export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
     onAddPress,
     onExpenseDetailsPress,
+    houseName = 'Sua moradia',
+    expenses = [],
 }) => {
     const [activeTab, setActiveTab] = useState('Todos');
     const tabs = ['Todos', 'Pendentes', 'Pagas', 'Recorrentes'];
@@ -43,7 +49,7 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.title}>Despesas</Text>
-                        <Text style={styles.subtitle}>República do Sexteto Sinistro</Text>
+                        <Text style={styles.subtitle}>{houseName}</Text>
                     </View>
                     <View style={styles.headerActions}>
                         <TouchableOpacity style={styles.filterButton}>
@@ -79,75 +85,42 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                 </ScrollView>
 
                 <View style={styles.listContainer}>
-
-                    <TouchableOpacity style={styles.card} onPress={onExpenseDetailsPress}>
-                        <View style={styles.cardMain}>
-                            <View style={styles.iconBoxPurple}>
-                                <Feather name="wifi" size={20} color={Colors.primary} />
+                    {expenses.length === 0 ? (
+                        <View style={styles.emptyCard}>
+                            <View style={styles.emptyIconBox}>
+                                <Feather name="dollar-sign" size={32} color={Colors.primary} />
                             </View>
-                            <View style={styles.cardInfo}>
-                                <Text style={styles.cardTitle}>Internet Fibra 600MB</Text>
-                                <Text style={styles.cardSubtitle}>Vence em 15/09 • Pago por Norman Osborn</Text>
-                            </View>
-                            <View style={styles.cardValues}>
-                                <Text style={styles.totalValue}>R$ 140,00</Text>
-                                <Text style={styles.yourPartLabel}>Sua parte: R$</Text>
-                                <Text style={styles.yourPartValue}>35,00</Text>
-                            </View>
+                            <Text style={styles.emptyTitle}>Nenhuma despesa cadastrada</Text>
+                            <Text style={styles.emptySubtitle}>
+                                Todas as contas da casa estão em dia ou ainda não foram registradas.
+                            </Text>
+                            <TouchableOpacity
+                                style={styles.emptyAddButton}
+                                activeOpacity={0.85}
+                                onPress={onAddPress}
+                            >
+                                <Feather name="plus" size={16} color={Colors.white} />
+                                <Text style={styles.emptyAddButtonText}>Adicionar despesa</Text>
+                            </TouchableOpacity>
                         </View>
-                        <View style={styles.cardFooter}>
-                            <Text style={styles.footerText}>Rateio: 4 pessoas (Igualitário)</Text>
-                            <View style={styles.badgeGray}>
-                                <Text style={styles.badgeGrayText}>2 de 4 pagaram</Text>
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.card} onPress={onExpenseDetailsPress}>
-                        <View style={styles.cardMain}>
-                            <View style={styles.iconBoxPink}>
-                                <Feather name="zap" size={20} color={Colors.secondary} />
-                            </View>
-                            <View style={styles.cardInfo}>
-                                <Text style={styles.cardTitle}>Conta de Energia</Text>
-                                <Text style={styles.cardSubtitle}>Vence em 20/09 • Pago por Doutor Octopus</Text>
-                            </View>
-                            <View style={styles.cardValues}>
-                                <Text style={styles.totalValue}>R$ 220,00</Text>
-                                <Text style={styles.yourPartLabel}>Sua parte: R$</Text>
-                                <Text style={styles.yourPartValue}>55,00</Text>
-                            </View>
-                        </View>
-                        <View style={styles.cardFooter}>
-                            <Text style={styles.footerText}>Rateio: 4 pessoas (Igualitário)</Text>
-                            <View style={styles.badgeGreenOutline}>
-                                <Text style={styles.badgeGreenOutlineText}>Você já pagou</Text>
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.card} onPress={onExpenseDetailsPress}>
-                        <View style={styles.cardMain}>
-                            <View style={styles.iconBoxGray}>
-                                <Feather name="shopping-cart" size={20} color={Colors.textSecondary} />
-                            </View>
-                            <View style={styles.cardInfo}>
-                                <Text style={styles.cardTitle}>Compras de Limpeza</Text>
-                                <Text style={styles.cardSubtitle}>Venceu em 08/09 • Pago por Lagarto</Text>
-                            </View>
-                            <View style={styles.cardValues}>
-                                <Text style={styles.totalValue}>R$ 68,90</Text>
-                                <Text style={styles.quitadaText}>Quitada</Text>
-                            </View>
-                        </View>
-                        <View style={styles.cardFooter}>
-                            <Text style={styles.footerText}>Rateio: 4 pessoas (Igualitário)</Text>
-                            <View style={styles.badgeGreenSolid}>
-                                <Text style={styles.badgeGreenSolidText}>Totalmente quitada</Text>
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-
+                    ) : (
+                        expenses.map((expense, index) => (
+                            <TouchableOpacity key={index} style={styles.card} onPress={onExpenseDetailsPress}>
+                                <View style={styles.cardMain}>
+                                    <View style={styles.iconBoxPurple}>
+                                        <Feather name="file-text" size={20} color={Colors.primary} />
+                                    </View>
+                                    <View style={styles.cardInfo}>
+                                        <Text style={styles.cardTitle}>{expense.titulo || 'Despesa'}</Text>
+                                        <Text style={styles.cardSubtitle}>Vence em {expense.vencimento || 'Breve'}</Text>
+                                    </View>
+                                    <View style={styles.cardValues}>
+                                        <Text style={styles.totalValue}>R$ {expense.valor || '0,00'}</Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -369,5 +342,58 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 'bold',
         color: '#10B981',
-    }
+    },
+    emptyCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 20,
+        padding: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(132, 130, 143, 0.18)',
+        marginTop: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    emptyIconBox: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: 'rgba(94, 43, 151, 0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 14,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: Colors.text,
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    emptySubtitle: {
+        fontSize: 12.5,
+        color: Colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 18,
+        marginBottom: 18,
+        paddingHorizontal: 12,
+    },
+    emptyAddButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 14,
+        gap: 8,
+    },
+    emptyAddButtonText: {
+        color: Colors.white,
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });

@@ -11,6 +11,23 @@ interface ExpenseDetailsScreenProps {
     onBackPress?: () => void;
     /** Callback para enviar lembrete amigável (cutucada) aos membros pendentes */
     onNudgePress?: () => void;
+    /** Detalhes da despesa */
+    expense?: {
+        title: string;
+        amount: string;
+        dueDate: string;
+        category: string;
+        payerName: string;
+        receiptName?: string;
+    };
+    /** Lista de membros para divisão */
+    members?: {
+        id: string;
+        name: string;
+        initials: string;
+        role?: string;
+        isPaid?: boolean;
+    }[];
 }
 
 /**
@@ -19,7 +36,19 @@ interface ExpenseDetailsScreenProps {
  *
  * @param props Handlers para navegação de retorno e envio de lembrete.
  */
-export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({ onBackPress, onNudgePress }) => {
+export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({
+    onBackPress,
+    onNudgePress,
+    expense,
+    members = [],
+}) => {
+    const hasExpense = !!expense;
+    const title = expense?.title || 'Detalhes da Despesa';
+    const amount = expense?.amount || 'R$ 0,00';
+    const dueDate = expense?.dueDate || 'A definir';
+    const category = expense?.category || 'Geral';
+    const payerName = expense?.payerName || 'Você';
+
     return (
         <View style={styles.wrapper}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -31,83 +60,84 @@ export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({ onBa
                     <View style={{ width: 42 }} />
                 </View>
 
-                <View style={styles.mainCard}>
-                    <View style={styles.cardTopRow}>
-                        <View style={styles.categoryBadge}>
-                            <Text style={styles.categoryBadgeText}>Utilidades</Text>
+                {!hasExpense ? (
+                    <View style={{ backgroundColor: Colors.white, borderRadius: 16, padding: 32, alignItems: 'center', marginTop: 30, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                        <Feather name="credit-card" size={32} color={Colors.primary} style={{ marginBottom: 12 }} />
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 }}>
+                            Nenhuma despesa selecionada
+                        </Text>
+                        <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center' }}>
+                            Selecione uma despesa da lista para visualizar os detalhes do rateio.
+                        </Text>
+                    </View>
+                ) : (
+                    <>
+                        <View style={styles.mainCard}>
+                            <View style={styles.cardTopRow}>
+                                <View style={styles.categoryBadge}>
+                                    <Text style={styles.categoryBadgeText}>{category}</Text>
+                                </View>
+                                <Text style={styles.dueDateText}>Vencimento: {dueDate}</Text>
+                            </View>
+
+                            <Text style={styles.expenseTitle}>{title}</Text>
+                            <View style={styles.valueRow}>
+                                <Text style={styles.valueLabel}>Valor total: </Text>
+                                <Text style={styles.valueAmount}>{amount}</Text>
+                            </View>
+
+                            <View style={styles.payerBox}>
+                                <Text style={styles.payerLabel}>Pago integralmente por:</Text>
+                                <Text style={styles.payerName}>{payerName}</Text>
+                            </View>
                         </View>
-                        <Text style={styles.dueDateText}>Vencimento: 15/09/2026</Text>
-                    </View>
 
-                    <Text style={styles.expenseTitle}>Internet Fibra 600MB</Text>
-                    <View style={styles.valueRow}>
-                        <Text style={styles.valueLabel}>Valor total: </Text>
-                        <Text style={styles.valueAmount}>R$ 140,00</Text>
-                    </View>
+                        {expense?.receiptName && (
+                            <TouchableOpacity style={styles.receiptCard}>
+                                <View style={styles.receiptIconBox}>
+                                    <Feather name="file-text" size={16} color="#10B981" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.receiptTitle}>Comprovante Anexado</Text>
+                                    <Text style={styles.receiptSubtitle}>{expense.receiptName}</Text>
+                                </View>
+                                <Text style={styles.viewText}>Visualizar</Text>
+                            </TouchableOpacity>
+                        )}
 
-                    <View style={styles.payerBox}>
-                        <Text style={styles.payerLabel}>Pago integralmente por:</Text>
-                        <Text style={styles.payerName}>Norman Osborn</Text>
-                    </View>
-                </View>
+                        <View style={styles.divisionCard}>
+                            <View style={styles.divisionHeader}>
+                                <Text style={styles.divisionTitle}>Divisão do Rateio ({members.length} partes)</Text>
+                            </View>
 
-                <TouchableOpacity style={styles.receiptCard}>
-                    <View style={styles.receiptIconBox}>
-                        <Feather name="file-text" size={16} color="#10B981" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.receiptTitle}>Comprovante Anexado</Text>
-                        <Text style={styles.receiptSubtitle}>comprovante_internet_set.pdf</Text>
-                    </View>
-                    <Text style={styles.viewText}>Visualizar</Text>
-                </TouchableOpacity>
-
-                <View style={styles.divisionCard}>
-                    <View style={styles.divisionHeader}>
-                        <Text style={styles.divisionTitle}>Divisão do Rateio (4 partes)</Text>
-                        <Text style={styles.divisionValue}>R$ 35,00 cada</Text>
-                    </View>
-
-                    <View style={styles.memberRow}>
-                        <View style={[styles.avatar, { backgroundColor: Colors.primary }]}><Text style={[styles.avatarText, { color: Colors.white }]}>NO</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.memberName}>Norman Osborn</Text>
-                            <Text style={styles.memberRole}>Pagador original</Text>
+                            {members.map((member) => (
+                                <View key={member.id} style={styles.memberRow}>
+                                    <View style={[styles.avatar, member.isPaid && { backgroundColor: Colors.primary }]}>
+                                        <Text style={[styles.avatarText, member.isPaid && { color: Colors.white }]}>
+                                            {member.initials}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={styles.memberName}>{member.name}</Text>
+                                        {member.role && <Text style={styles.memberRole}>{member.role}</Text>}
+                                    </View>
+                                    <View style={member.isPaid ? styles.statusBadgeGreen : styles.statusBadgeGray}>
+                                        <Text style={member.isPaid ? styles.statusTextGreen : styles.statusTextGray}>
+                                            {member.isPaid ? 'Quitado' : 'Pendente'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))}
                         </View>
-                        <View style={styles.statusBadgeGreen}><Text style={styles.statusTextGreen}>Quitado</Text></View>
-                    </View>
 
-                    <View style={styles.memberRow}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>DO</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.memberName}>Doutor Octopus</Text>
-                        </View>
-                        <View style={styles.statusBadgeGray}><Text style={styles.statusTextGray}>Pendente</Text></View>
-                    </View>
-
-                    <View style={styles.memberRow}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>LG</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.memberName}>Lagarto</Text>
-                        </View>
-                        <View style={styles.statusBadgeGreen}><Text style={styles.statusTextGreen}>Quitado</Text></View>
-                    </View>
-
-                    <View style={styles.memberRow}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>HA</Text></View>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.memberName}>Homem-Areia</Text>
-                        </View>
-                        <View style={styles.statusBadgeGray}><Text style={styles.statusTextGray}>Pendente</Text></View>
-                    </View>
-
-                </View>
-
-                <TouchableOpacity style={styles.nudgeButton} onPress={onNudgePress}>
-                    <Feather name="bell" size={16} color={Colors.white} />
-                    <Text style={styles.nudgeButtonText}>Lembrar pendentes (Cutucar)</Text>
-                </TouchableOpacity>
-
+                        {onNudgePress && (
+                            <TouchableOpacity style={styles.nudgeButton} onPress={onNudgePress}>
+                                <Feather name="bell" size={16} color={Colors.white} />
+                                <Text style={styles.nudgeButtonText}>Lembrar pendentes (Cutucar)</Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                )}
             </ScrollView>
         </View>
     );

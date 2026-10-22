@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * Propriedades e callbacks do formulário de edição de perfil do usuário.
@@ -34,10 +35,11 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   onBackPress,
   onSaveSuccess,
 }) => {
-  const [name, setName] = useState('Norman Osborn');
-  const [email, setEmail] = useState('norman.osborn@oscorp.com');
-  const [pixKey, setPixKey] = useState('norman.pix@oscorp.com');
-  const [currentPassword, setCurrentPassword] = useState('••••••••••••');
+  const { user, profile } = useAuth();
+  const [name, setName] = useState(profile?.nome_completo || '');
+  const [email, setEmail] = useState(profile?.email || user?.email || '');
+  const [pixKey, setPixKey] = useState(profile?.chave_pix || '');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
   const handleSave = () => {

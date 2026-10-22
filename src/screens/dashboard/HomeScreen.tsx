@@ -39,6 +39,22 @@ interface HomeScreenProps {
     onManageMembersPress?: () => void;
     /** Lista de tarefas sincronizadas com o backend */
     tasks?: TaskItem[];
+    /** Nome da moradia conectada */
+    houseName?: string;
+    /** Saldo líquido na moradia */
+    balanceAmount?: string;
+    /** Status do saldo (ex: Tudo em dia, Você tem a receber) */
+    balanceStatus?: string;
+    /** Texto informativo de devedor */
+    debtorText?: string;
+    /** Valor devido por outro morador */
+    debtorAmount?: string;
+    /** Nome do morador líder no ranking */
+    leaderName?: string;
+    /** Pontuação de XP do líder */
+    leaderXp?: number;
+    /** Nível de gamificação do morador */
+    userLevel?: number;
 }
 
 /**
@@ -59,17 +75,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     onReportPress,
     onManageMembersPress,
     tasks,
+    houseName = 'Sua moradia',
+    balanceAmount = '0,00',
+    balanceStatus = 'Tudo em dia',
+    debtorText,
+    debtorAmount,
+    leaderName,
+    leaderXp = 0,
+    userLevel = 1,
 }) => {
     const { profile } = useAuth();
-    const userName = profile?.nome_completo || 'Norman Osborn';
+    const userName = profile?.nome_completo || 'Morador';
     const initials = profile?.nome_completo
         ? profile.nome_completo
             .split(' ')
+            .filter(Boolean)
             .map((n) => n[0])
             .slice(0, 2)
             .join('')
             .toUpperCase()
-        : 'NO';
+        : 'SH';
 
     const todayTasks = tasks && tasks.length > 0
         ? tasks.filter((t) => t.status !== 'Concluída').slice(0, 3)
@@ -89,7 +114,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                             <View style={styles.nameRow}>
                                 <Text style={styles.userName}>{userName}</Text>
                                 <View style={styles.levelBadge}>
-                                    <Text style={styles.levelText}>Nv. 4</Text>
+                                    <Text style={styles.levelText}>Nv. {userLevel}</Text>
                                 </View>
                             </View>
                             <TouchableOpacity
@@ -98,7 +123,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                 onPress={onManageMembersPress}
                             >
                                 <Feather name="home" size={12} color={Colors.primary} />
-                                <Text style={styles.houseName}>República do Sexteto Sinistro</Text>
+                                <Text style={styles.houseName}>{houseName}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -118,19 +143,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <View style={styles.balanceHeader}>
                         <Text style={styles.balanceTitle}>SEU SALDO NA CASA</Text>
                         <View style={styles.statusBadge}>
-                            <Text style={styles.statusBadgeText}>Você tem a receber</Text>
+                            <Text style={styles.statusBadgeText}>{balanceStatus}</Text>
                         </View>
                     </View>
                     <Text style={styles.balanceAmount}>
                         <Text style={styles.currencySymbol}>R$ </Text>
-                        85,50
+                        {balanceAmount}
                     </Text>
                     <View style={styles.balanceFooter}>
                         <View style={styles.debtorInfo}>
                             <View style={styles.bulletPoint} />
-                            <Text style={styles.debtorText}>Doutor Octopus te deve:</Text>
+                            <Text style={styles.debtorText}>
+                                {debtorText || 'Nenhum acerto pendente no momento'}
+                            </Text>
                         </View>
-                        <Text style={styles.debtorAmount}>R$ 85,50</Text>
+                        {debtorAmount && <Text style={styles.debtorAmount}>{debtorAmount}</Text>}
                     </View>
                 </View>
 
@@ -195,37 +222,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                             </TouchableOpacity>
                         ))
                     ) : (
-                        <>
+                        <View style={styles.emptyHomeTasksCard}>
+                            <Feather name="check-circle" size={22} color={Colors.primary} />
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                                <Text style={styles.emptyHomeTasksTitle}>Tudo em ordem!</Text>
+                                <Text style={styles.emptyHomeTasksSubtitle}>
+                                    Nenhuma tarefa pendente para hoje.
+                                </Text>
+                            </View>
                             <TouchableOpacity
-                                style={styles.taskCard}
-                                activeOpacity={0.8}
-                                onPress={() => onTaskPress && onTaskPress('Lavar louça do almoço')}
+                                style={styles.emptyHomeAddBtn}
+                                activeOpacity={0.7}
+                                onPress={onNewTaskPress}
                             >
-                                <View style={styles.checkbox} />
-                                <View style={styles.taskInfo}>
-                                    <Text style={styles.taskTitle}>Lavar louça do almoço</Text>
-                                    <Text style={styles.taskSubtitle}>Cozinha • Prazo: hoje às 14:00</Text>
-                                </View>
-                                <View style={styles.xpBadge}>
-                                    <Text style={styles.xpText}>+30 XP</Text>
-                                </View>
+                                <Feather name="plus" size={16} color={Colors.primary} />
                             </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.taskCard}
-                                activeOpacity={0.8}
-                                onPress={() => onTaskPress && onTaskPress('Tirar lixo reciclável')}
-                            >
-                                <View style={styles.checkbox} />
-                                <View style={styles.taskInfo}>
-                                    <Text style={styles.taskTitle}>Tirar lixo reciclável</Text>
-                                    <Text style={styles.taskSubtitle}>Área externa • Prazo: hoje às 19:00</Text>
-                                </View>
-                                <View style={styles.xpBadge}>
-                                    <Text style={styles.xpText}>+15 XP</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </>
+                        </View>
                     )}
                 </View>
 
@@ -239,7 +251,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </View>
                     <View style={styles.rankingInfo}>
                         <Text style={styles.rankingSubtitle}>CLASSIFICAÇÃO SEMANAL</Text>
-                        <Text style={styles.rankingTitle}>1º Lugar: Norman Osborn (340 XP)</Text>
+                        <Text style={styles.rankingTitle}>
+                            {leaderName ? `1º Lugar: ${leaderName} (${leaderXp} XP)` : 'Classificação da casa'}
+                        </Text>
                     </View>
                     <Text style={styles.seeRankingText}>Ver ranking{"\n"}→</Text>
                 </TouchableOpacity>
@@ -537,5 +551,33 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: Colors.primary,
         textAlign: 'center',
-    }
+    },
+    emptyHomeTasksCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(132, 130, 143, 0.15)',
+        marginBottom: 8,
+    },
+    emptyHomeTasksTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.text,
+        marginBottom: 2,
+    },
+    emptyHomeTasksSubtitle: {
+        fontSize: 11,
+        color: Colors.textSecondary,
+    },
+    emptyHomeAddBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: 'rgba(94, 43, 151, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 });

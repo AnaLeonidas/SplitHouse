@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.tarefas (
     responsavel_nome TEXT,
     prazo TEXT NOT NULL,
     xp INTEGER NOT NULL DEFAULT 20,
-    moedas INTEGER NOT NULL DEFAULT 10,
     status TEXT NOT NULL DEFAULT 'Pendente' CHECK (status IN ('Pendente', 'Concluída', 'Aguardando validação')),
     requer_validacao BOOLEAN NOT NULL DEFAULT false,
     foto_comprovante_url TEXT,

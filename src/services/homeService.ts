@@ -12,30 +12,36 @@ export const homeService = {
    *
    * @param currentProfile Perfil do morador logado atualmente (opcional).
    * @param houseId Identificador da moradia vinculada (opcional).
+   * @param houseName Nome da república vinculada (opcional).
    * @returns {Promise<{ dashboardData: HomeDashboardData; todayTasks: TaskItem[] }>}
    */
   async getDashboardData(
     currentProfile?: Perfil | null,
-    houseId?: string
+    houseId?: string,
+    houseName?: string
   ): Promise<{ dashboardData: HomeDashboardData; todayTasks: TaskItem[] }> {
+    const nome = currentProfile?.nome_completo || 'Morador';
+    const initials = currentProfile?.nome_completo
+      ? currentProfile.nome_completo
+          .split(' ')
+          .filter(Boolean)
+          .map((p) => p[0])
+          .slice(0, 2)
+          .join('')
+          .toUpperCase()
+      : 'SH';
+
     const defaultData: HomeDashboardData = {
-      userName: currentProfile?.nome_completo || 'Norman Osborn',
-      userInitials: currentProfile?.nome_completo
-        ? currentProfile.nome_completo
-            .split(' ')
-            .map((p) => p[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase()
-        : 'NO',
-      userLevel: 4,
-      houseName: 'República do Sexteto Sinistro',
-      balanceAmount: '85,50',
-      balanceStatus: 'Você tem a receber',
-      debtorText: 'Doutor Octopus te deve:',
-      debtorAmount: 'R$ 85,50',
-      leaderName: currentProfile?.nome_completo || 'Norman Osborn',
-      leaderXp: 340,
+      userName: nome,
+      userInitials: initials,
+      userLevel: 1,
+      houseName: houseName || 'Sua Moradia',
+      balanceAmount: '0,00',
+      balanceStatus: 'Tudo em dia',
+      debtorText: undefined,
+      debtorAmount: undefined,
+      leaderName: nome,
+      leaderXp: 0,
     };
 
     try {
@@ -61,3 +67,4 @@ export const homeService = {
     }
   },
 };
+

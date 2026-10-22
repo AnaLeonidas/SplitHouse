@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -111,14 +111,18 @@ type CategoryFilter = 'all' | 'Folga' | 'Convivência' | 'Bônus';
  * @param props Saldo de moedas, itens da loja e callbacks de navegação e resgate.
  */
 export const StoreScreen: React.FC<StoreScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
-  initialCoins = 420,
+  houseName = 'Sua moradia',
+  initialCoins = 0,
   items = defaultItems,
   onBackPress,
   onProposePress,
   onRedeemPress,
 }) => {
   const [coins, setCoins] = useState(initialCoins);
+
+  useEffect(() => {
+    setCoins(initialCoins);
+  }, [initialCoins]);
   const [storeItems, setStoreItems] = useState<StoreItem[]>(items);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [isProposeModalVisible, setIsProposeModalVisible] = useState(false);
@@ -278,7 +282,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
         <TouchableOpacity
           style={styles.proposeButton}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
           onPress={() => {
             if (onProposePress) {
               onProposePress();
@@ -287,7 +291,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
             }
           }}
         >
-          <Feather name="plus" size={16} color="#FCFCFC" />
+          <Feather name="plus" size={14} color="#FCFCFC" />
           <Text style={styles.proposeButtonText}>Propor</Text>
         </TouchableOpacity>
       </View>
@@ -298,39 +302,22 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       >
         <View style={styles.balanceCard}>
           <View style={styles.balanceTopRow}>
-            <Text style={styles.balanceLabel}>Saldo disponível</Text>
+            <Text style={styles.balanceLabel}>SEU SALDO DISPONÍVEL</Text>
             <View style={styles.balanceWeekBadge}>
-              <Text style={styles.balanceWeekText}>+35 esta semana</Text>
+              <Text style={styles.balanceWeekText}>Ciclo Atual</Text>
             </View>
           </View>
 
           <View style={styles.balanceMiddleRow}>
             <View style={styles.coinIconBoxLarge}>
-              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                <Circle
-                  cx={12}
-                  cy={12}
-                  r={9}
-                  stroke="#CC92C2"
-                  strokeWidth={2.5}
-                  fill="#CC92C2"
-                  fillOpacity={0.5}
-                />
-                <Circle
-                  cx={12}
-                  cy={12}
-                  r={4.5}
-                  stroke="#CC92C2"
-                  strokeWidth={2.5}
-                />
-              </Svg>
+              <Feather name="award" size={16} color={Colors.white} />
             </View>
             <Text style={styles.balanceNumber}>{coins}</Text>
-            <Text style={styles.balanceCoinsText}>moedas acumuladas</Text>
+            <Text style={styles.balanceCoinsText}>moedas</Text>
           </View>
 
           <Text style={styles.balanceHintText}>
-            Troque suas moedas ganhas em tarefas por folgas e benefícios combinados.
+            Acumule moedas concluindo tarefas domésticas pontualmente e troque por benefícios com a república!
           </Text>
         </View>
 
@@ -339,156 +326,100 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryPillsRow}
         >
-          <TouchableOpacity
-            style={[
-              styles.categoryPill,
-              activeCategory === 'all' && styles.categoryPillActive,
-            ]}
-            activeOpacity={0.8}
-            onPress={() => setActiveCategory('all')}
-          >
-            <Text
-              style={[
-                styles.categoryPillText,
-                activeCategory === 'all' && styles.categoryPillTextActive,
-              ]}
-            >
-              Todas ({countFor('all')})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.categoryPill,
-              activeCategory === 'Folga' && styles.categoryPillActive,
-            ]}
-            activeOpacity={0.8}
-            onPress={() => setActiveCategory('Folga')}
-          >
-            <Text
-              style={[
-                styles.categoryPillText,
-                activeCategory === 'Folga' && styles.categoryPillTextActive,
-              ]}
-            >
-              Folgas ({countFor('Folga')})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.categoryPill,
-              activeCategory === 'Convivência' && styles.categoryPillActive,
-            ]}
-            activeOpacity={0.8}
-            onPress={() => setActiveCategory('Convivência')}
-          >
-            <Text
-              style={[
-                styles.categoryPillText,
-                activeCategory === 'Convivência' && styles.categoryPillTextActive,
-              ]}
-            >
-              Convivência ({countFor('Convivência')})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.categoryPill,
-              activeCategory === 'Bônus' && styles.categoryPillActive,
-            ]}
-            activeOpacity={0.8}
-            onPress={() => setActiveCategory('Bônus')}
-          >
-            <Text
-              style={[
-                styles.categoryPillText,
-                activeCategory === 'Bônus' && styles.categoryPillTextActive,
-              ]}
-            >
-              Bônus ({countFor('Bônus')})
-            </Text>
-          </TouchableOpacity>
+          {(
+            [
+              { key: 'all', label: 'Todos' },
+              { key: 'Folga', label: 'Folgas' },
+              { key: 'Convivência', label: 'Convivência' },
+              { key: 'Bônus', label: 'Bônus' },
+            ] as const
+          ).map((cat) => {
+            const isActive = activeCategory === cat.key;
+            return (
+              <TouchableOpacity
+                key={cat.key}
+                style={[
+                  styles.categoryPill,
+                  isActive && styles.categoryPillActive,
+                ]}
+                activeOpacity={0.7}
+                onPress={() => setActiveCategory(cat.key)}
+              >
+                <Text
+                  style={[
+                    styles.categoryPillText,
+                    isActive && styles.categoryPillTextActive,
+                  ]}
+                >
+                  {cat.label} ({countFor(cat.key)})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         <View style={styles.itemsListContainer}>
-          {filteredItems.map((item) => {
-            return (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemHeaderRow}>
-                  <View style={styles.itemLeftGroup}>
-                    {renderItemIcon(item.iconType, item.category)}
-
-                    <View style={styles.itemTitleCol}>
-                      <View style={styles.titleBadgeRow}>
-                        <Text style={styles.itemTitle}>{item.title}</Text>
-                        <View
+          {filteredItems.map((item) => (
+            <View key={item.id} style={styles.itemCard}>
+              <View style={styles.itemHeaderRow}>
+                <View style={styles.itemLeftGroup}>
+                  {renderItemIcon(item.iconType, item.category)}
+                  <View style={styles.itemTitleCol}>
+                    <View style={styles.titleBadgeRow}>
+                      <Text style={styles.itemTitle}>{item.title}</Text>
+                      <View
+                        style={[
+                          styles.categoryBadge,
+                          item.category === 'Folga'
+                            ? styles.categoryBadgeFolga
+                            : item.category === 'Convivência'
+                            ? styles.categoryBadgeConvivencia
+                            : styles.categoryBadgeBonus,
+                        ]}
+                      >
+                        <Text
                           style={[
-                            styles.categoryBadge,
+                            styles.categoryBadgeText,
                             item.category === 'Folga'
-                              ? styles.categoryBadgeFolga
+                              ? styles.categoryBadgeTextFolga
                               : item.category === 'Convivência'
-                              ? styles.categoryBadgeConvivencia
-                              : styles.categoryBadgeBonus,
+                              ? styles.categoryBadgeTextConvivencia
+                              : styles.categoryBadgeTextBonus,
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.categoryBadgeText,
-                              item.category === 'Folga'
-                                ? styles.categoryBadgeTextFolga
-                                : item.category === 'Convivência'
-                                ? styles.categoryBadgeTextConvivencia
-                                : styles.categoryBadgeTextBonus,
-                            ]}
-                          >
-                            {item.category}
-                          </Text>
-                        </View>
+                          {item.category}
+                        </Text>
                       </View>
-                      <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
                     </View>
-                  </View>
-
-                  <View style={styles.costBadge}>
-                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-                      <Circle
-                        cx={12}
-                        cy={12}
-                        r={9}
-                        stroke="#CC92C2"
-                        strokeWidth={2.5}
-                        fill="#CC92C2"
-                        fillOpacity={0.35}
-                      />
-                      <Circle
-                        cx={12}
-                        cy={12}
-                        r={4.5}
-                        stroke="#CC92C2"
-                        strokeWidth={2.5}
-                      />
-                    </Svg>
-                    <Text style={styles.costBadgeText}>{item.cost} moedas</Text>
+                    <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
                   </View>
                 </View>
 
-                <Text style={styles.itemDescription}>{item.description}</Text>
-
-                <View style={styles.itemFooterRow}>
-                  <Text style={styles.availabilityText}>{item.availability}</Text>
-                  <TouchableOpacity
-                    style={styles.redeemButton}
-                    activeOpacity={0.85}
-                    onPress={() => handleRedeem(item)}
-                  >
-                    <Text style={styles.redeemButtonText}>Resgatar recompensa</Text>
-                  </TouchableOpacity>
+                <View style={styles.costBadge}>
+                  <Feather name="award" size={13} color={Colors.primary} />
+                  <Text style={styles.costBadgeText}>{item.cost}</Text>
                 </View>
               </View>
-            );
-          })}
+
+              <Text style={styles.itemDescription}>{item.description}</Text>
+
+              <View style={styles.itemFooterRow}>
+                <Text style={styles.availabilityText}>{item.availability}</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.redeemButton,
+                    coins < item.cost && { opacity: 0.6 },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => handleRedeem(item)}
+                >
+                  <Text style={styles.redeemButtonText}>
+                    {coins >= item.cost ? 'Resgatar' : 'Saldo insuficiente'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
@@ -518,8 +449,8 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
               <Text style={styles.modalInputLabel}>TÍTULO DO BENEFÍCIO</Text>
               <TextInput
                 style={styles.modalTextInput}
-                placeholder="Ex: Não lavar louça no domingo"
-                placeholderTextColor="rgba(132, 130, 143, 0.45)"
+                placeholder="Ex.: Café da manhã de domingo"
+                placeholderTextColor={Colors.textSecondary}
                 value={propTitle}
                 onChangeText={setPropTitle}
               />
@@ -528,25 +459,25 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
             <View style={styles.modalInputGroup}>
               <Text style={styles.modalInputLabel}>CATEGORIA</Text>
               <View style={styles.modalCategoryRow}>
-                {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => {
-                  const isSel = propCategory === cat;
-                  return (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.modalCatBtn, isSel && styles.modalCatBtnActive]}
-                      onPress={() => setPropCategory(cat)}
+                {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.modalCatBtn,
+                      propCategory === cat && styles.modalCatBtnActive,
+                    ]}
+                    onPress={() => setPropCategory(cat)}
+                  >
+                    <Text
+                      style={[
+                        styles.modalCatBtnText,
+                        propCategory === cat && styles.modalCatBtnTextActive,
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.modalCatBtnText,
-                          isSel && styles.modalCatBtnTextActive,
-                        ]}
-                      >
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
@@ -554,8 +485,6 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
               <Text style={styles.modalInputLabel}>CUSTO EM MOEDAS</Text>
               <TextInput
                 style={styles.modalTextInput}
-                placeholder="Ex: 150"
-                placeholderTextColor="rgba(132, 130, 143, 0.45)"
                 keyboardType="numeric"
                 value={propCost}
                 onChangeText={setPropCost}
@@ -563,11 +492,11 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
             </View>
 
             <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>DESCRIÇÃO DAS REGRAS</Text>
+              <Text style={styles.modalInputLabel}>DESCRIÇÃO / REGRAS</Text>
               <TextInput
                 style={[styles.modalTextInput, styles.modalTextArea]}
-                placeholder="Como funciona a folga ou benefício?"
-                placeholderTextColor="rgba(132, 130, 143, 0.45)"
+                placeholder="Explique como funciona o resgate..."
+                placeholderTextColor={Colors.textSecondary}
                 multiline
                 numberOfLines={2}
                 value={propDescription}
@@ -577,10 +506,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
             <TouchableOpacity
               style={styles.modalSubmitButton}
-              activeOpacity={0.88}
+              activeOpacity={0.85}
               onPress={handleCreateProposal}
             >
-              <Text style={styles.modalSubmitButtonText}>Enviar proposta para votação</Text>
+              <Text style={styles.modalSubmitButtonText}>Enviar para votação</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -996,5 +925,64 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  maintenanceScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+  },
+  maintenanceCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  maintenanceIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(94, 43, 151, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  maintenanceTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  maintenanceSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  maintenanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(94, 43, 151, 0.08)',
+  },
+  maintenanceBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
   },
 });

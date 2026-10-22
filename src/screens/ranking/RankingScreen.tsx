@@ -59,51 +59,7 @@ interface RankingScreenProps {
   onStorePress?: () => void;
 }
 
-const defaultRankingList: ResidentRankingItem[] = [
-  {
-    id: '1',
-    rank: 1,
-    name: 'Norman Osborn',
-    initials: 'NO',
-    isCurrentUser: true,
-    tasksCompleted: 18,
-    coins: 420,
-    xp: 1450,
-    level: 4,
-  },
-  {
-    id: '2',
-    rank: 2,
-    name: 'Doutor Octopus',
-    initials: 'DO',
-    tasksCompleted: 15,
-    coins: 310,
-    xp: 1280,
-    level: 4,
-  },
-  {
-    id: '3',
-    rank: 3,
-    name: 'Lagarto',
-    initials: 'LG',
-    tasksCompleted: 11,
-    coins: 195,
-    xp: 940,
-    level: 3,
-  },
-  {
-    id: '4',
-    rank: 4,
-    name: 'Homem-Areia',
-    initials: 'HA',
-    tasksCompleted: 7,
-    coins: 80,
-    xp: 620,
-    level: 2,
-    pendingTasksCount: 2,
-    highlightNudge: true,
-  },
-];
+
 
 /**
  * Tela de ranking de moradores, gamificação e pódio da república (Tela 24).
@@ -112,10 +68,10 @@ const defaultRankingList: ResidentRankingItem[] = [
  * @param props Dados do ciclo, lista de moradores e callbacks de cutucada e loja.
  */
 export const RankingScreen: React.FC<RankingScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
-  cycleName = 'Ciclo Setembro',
-  daysRemaining = 19,
-  rankingList = defaultRankingList,
+  houseName = 'Sua moradia',
+  cycleName = 'Ciclo Atual',
+  daysRemaining = 30,
+  rankingList = [],
   onNudgePress,
   onStorePress,
 }) => {
@@ -179,29 +135,41 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {leader && (
-          <View style={styles.leaderCard}>
-            <View style={styles.leaderTopRow}>
-              <Text style={styles.leaderSubtitle}>Líder atual</Text>
-              <View style={styles.daysRemainingBadge}>
-                <Text style={styles.daysRemainingText}>{daysRemaining} dias restantes</Text>
-              </View>
+        {rankingList.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconBox}>
+              <Feather name="award" size={32} color={Colors.primary} />
             </View>
-
-            <View style={styles.leaderBottomRow}>
-              <Text style={styles.leaderName}>{leader.name}</Text>
-              <Text style={styles.leaderXp}>{formatXp(leader.xp)}</Text>
-            </View>
+            <Text style={styles.emptyTitle}>Nenhum morador no ranking</Text>
+            <Text style={styles.emptySubtitle}>
+              Conclua tarefas domésticas para somar pontos de XP e subir no pódio da casa!
+            </Text>
           </View>
-        )}
+        ) : (
+          <>
+            {leader && (
+              <View style={styles.leaderCard}>
+                <View style={styles.leaderTopRow}>
+                  <Text style={styles.leaderSubtitle}>Líder atual</Text>
+                  <View style={styles.daysRemainingBadge}>
+                    <Text style={styles.daysRemainingText}>{daysRemaining} dias restantes</Text>
+                  </View>
+                </View>
 
-        <View style={styles.listHeaderRow}>
-          <Text style={styles.listHeaderTitle}>CLASSIFICAÇÃO DOS MORADORES</Text>
-          <Text style={styles.listHeaderCriterion}>Critério: XP</Text>
-        </View>
+                <View style={styles.leaderBottomRow}>
+                  <Text style={styles.leaderName}>{leader.name}</Text>
+                  <Text style={styles.leaderXp}>{formatXp(leader.xp)}</Text>
+                </View>
+              </View>
+            )}
 
-        <View style={styles.rankingListContainer}>
-          {rankingList.map((item) => {
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listHeaderTitle}>CLASSIFICAÇÃO DOS MORADORES</Text>
+              <Text style={styles.listHeaderCriterion}>Critério: XP</Text>
+            </View>
+
+            <View style={styles.rankingListContainer}>
+              {rankingList.map((item) => {
             const isFirst = item.rank === 1;
             const isNudged = nudgedMembers.includes(item.name);
 
@@ -355,7 +323,9 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
               </View>
             );
           })}
-        </View>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -698,5 +668,38 @@ const styles = StyleSheet.create({
   },
   nudgeButtonActiveText: {
     color: Colors.primary,
+  },
+  emptyCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 40,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  emptyIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(94, 43, 151, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
 });

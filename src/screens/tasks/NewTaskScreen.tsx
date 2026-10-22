@@ -27,6 +27,8 @@ export interface TaskFormData {
   type: 'Fixa' | 'Rotativa' | 'Emergencial';
   /** Nome do morador selecionado para a responsabilidade */
   assignee: string;
+  /** ID do morador selecionado para a responsabilidade */
+  assigneeId?: string;
   /** Iniciais do morador para exibição em avatar */
   assigneeInitials: string;
   /** Prazo limite de conclusão */
@@ -45,12 +47,14 @@ interface NewTaskScreenProps {
   onBackPress?: () => void;
   /** Callback de submissão dos dados da nova tarefa */
   onSubmitPress?: (taskData: TaskFormData) => void;
+  /** Lista de membros reais da moradia para atribuição */
+  membersList?: MemberOption[];
 }
 
 /**
  * Opção de membro da república para atribuição de responsabilidades.
  */
-interface MemberOption {
+export interface MemberOption {
   /** Identificador do membro */
   id: string;
   /** Nome de exibição */
@@ -58,13 +62,6 @@ interface MemberOption {
   /** Iniciais do avatar */
   initials: string;
 }
-
-const MEMBERS: MemberOption[] = [
-  { id: '1', name: 'Norman Osborn (Você)', initials: 'NO' },
-  { id: '2', name: 'Doutor Octopus', initials: 'DO' },
-  { id: '3', name: 'Lagarto', initials: 'LG' },
-  { id: '4', name: 'Homem-Areia', initials: 'HA' },
-];
 
 const DEADLINE_OPTIONS = [
   'Hoje, 14:00',
@@ -92,15 +89,19 @@ const ROOM_SUGGESTIONS = [
 export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   onBackPress,
   onSubmitPress,
+  membersList = [],
 }) => {
-  const [title, setTitle] = useState('Lavar louça da janta');
-  const [location, setLocation] = useState('Cozinha');
+  const availableMembers = membersList.length > 0 ? membersList : [];
+  const defaultMember = availableMembers[0] || {
+    id: 'unassigned',
+    name: 'Geral (Todos)',
+    initials: 'GD',
+  };
+
+  const [title, setTitle] = useState('');
+  const [location, setLocation] = useState('');
   const [taskType, setTaskType] = useState<'Fixa' | 'Rotativa' | 'Emergencial'>('Rotativa');
-  const [selectedMember, setSelectedMember] = useState<MemberOption>({
-    id: '1',
-    name: 'Norman O.',
-    initials: 'NO',
-  });
+  const [selectedMember, setSelectedMember] = useState<MemberOption>(defaultMember);
   const [deadline, setDeadline] = useState('Hoje, 22:00');
   const [xp, setXp] = useState(30);
   const [coins, setCoins] = useState(10);
@@ -144,6 +145,7 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
       location: location.trim() || 'Geral',
       type: taskType,
       assignee: selectedMember.name.replace(' (Você)', ''),
+      assigneeId: selectedMember.id !== 'unassigned' ? selectedMember.id : undefined,
       assigneeInitials: selectedMember.initials,
       deadline,
       xp,
@@ -338,29 +340,12 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
               <View style={styles.xpBadgeBox}>
                 <Text style={styles.xpBadgeText}>XP</Text>
               </View>
-              <Text style={styles.rewardText}>+{xp} pontos de XP</Text>
+              <Text style={styles.rewardText}>+{xp} XP</Text>
             </View>
 
             <View style={styles.rewardItem}>
               <View style={styles.coinBadgeBox}>
-                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                  <Circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke="#CC92C2"
-                    strokeWidth={2}
-                    fill="#CC92C2"
-                    fillOpacity={0.35}
-                  />
-                  <Circle
-                    cx="12"
-                    cy="12"
-                    r="4.5"
-                    stroke="#CC92C2"
-                    strokeWidth={2}
-                  />
-                </Svg>
+                <Feather name="award" size={14} color={Colors.primary} />
               </View>
               <Text style={styles.rewardText}>+{coins} Moedas</Text>
             </View>
@@ -403,38 +388,46 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
               </TouchableOpacity>
             </View>
 
-            {MEMBERS.map((member) => {
-              const isSelected = selectedMember.id === member.id;
-              return (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[
-                    styles.modalOptionItem,
-                    isSelected && styles.modalOptionItemSelected,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    setSelectedMember(member);
-                    setActiveModal('none');
-                  }}
-                >
-                  <View style={styles.modalMemberAvatar}>
-                    <Text style={styles.modalMemberAvatarText}>{member.initials}</Text>
-                  </View>
-                  <Text
+            {availableMembers.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
+                  Nenhum morador disponível para atribuição.
+                </Text>
+              </View>
+            ) : (
+              availableMembers.map((member) => {
+                const isSelected = selectedMember.id === member.id;
+                return (
+                  <TouchableOpacity
+                    key={member.id}
                     style={[
-                      styles.modalOptionText,
-                      isSelected && styles.modalOptionTextSelected,
+                      styles.modalOptionItem,
+                      isSelected && styles.modalOptionItemSelected,
                     ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSelectedMember(member);
+                      setActiveModal('none');
+                    }}
                   >
-                    {member.name}
-                  </Text>
-                  {isSelected && (
-                    <Feather name="check" size={18} color={Colors.primary} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+                    <View style={styles.modalMemberAvatar}>
+                      <Text style={styles.modalMemberAvatarText}>{member.initials}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.modalOptionText,
+                        isSelected && styles.modalOptionTextSelected,
+                      ]}
+                    >
+                      {member.name}
+                    </Text>
+                    {isSelected && (
+                      <Feather name="check" size={18} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
