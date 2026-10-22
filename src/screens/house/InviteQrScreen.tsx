@@ -36,8 +36,8 @@ interface InviteQrScreenProps {
  * @param props Dados da moradia e callbacks de navegação e compartilhamento.
  */
 export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
-  houseCode = 'SPLIT-8924',
+  houseName = 'Sua moradia',
+  houseCode = 'SPLIT-0000',
   onBackPress,
   onSharePress,
   onContinuePress,
