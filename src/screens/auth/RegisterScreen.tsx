@@ -160,7 +160,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Ex: Norman Osborn"
+                    placeholder="Ex: Seu Nome Completo"
                     placeholderTextColor={Colors.textSecondary}
                     value={name}
                     onChangeText={setName}
