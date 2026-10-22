@@ -50,53 +50,6 @@ interface HouseRulesScreenProps {
   onEditPress?: () => void;
 }
 
-const defaultRules: HouseRule[] = [
-  {
-    id: '1',
-    number: 1,
-    title: 'Horário de Silêncio',
-    highlight: '22h00 às 08h00 (dias úteis) • 00h00 aos fins de semana',
-    description:
-      'Música alta e conversa em volume elevado nas áreas compartilhadas (sala e varanda) são vedados após o horário limite.',
-    iconName: 'moon',
-    iconBgColor: 'rgba(94, 43, 151, 0.1)',
-    iconColor: '#5E2B97',
-  },
-  {
-    id: '2',
-    number: 2,
-    title: 'Visitas e Hóspedes',
-    highlight: 'Aviso prévio de 24h no grupo da república',
-    description:
-      'Hóspedes podem pernoitar por até 2 noites seguidas. Períodos maiores necessitam de aprovação da maioria dos moradores.',
-    iconName: 'users',
-    iconBgColor: 'rgba(204, 146, 194, 0.25)',
-    iconColor: '#5E2B97',
-  },
-  {
-    id: '3',
-    number: 3,
-    title: 'Insumos Coletivos',
-    highlight: 'Divisão automática em 4 partes iguais',
-    description:
-      'Produtos de limpeza (detergente, água sanitária, desinfetante), sacos de lixo e papel higiênico entram como despesa compartilhada.',
-    iconName: 'shopping-cart',
-    iconBgColor: '#F3F4F6',
-    iconColor: '#2D2D2A',
-  },
-  {
-    id: '4',
-    number: 4,
-    title: 'Tolerância de Pagamento',
-    highlight: 'Até 3 dias úteis após o vencimento',
-    description:
-      'O morador inadimplente recebe notificação automática e fica impedido de resgatar prêmios na Loja da Casa até a quitação.',
-    iconName: 'clock',
-    iconBgColor: 'rgba(94, 43, 151, 0.1)',
-    iconColor: '#5E2B97',
-  },
-];
-
 /**
  * Tela de consulta às regras de convivência da moradia (Tela 30).
  * Apresenta as cláusulas de silêncio, visitas, tarefas e pagamentos, com data da última revisão e atalho para edição.
@@ -104,9 +57,9 @@ const defaultRules: HouseRule[] = [
  * @param props Dados da república, lista de regras e handlers de retorno e edição.
  */
 export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
-  republicName = 'República do Sexteto Sinistro',
-  updatedDate = '01/Set/2026',
-  rules = defaultRules,
+  republicName = 'Sua moradia',
+  updatedDate = 'Recente',
+  rules = [],
   onBackPress,
   onEditPress,
 }) => {
@@ -170,30 +123,42 @@ export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
           <Text style={styles.statusDate}>Atualizado em {updatedDate}</Text>
         </View>
 
-        {rules.map((rule) => (
-          <View key={rule.id} style={styles.ruleCard}>
-            <View style={styles.ruleHeader}>
-              <View
-                style={[
-                  styles.ruleIconContainer,
-                  { backgroundColor: rule.iconBgColor || '#F3F4F6' },
-                ]}
-              >
-                <Feather
-                  name={rule.iconName}
-                  size={15}
-                  color={rule.iconColor || Colors.primary}
-                />
-              </View>
-              <Text style={styles.ruleTitle}>
-                {rule.number}. {rule.title}
-              </Text>
-            </View>
-
-            <Text style={styles.ruleHighlight}>{rule.highlight}</Text>
-            <Text style={styles.ruleDescription}>{rule.description}</Text>
+        {rules.length === 0 ? (
+          <View style={{ backgroundColor: Colors.white, borderRadius: 16, padding: 32, alignItems: 'center', marginTop: 30, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <Feather name="file-text" size={32} color={Colors.primary} style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 }}>
+              Nenhuma regra cadastrada
+            </Text>
+            <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center' }}>
+              Clique em "Editar" para cadastrar as diretrizes e regras da moradia.
+            </Text>
           </View>
-        ))}
+        ) : (
+          rules.map((rule) => (
+            <View key={rule.id} style={styles.ruleCard}>
+              <View style={styles.ruleHeader}>
+                <View
+                  style={[
+                    styles.ruleIconContainer,
+                    { backgroundColor: rule.iconBgColor || '#F3F4F6' },
+                  ]}
+                >
+                  <Feather
+                    name={rule.iconName}
+                    size={15}
+                    color={rule.iconColor || Colors.primary}
+                  />
+                </View>
+                <Text style={styles.ruleTitle}>
+                  {rule.number}. {rule.title}
+                </Text>
+              </View>
+
+              <Text style={styles.ruleHighlight}>{rule.highlight}</Text>
+              <Text style={styles.ruleDescription}>{rule.description}</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
