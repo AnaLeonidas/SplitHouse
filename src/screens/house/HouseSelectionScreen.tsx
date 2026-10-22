@@ -35,8 +35,8 @@ interface HouseSelectionScreenProps {
  * @param props Dados do usuário logado e ações de navegação de moradia.
  */
 export const HouseSelectionScreen: React.FC<HouseSelectionScreenProps> = ({
-  userName = 'Norman Osborn',
-  userInitials = 'NO',
+  userName = 'Morador',
+  userInitials = 'MO',
   onCreateHousePress,
   onJoinHousePress,
   onLogoutPress,
