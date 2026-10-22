@@ -15,6 +15,18 @@ import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
 /**
+ * Regra editável do estatuto da república.
+ */
+export interface EditableRule {
+  /** Título do tópico de convivência */
+  titulo: string;
+  /** Destaque ou resumo da regra */
+  destaque: string;
+  /** Texto completo da diretriz */
+  descricao: string;
+}
+
+/**
  * Propriedades e callbacks da tela de edição do estatuto da república.
  */
 interface EditHouseRulesScreenProps {
@@ -22,6 +34,10 @@ interface EditHouseRulesScreenProps {
   republicName?: string;
   /** Callback para voltar à visualização de regras */
   onBackPress?: () => void;
+  /** Regras atuais carregadas do backend */
+  initialRules?: EditableRule[];
+  /** Persiste as regras editadas; deve lançar erro em caso de falha */
+  onSave?: (rules: EditableRule[]) => Promise<void>;
   /** Callback executado após a gravação das novas regras da casa */
   onSaveSuccess?: () => void;
 }
@@ -33,54 +49,44 @@ interface EditHouseRulesScreenProps {
  * @param props Handlers para retorno e salvamento do estatuto revisado.
  */
 export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
-  republicName = 'República do Sexteto Sinistro',
+  republicName = 'Sua moradia',
+  initialRules = [],
   onBackPress,
+  onSave,
   onSaveSuccess,
 }) => {
-  const [silenceHighlight, setSilenceHighlight] = useState(
-    '22h00 às 08h00 (dias úteis) • 00h00 aos fins de semana'
-  );
-  const [silenceDesc, setSilenceDesc] = useState(
-    'Música alta e conversa em volume elevado nas áreas compartilhadas (sala e varanda) são vedados após o horário limite.'
-  );
+  const [rules, setRules] = useState<EditableRule[]>(initialRules);
+  const [saving, setSaving] = useState(false);
 
-  const [guestsHighlight, setGuestsHighlight] = useState(
-    'Aviso prévio de 24h no grupo da república'
-  );
-  const [guestsDesc, setGuestsDesc] = useState(
-    'Hóspedes podem pernoitar por até 2 noites seguidas. Períodos maiores necessitam de aprovação da maioria dos moradores.'
-  );
+  const updateRule = (index: number, patch: Partial<EditableRule>) => {
+    setRules((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  };
 
-  const [suppliesHighlight, setSuppliesHighlight] = useState(
-    'Divisão automática em 4 partes iguais'
-  );
-
-  const [toleranceHighlight, setToleranceHighlight] = useState(
-    'Até 3 dias úteis após o vencimento'
-  );
-
-  const handleSave = () => {
-    Alert.alert(
-      'Regras Atualizadas',
-      'O estatuto da casa foi modificado e todos os moradores foram notificados.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (onSaveSuccess) {
-              onSaveSuccess();
-            }
-          },
-        },
-      ]
-    );
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (onSave) {
+        await onSave(rules);
+      }
+      Alert.alert(
+        'Regras Atualizadas',
+        'O estatuto da casa foi atualizado com sucesso.',
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
+      );
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar as regras.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddRule = () => {
-    Alert.alert(
-      'Nova Regra',
-      'Funcionalidade para adicionar campo dinâmico de nova regra de convivência.'
-    );
+    setRules((prev) => [...prev, { titulo: '', destaque: '', descricao: '' }]);
+  };
+
+  const handleDeleteRule = (index: number) => {
+    setRules((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -132,57 +138,37 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>1. HORÁRIO DE SILÊNCIO</Text>
-          <TextInput
-            style={styles.input}
-            value={silenceHighlight}
-            onChangeText={setSilenceHighlight}
-          />
-          <TextInput
-            style={styles.textArea}
-            value={silenceDesc}
-            onChangeText={setSilenceDesc}
-            multiline
-            numberOfLines={2}
-            textAlignVertical="top"
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>2. VISITAS E HÓSPEDES</Text>
-          <TextInput
-            style={styles.input}
-            value={guestsHighlight}
-            onChangeText={setGuestsHighlight}
-          />
-          <TextInput
-            style={styles.textArea}
-            value={guestsDesc}
-            onChangeText={setGuestsDesc}
-            multiline
-            numberOfLines={2}
-            textAlignVertical="top"
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>3. INSUMOS COLETIVOS</Text>
-          <TextInput
-            style={styles.input}
-            value={suppliesHighlight}
-            onChangeText={setSuppliesHighlight}
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>4. TOLERÂNCIA DE PAGAMENTO</Text>
-          <TextInput
-            style={styles.input}
-            value={toleranceHighlight}
-            onChangeText={setToleranceHighlight}
-          />
-        </View>
+        {rules.map((rule, index) => (
+          <View key={index} style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.label}>{index + 1}. REGRA</Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => handleDeleteRule(index)}>
+                <Feather name="trash-2" size={16} color="#DC2626" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.input}
+              value={rule.titulo}
+              onChangeText={(text) => updateRule(index, { titulo: text })}
+              placeholder="Título da regra"
+            />
+            <TextInput
+              style={styles.input}
+              value={rule.destaque}
+              onChangeText={(text) => updateRule(index, { destaque: text })}
+              placeholder="Destaque (resumo)"
+            />
+            <TextInput
+              style={styles.textArea}
+              value={rule.descricao}
+              onChangeText={(text) => updateRule(index, { descricao: text })}
+              placeholder="Descrição completa"
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
+            />
+          </View>
+        ))}
 
         <TouchableOpacity
           style={styles.addRuleButton}
@@ -198,7 +184,7 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
         <View style={styles.noticeBox}>
           <Feather name="bell" size={16} color={Colors.primary} style={styles.noticeIcon} />
           <Text style={styles.noticeText}>
-            Todos os moradores (Doutor Octopus, Lagarto e Homem-Areia) receberão uma notificação sobre a atualização do estatuto.
+            As alterações ficam visíveis para todos os moradores da casa.
           </Text>
         </View>
       </ScrollView>
@@ -209,7 +195,9 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
           activeOpacity={0.8}
           onPress={handleSave}
         >
-          <Text style={styles.saveButtonText}>Salvar alterações</Text>
+          <Text style={styles.saveButtonText}>
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
