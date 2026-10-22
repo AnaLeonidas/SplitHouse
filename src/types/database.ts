@@ -27,7 +27,7 @@ export interface TarefaDB {
   /** Identificador único da tarefa (UUID) */
   id: string;
   /** Identificador da moradia à qual a tarefa pertence */
-  moradia_id?: string | null;
+  moradia_id: string;
   /** Título descritivo da atividade */
   titulo: string;
   /** Descrição detalhada das orientações da tarefa */
@@ -35,29 +35,30 @@ export interface TarefaDB {
   /** Cômodo ou ambiente de execução na casa */
   comodo: string;
   /** Tipologia de rotatividade da tarefa */
-  tipo: 'Fixa' | 'Rotativa' | 'Emergencial';
-  /** UUID do morador atribuído como responsável */
-  responsavel_id?: string | null;
-  /** Nome de exibição do morador atribuído */
-  responsavel_nome?: string | null;
-  /** Prazo ou data limite de conclusão */
-  prazo: string;
+  tipo: 'Rotativa' | 'Fixa' | 'Emergencial';
+  /** UUID do morador atribuído como responsável (referencia public.perfis.id) */
+  responsavel_id: string;
+  /** Dados do perfil do responsável obtidos via join */
+  responsavel?: {
+    id?: string;
+    nome_completo?: string | null;
+  } | null;
+  /** Prazo limite de conclusão (timestamptz) */
+  prazo_limite: string;
   /** Quantidade de pontos de experiência (XP) concedidos */
-  xp: number;
-  /** Quantidade de moedas concedidas ao morador */
-  moedas: number;
-  /** Estado atual da tarefa no ciclo de vida */
-  status: 'Pendente' | 'Concluída' | 'Aguardando validação';
+  recompensa_xp: number;
+  /** Quantidade de moedas distribuídas */
+  recompensa_moedas: number;
   /** Indica se a conclusão requer validação por pares com foto */
   requer_validacao: boolean;
-  /** URL da foto comprobatória enviada pelo executor */
-  foto_comprovante_url?: string | null;
-  /** Informação textual do executor para auditoria */
-  executor_info?: string | null;
+  /** Estado atual da tarefa no banco */
+  status: 'pendente' | 'em_validacao' | 'concluida' | 'expirada';
+  /** UUID do criador da tarefa (referencia public.perfis.id) */
+  criado_por?: string | null;
   /** Timestamp de criação do registro */
   criado_em?: string;
-  /** Timestamp de conclusão da tarefa */
-  concluido_em?: string | null;
+  /** Timestamp da última atualização do registro */
+  atualizado_em?: string;
 }
 
 /**
@@ -67,17 +68,23 @@ export interface TarefaDB {
 export interface ValidacaoTarefaDB {
   /** Identificador único da validação (UUID) */
   id: string;
-  /** Identificador da tarefa validada */
+  /** Identificador da tarefa validada (referencia public.tarefas.id) */
   tarefa_id: string;
-  /** UUID do morador que avaliou a tarefa */
-  validador_id: string;
-  /** Nome do morador avaliador */
-  validador_nome?: string | null;
+  /** UUID do executor da tarefa (referencia public.perfis.id) */
+  executor_id: string;
+  /** URL pública da foto comprobatória */
+  foto_comprovante_url: string;
+  /** Data e hora em que a foto foi registrada */
+  data_hora_foto?: string;
+  /** UUID do morador avaliador (referencia public.perfis.id) */
+  validador_id?: string | null;
   /** Parecer da validação */
-  status: 'aprovada' | 'recusada';
-  /** Justificativa informada pelo avaliador */
+  status: 'pendente' | 'aprovada' | 'recusada';
+  /** Justificativa informada pelo avaliador em caso de recusa */
   justificativa?: string | null;
   /** Timestamp da avaliação */
+  validado_em?: string | null;
+  /** Timestamp de registro */
   criado_em?: string;
 }
 
@@ -105,4 +112,99 @@ export interface HomeDashboardData {
   leaderName: string;
   /** Pontos de XP do líder */
   leaderXp: number;
+}
+
+/**
+ * Representação da tabela 'public.moradias' no Supabase.
+ */
+export interface MoradiaDB {
+  /** Identificador único da moradia (UUID) */
+  id: string;
+  /** Nome da casa ou apartamento */
+  nome: string;
+  /** Endereço do imóvel */
+  endereco: string;
+  /** Tipologia do imóvel */
+  tipo: 'apartamento' | 'casa';
+  /** Quantidade estimada de moradores */
+  estimativa_moradores?: number | null;
+  /** Código de convite no formato SPLIT-0000 */
+  codigo_convite: string;
+  /** Nome do ciclo financeiro atual */
+  nome_ciclo_atual?: string | null;
+  /** UUID do usuário criador */
+  criado_por?: string | null;
+  criado_em?: string;
+  atualizado_em?: string;
+}
+
+/** Papel do morador dentro da moradia. */
+export type PapelMembro = 'admin' | 'morador';
+
+/** Estado do vínculo do morador com a moradia. */
+export type StatusMembro = 'pendente' | 'aprovado' | 'recusado' | 'saiu';
+
+/**
+ * Representação da tabela 'public.membros_moradia' no Supabase.
+ */
+export interface MembroMoradiaDB {
+  id: string;
+  moradia_id: string;
+  usuario_id: string;
+  papel: PapelMembro;
+  status: StatusMembro;
+  nivel: number;
+  titulo_nivel: string;
+  xp: number;
+  moedas: number;
+  entrou_em?: string | null;
+}
+
+/**
+ * Vínculo do usuário logado com uma moradia (membro + dados da moradia).
+ */
+export interface MinhaMoradia {
+  /** Id do registro em membros_moradia */
+  membro_id: string;
+  moradia_id: string;
+  nome: string;
+  endereco: string;
+  tipo: 'apartamento' | 'casa';
+  codigo_convite: string;
+  nome_ciclo_atual?: string | null;
+  papel: PapelMembro;
+  status: StatusMembro;
+}
+
+/**
+ * Morador ou solicitação, já com os dados do perfil.
+ */
+export interface MembroMoradia extends MembroMoradiaDB {
+  nome: string | null;
+  email: string | null;
+}
+
+/**
+ * Representação da tabela 'public.regras_moradia' no Supabase.
+ */
+export interface RegraMoradiaDB {
+  id: string;
+  moradia_id: string;
+  /** Posição da regra no estatuto */
+  numero_ordem: number;
+  titulo: string;
+  /** Resumo/destaque da regra */
+  destaque?: string | null;
+  descricao: string;
+  /** Nome do ícone Feather */
+  nome_icone?: string | null;
+  criado_em?: string;
+  atualizado_em?: string;
+}
+
+/** Dados de uma regra enviados ao backend (criação e edição). */
+export interface RegraInput {
+  titulo: string;
+  destaque?: string;
+  descricao: string;
 }
