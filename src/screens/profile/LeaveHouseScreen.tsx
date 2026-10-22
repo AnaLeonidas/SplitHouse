@@ -40,6 +40,8 @@ interface LeaveHouseScreenProps {
   republicName?: string;
   /** Saldo financeiro do morador a ser liquidado */
   balance?: number;
+  /** Moradores elegíveis para assumir a administração */
+  candidates?: CandidateMember[];
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback executado após a confirmação com sucesso da desvinculação */
@@ -48,33 +50,6 @@ interface LeaveHouseScreenProps {
   onCancelPress?: () => void;
 }
 
-const defaultCandidates: CandidateMember[] = [
-  {
-    id: '1',
-    name: 'Doutor Octopus',
-    initials: 'DO',
-    levelInfo: 'Nível 4 • 15 tarefas feitas',
-    avatarBg: '#2D2D2A',
-    avatarTextColor: '#FFFFFF',
-  },
-  {
-    id: '2',
-    name: 'Lagarto',
-    initials: 'LG',
-    levelInfo: 'Nível 3 • 11 tarefas feitas',
-    avatarBg: 'rgba(204, 146, 194, 0.3)',
-    avatarTextColor: '#2D2D2A',
-  },
-  {
-    id: '3',
-    name: 'Homem-Areia',
-    initials: 'HA',
-    levelInfo: 'Nível 2 • 7 tarefas feitas',
-    avatarBg: '#F3F4F6',
-    avatarTextColor: '#2D2D2A',
-  },
-];
-
 /**
  * Tela de desvinculação e saída da república (Tela 32).
  * Exige transferência do papel de administração para outro morador ativo, verificação de pendências financeiras e confirmação de senha.
@@ -82,20 +57,25 @@ const defaultCandidates: CandidateMember[] = [
  * @param props Dados da república, saldo devedor/credor e callbacks de confirmação ou cancelamento.
  */
 export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
-  republicName = 'República do Sexteto Sinistro',
-  balance = 95.0,
+  republicName = 'Sua moradia',
+  balance = 0.0,
+  candidates = [],
   onBackPress,
   onConfirmSuccess,
   onCancelPress,
 }) => {
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('1');
-  const [password, setPassword] = useState('••••••••••••');
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>(
+    candidates[0]?.id || ''
+  );
+  const [password, setPassword] = useState('');
 
   const handleConfirm = () => {
-    const selected = defaultCandidates.find((c) => c.id === selectedCandidateId);
+    const selected = candidates.find((c) => c.id === selectedCandidateId);
     Alert.alert(
       'Solicitação Enviada',
-      `O convite de administração foi enviado para ${selected?.name || 'o morador indicado'}. Sua desvinculação será concluída assim que o aceite for confirmado.`,
+      candidates.length > 0
+        ? `O convite de administração foi enviado para ${selected?.name || 'o morador indicado'}. Sua desvinculação será concluída assim que o aceite for confirmado.`
+        : 'Sua solicitação de desvinculação foi registrada.',
       [
         {
           text: 'Entendido',
@@ -185,8 +165,15 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
           </Text>
 
           <View style={styles.candidatesList}>
-            {defaultCandidates.map((member) => {
-              const isSelected = selectedCandidateId === member.id;
+            {candidates.length === 0 ? (
+              <View style={{ paddingVertical: 12 }}>
+                <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                  Não há outros moradores para transferir a administração.
+                </Text>
+              </View>
+            ) : (
+              candidates.map((member) => {
+                const isSelected = selectedCandidateId === member.id;
               return (
                 <TouchableOpacity
                   key={member.id}
@@ -229,7 +216,7 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
                   </View>
                 </TouchableOpacity>
               );
-            })}
+            }))}
           </View>
 
           <View style={styles.warningBox}>
