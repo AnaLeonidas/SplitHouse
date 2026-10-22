@@ -15,7 +15,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Modelo de dados de um usuário aguardando aprovação para ingressar na república.
  */
-interface PendingMember {
+export interface PendingMember {
   /** Identificador único da solicitação */
   id: string;
   /** Nome completo do solicitante */
@@ -29,7 +29,7 @@ interface PendingMember {
 /**
  * Modelo de dados de um morador ativo na república.
  */
-interface ActiveMember {
+export interface ActiveMember {
   /** Identificador único do morador */
   id: string;
   /** Nome completo do morador */
@@ -52,70 +52,44 @@ interface ActiveMember {
 interface ManageMembersScreenProps {
   /** Nome da república */
   houseName?: string;
+  /** Moradores aprovados da casa */
+  activeMembers?: ActiveMember[];
+  /** Solicitações de ingresso aguardando aprovação */
+  pendingMembers?: PendingMember[];
+  /** Somente administradores podem aprovar ou recusar solicitações */
+  canManage?: boolean;
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback para exibir o QR Code e código de convite */
   onViewQrPress?: () => void;
+  /** Aprova uma solicitação (id do vínculo) */
+  onApprove?: (memberId: string) => void;
+  /** Recusa uma solicitação (id do vínculo) */
+  onReject?: (memberId: string) => void;
 }
 
 /**
  * Tela de gestão de membros e solicitações de ingresso da moradia (Tela 12).
  * Permite aos administradores aceitar/recusar solicitações pendentes e gerenciar moradores ativos.
  *
- * @param props Dados da moradia e callbacks de navegação e convite.
+ * @param props Dados da moradia, listas de moradores e callbacks de navegação e aprovação.
  */
 export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
+  houseName = 'Minha moradia',
+  activeMembers = [],
+  pendingMembers = [],
+  canManage = false,
   onBackPress,
   onViewQrPress,
+  onApprove,
+  onReject,
 }) => {
-  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([
-    {
-      id: 'p1',
-      name: 'Homem-Areia',
-      email: 'flint.marko@email.com',
-      initials: 'HA',
-    },
-  ]);
-
-  const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([
-    {
-      id: 'a1',
-      name: 'Norman Osborn',
-      email: 'norman@oscorp.com',
-      initials: 'NO',
-      isAdmin: true,
-      isCurrentUser: true,
-    },
-    {
-      id: 'a2',
-      name: 'Doutor Octopus',
-      statusText: 'Saldo: R$ 0,00 • Em dia',
-      initials: 'DO',
-    },
-    {
-      id: 'a3',
-      name: 'Lagarto',
-      statusText: 'Saldo: R$ 0,00 • Em dia',
-      initials: 'LG',
-    },
-  ]);
-
   const handleApprove = (member: PendingMember) => {
-    setActiveMembers((prev) => [
-      ...prev,
-      {
-        id: member.id,
-        name: member.name,
-        statusText: 'Saldo: R$ 0,00 • Em dia',
-        initials: member.initials,
-      },
-    ]);
-    setPendingMembers((prev) => prev.filter((item) => item.id !== member.id));
+    if (onApprove) onApprove(member.id);
   };
 
   const handleReject = (memberId: string) => {
-    setPendingMembers((prev) => prev.filter((item) => item.id !== memberId));
+    if (onReject) onReject(memberId);
   };
 
   return (
@@ -162,7 +136,7 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
           </Text>
         </View>
 
-        {pendingMembers.length > 0 && (
+        {canManage && pendingMembers.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
