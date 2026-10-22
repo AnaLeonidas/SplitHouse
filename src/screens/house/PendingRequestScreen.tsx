@@ -33,7 +33,7 @@ interface PendingRequestScreenProps {
  * @param props Dados da república solicitada e ações de atualização ou cancelamento.
  */
 export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
-  houseName = 'República do Sexteto Sinistro',
+  houseName = 'Sua moradia',
   onBackPress,
   onRefreshPress,
   onCancelPress,
