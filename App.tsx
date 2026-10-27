@@ -45,6 +45,7 @@ import { LeaveHouseScreen } from './src/screens/profile/LeaveHouseScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { tasksService } from './src/services/tasksService';
 import { houseService, CreateHouseInput } from './src/services/houseService';
+import { profileService } from './src/services/profileService';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 
@@ -113,7 +114,7 @@ type Screen =
  * controle por gestos de arraste lateral (swipe) e renderização condicional das 32 telas.
  */
 function MainApp() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, refreshProfile } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -261,7 +262,7 @@ function MainApp() {
   const profileUserData = {
     name: profile?.nome_completo || 'Morador',
     role: myHouse?.papel === 'admin' ? 'Admin' : 'Morador',
-    email: profile?.email || user?.email || '',
+    email: user?.email || profile?.email || '',
     republicName: myHouse?.nome || 'Minha Moradia',
     level: currentMember?.nivel || 1,
     levelTitle: currentMember?.titulo_nivel || 'Morador Iniciante',
@@ -530,6 +531,24 @@ function MainApp() {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
             }
           }}
+          onRemoveMember={async (memberId) => {
+            try {
+              await houseService.removeMember(memberId);
+              if (myHouse) await loadMembers(myHouse.moradia_id);
+              Alert.alert('Sucesso', 'Morador removido da moradia.');
+            } catch (err) {
+              Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+            }
+          }}
+          onPromoteAdmin={async (memberId) => {
+            try {
+              await houseService.promoteToAdmin(memberId);
+              if (myHouse) await loadMembers(myHouse.moradia_id);
+              Alert.alert('Sucesso', 'Morador promovido a administrador.');
+            } catch (err) {
+              Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+            }
+          }}
         />
       )}
 
@@ -609,7 +628,10 @@ function MainApp() {
               onEditProfilePress={() => setCurrentScreen('edit_profile')}
               onNotificationsPress={() => setCurrentScreen('notifications')}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
-              onHouseRulesPress={() => setCurrentScreen('house_rules')}
+              onHouseRulesPress={() => {
+                if (myHouse?.status === 'aprovado') loadRules(myHouse.moradia_id);
+                setCurrentScreen('house_rules');
+              }}
               onLeaveHousePress={() => setCurrentScreen('leave_house')}
               onStorePress={() => setCurrentScreen('store')}
               onTasksPress={() => setCurrentScreen('tasks_list')}
@@ -803,6 +825,12 @@ function MainApp() {
       {currentScreen === 'edit_profile' && (
         <EditProfileScreen
           onBackPress={() => setCurrentScreen('profile')}
+          onSave={async (data) => {
+            const result = await profileService.updateProfile(data);
+            await refreshProfile();
+            if (myHouse?.status === 'aprovado') await loadMembers(myHouse.moradia_id);
+            return result;
+          }}
           onSaveSuccess={() => setCurrentScreen('profile')}
         />
       )}
@@ -828,6 +856,7 @@ function MainApp() {
             ...RULE_COLORS[i % RULE_COLORS.length],
           }))}
           onBackPress={() => setCurrentScreen('profile')}
+          canEdit={isAdmin}
           onEditPress={() => {
             if (!isAdmin) {
               Alert.alert('Acesso negado', 'Apenas administradores podem editar as regras.');

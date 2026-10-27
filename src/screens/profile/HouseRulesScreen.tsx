@@ -48,6 +48,8 @@ interface HouseRulesScreenProps {
   onBackPress?: () => void;
   /** Callback para abrir tela de edição do estatuto */
   onEditPress?: () => void;
+  /** Indica se o usuário pode editar as regras (administrador) */
+  canEdit?: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
   rules = [],
   onBackPress,
   onEditPress,
+  canEdit = true,
 }) => {
   return (
     <View style={styles.container}>
@@ -100,14 +103,18 @@ export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
           <Text style={styles.headerSubtitle}>{republicName}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.editButton}
-          activeOpacity={0.7}
-          onPress={onEditPress}
-        >
-          <Feather name="edit-2" size={12} color="#FFFFFF" />
-          <Text style={styles.editButtonText}>Editar</Text>
-        </TouchableOpacity>
+        {canEdit ? (
+          <TouchableOpacity
+            style={styles.editButton}
+            activeOpacity={0.7}
+            onPress={onEditPress}
+          >
+            <Feather name="edit-2" size={12} color="#FFFFFF" />
+            <Text style={styles.editButtonText}>Editar</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.editPlaceholder} />
+        )}
       </View>
 
       <ScrollView
@@ -130,7 +137,9 @@ export const HouseRulesScreen: React.FC<HouseRulesScreenProps> = ({
               Nenhuma regra cadastrada
             </Text>
             <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: 'center' }}>
-              Clique em "Editar" para cadastrar as diretrizes e regras da moradia.
+              {canEdit
+                ? 'Clique em "Editar" para cadastrar as diretrizes e regras da moradia.'
+                : 'O administrador da moradia ainda não cadastrou as regras.'}
             </Text>
           </View>
         ) : (
@@ -233,6 +242,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  editPlaceholder: {
+    width: 40,
   },
   scrollView: {
     flex: 1,

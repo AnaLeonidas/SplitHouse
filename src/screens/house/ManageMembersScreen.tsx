@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   StatusBar as RNStatusBar,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
@@ -66,6 +67,10 @@ interface ManageMembersScreenProps {
   onApprove?: (memberId: string) => void;
   /** Recusa uma solicitação (id do vínculo) */
   onReject?: (memberId: string) => void;
+  /** Remove um morador ativo da moradia */
+  onRemoveMember?: (memberId: string) => void;
+  /** Promove um morador ao papel de administrador */
+  onPromoteAdmin?: (memberId: string) => void;
 }
 
 /**
@@ -83,6 +88,8 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
   onViewQrPress,
   onApprove,
   onReject,
+  onRemoveMember,
+  onPromoteAdmin,
 }) => {
   const handleApprove = (member: PendingMember) => {
     if (onApprove) onApprove(member.id);
@@ -90,6 +97,62 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
 
   const handleReject = (memberId: string) => {
     if (onReject) onReject(memberId);
+  };
+
+  const handleMemberOptions = (member: ActiveMember) => {
+    if (!canManage) {
+      Alert.alert('Acesso restrito', 'Apenas administradores podem gerenciar moradores.');
+      return;
+    }
+
+    if (member.isCurrentUser) {
+      return;
+    }
+
+    Alert.alert(
+      member.name,
+      'Selecione uma ação para este morador:',
+      [
+        {
+          text: 'Promover a Administrador',
+          onPress: () => {
+            Alert.alert(
+              'Confirmar promoção',
+              `Deseja tornar ${member.name} um administrador da moradia?`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Promover',
+                  onPress: () => onPromoteAdmin && onPromoteAdmin(member.id),
+                },
+              ]
+            );
+          },
+        },
+        {
+          text: 'Remover da Moradia',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Remover morador',
+              `Tem certeza que deseja remover ${member.name} da moradia?`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Remover',
+                  style: 'destructive',
+                  onPress: () => onRemoveMember && onRemoveMember(member.id),
+                },
+              ]
+            );
+          },
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   return (
@@ -233,10 +296,11 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
                   <View style={styles.adminBadge}>
                     <Text style={styles.adminBadgeText}>Admin</Text>
                   </View>
-                ) : (
+                ) : canManage && !member.isCurrentUser ? (
                   <TouchableOpacity
                     style={styles.optionsButton}
                     activeOpacity={0.7}
+                    onPress={() => handleMemberOptions(member)}
                   >
                     <Feather
                       name="more-horizontal"
@@ -244,7 +308,7 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
                       color={Colors.textSecondary}
                     />
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
             ))}
           </View>
