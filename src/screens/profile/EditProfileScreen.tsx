@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { UpdateProfileInput, UpdateProfileResult } from '../../services/profileService';
 
 /**
  * Propriedades e callbacks do formulário de edição de perfil do usuário.
@@ -21,6 +22,8 @@ import { useAuth } from '../../contexts/AuthContext';
 interface EditProfileScreenProps {
   /** Callback para voltar à visualização do perfil */
   onBackPress?: () => void;
+  /** Persiste os dados editados; deve lançar erro em caso de falha */
+  onSave?: (data: UpdateProfileInput) => Promise<UpdateProfileResult>;
   /** Callback executado após a gravação das novas informações do usuário */
   onSaveSuccess?: () => void;
 }
@@ -33,16 +36,28 @@ interface EditProfileScreenProps {
  */
 export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   onBackPress,
+  onSave,
   onSaveSuccess,
 }) => {
   const { user, profile } = useAuth();
   const [name, setName] = useState(profile?.nome_completo || '');
-  const [email, setEmail] = useState(profile?.email || user?.email || '');
+  const [email, setEmail] = useState(user?.email || profile?.email || '');
   const [pixKey, setPixKey] = useState(profile?.chave_pix || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const initials =
+    name
+      .split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'SH';
+
+  const handleSave = async () => {
+    if (saving) return;
     if (!name.trim()) {
       Alert.alert('Atenção', 'O nome não pode ficar em branco.');
       return;
@@ -51,21 +66,43 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
       Alert.alert('Atenção', 'O e-mail não pode ficar em branco.');
       return;
     }
+    if (currentPassword && !newPassword) {
+      Alert.alert('Atenção', 'Informe a nova senha ou deixe a senha atual em branco.');
+      return;
+    }
 
-    Alert.alert(
-      'Perfil Atualizado',
-      'Suas alterações foram salvas com sucesso!',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (onSaveSuccess) {
-              onSaveSuccess();
-            }
-          },
-        },
-      ]
-    );
+    setSaving(true);
+    try {
+      const result = onSave
+        ? await onSave({
+          nomeCompleto: name,
+          email,
+          chavePix: pixKey,
+          senhaAtual: currentPassword,
+          novaSenha: newPassword,
+        })
+        : { emailPendente: false, senhaAlterada: false };
+
+      setCurrentPassword('');
+      setNewPassword('');
+
+      const detalhes = [
+        result.senhaAlterada ? 'Sua senha foi alterada.' : '',
+        result.emailPendente
+          ? `Enviamos um link de confirmação para ${email.trim()}. O novo e-mail passa a valer após a confirmação.`
+          : '',
+      ].filter(Boolean);
+
+      Alert.alert(
+        'Perfil Atualizado',
+        ['Suas alterações foram salvas com sucesso!', ...detalhes].join('\n\n'),
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
+      );
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar o perfil.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -113,15 +150,9 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>NO</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <TouchableOpacity style={styles.cameraBadge} activeOpacity={0.7}>
-              <Feather name="camera" size={14} color={Colors.text} />
-            </TouchableOpacity>
           </View>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.changePhotoText}>Alterar foto de exibição</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
@@ -188,11 +219,14 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.saveButton}
+          style={[styles.saveButton, saving && { opacity: 0.7 }]}
           activeOpacity={0.8}
           onPress={handleSave}
+          disabled={saving}
         >
-          <Text style={styles.saveButtonText}>Salvar alterações</Text>
+          <Text style={styles.saveButtonText}>
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -279,25 +313,6 @@ const styles = StyleSheet.create({
     color: '#FCFCFC',
     fontSize: 24,
     fontWeight: '800',
-  },
-  cameraBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 30,
-    height: 30,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(132, 130, 143, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-  },
-  changePhotoText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#5E2B97',
   },
   card: {
     backgroundColor: '#FFFFFF',

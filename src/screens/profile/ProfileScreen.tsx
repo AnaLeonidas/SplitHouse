@@ -102,7 +102,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     100,
     Math.round((user.xp / user.nextLevelXp) * 100)
   );
-  const xpRemaining = user.nextLevelXp - user.xp;
+  const xpRemaining = Math.max(0, user.nextLevelXp - user.xp);
+  const initials =
+    user.name
+      .split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'SH';
 
   return (
     <View style={styles.container}>
@@ -151,7 +159,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <View style={styles.userCard}>
           <View style={styles.userLeft}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>NO</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
             <View>
               <View style={styles.nameRow}>
@@ -202,7 +210,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <View style={styles.metricsGrid}>
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>Balanço</Text>
-            <Text style={styles.metricValuePositive}>
+            <Text style={[styles.metricValuePositive, user.balance < 0 && { color: '#DC2626' }]}>
               {user.balance >= 0 ? `+R$ ${user.balance.toFixed(2).replace('.', ',')}` : `-R$ ${Math.abs(user.balance).toFixed(2).replace('.', ',')}`}
             </Text>
             <Text style={styles.metricSub}>{user.balance >= 0 ? 'Credor' : 'Devedor'}</Text>
