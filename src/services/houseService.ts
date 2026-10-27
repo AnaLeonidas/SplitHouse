@@ -381,4 +381,38 @@ export const houseService = {
       }
     }
   },
+
+  /**
+   * Remove um morador da república (status 'saiu').
+   *
+   * @param memberId UUID do registro em membros_moradia.
+   */
+  async removeMember(memberId: string): Promise<void> {
+    const { error } = await supabase
+      .from('membros_moradia')
+      .update({ status: 'saiu' })
+      .eq('id', memberId)
+      .eq('status', 'aprovado');
+
+    if (error) {
+      throw toError(error, 'Não foi possível remover o morador da moradia.');
+    }
+  },
+
+  /**
+   * Promove um morador ao papel de administrador da moradia.
+   *
+   * @param memberId UUID do registro em membros_moradia.
+   */
+  async promoteToAdmin(memberId: string): Promise<void> {
+    const { error } = await supabase
+      .from('membros_moradia')
+      .update({ papel: 'admin' })
+      .eq('id', memberId)
+      .eq('status', 'aprovado');
+
+    if (error) {
+      throw toError(error, 'Não foi possível promover o morador a administrador.');
+    }
+  },
 };
