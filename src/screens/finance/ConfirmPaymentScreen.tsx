@@ -12,6 +12,19 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
 /**
+ * Dados de detalhamento do pagamento sob validação do credor.
+ */
+export interface PaymentValidationData {
+    payerName: string;
+    payerInitials: string;
+    paymentMethod: string;
+    amount: string;
+    reference: string;
+    dateTime: string;
+    receiptName?: string;
+}
+
+/**
  * Propriedades e callbacks da tela de validação e confirmação de pagamento.
  */
 interface ConfirmPaymentScreenProps {
@@ -21,6 +34,8 @@ interface ConfirmPaymentScreenProps {
     onConfirmPress?: () => void;
     /** Callback para rejeitar o comprovante submetido */
     onRejectPress?: () => void;
+    /** Dados da transferência financeira a ser validada */
+    paymentData?: PaymentValidationData;
 }
 
 /**
@@ -33,7 +48,16 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     onBackPress,
     onConfirmPress,
     onRejectPress,
+    paymentData,
 }) => {
+    const payerName = paymentData?.payerName || 'Morador';
+    const payerInitials = paymentData?.payerInitials || 'MO';
+    const paymentMethod = paymentData?.paymentMethod || 'Transferência via Pix';
+    const amount = paymentData?.amount || 'R$ 0,00';
+    const reference = paymentData?.reference || 'Acerto de contas da moradia';
+    const dateTime = paymentData?.dateTime || 'Pendente de validação';
+    const receiptName = paymentData?.receiptName || 'comprovante_pix.png';
+
     return (
         <View style={styles.wrapper}>
             <ScrollView
@@ -65,12 +89,12 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
                 <View style={styles.detailsCard}>
                     <View style={styles.payerRow}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>DO</Text>
+                            <Text style={styles.avatarText}>{payerInitials}</Text>
                         </View>
                         <View style={{ flex: 1, marginLeft: 12 }}>
                             <Text style={styles.payerLabel}>PAGADOR</Text>
-                            <Text style={styles.payerName}>Doutor Octopus</Text>
-                            <Text style={styles.paymentMethod}>Transferência via Pix</Text>
+                            <Text style={styles.payerName}>{payerName}</Text>
+                            <Text style={styles.paymentMethod}>{paymentMethod}</Text>
                         </View>
                     </View>
 
@@ -78,21 +102,21 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
 
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Valor informado:</Text>
-                        <Text style={styles.infoValueLarge}>R$ 50,50</Text>
+                        <Text style={styles.infoValueLarge}>{amount}</Text>
                     </View>
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Referente a:</Text>
-                        <Text style={styles.infoValue}>Internet Fibra 600MB</Text>
+                        <Text style={styles.infoValue}>{reference}</Text>
                     </View>
                     <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Data e hora:</Text>
-                        <Text style={styles.infoValue}>Hoje às 10:42</Text>
+                        <Text style={styles.infoValue}>{dateTime}</Text>
                     </View>
 
                     <TouchableOpacity style={styles.receiptButton}>
                         <View style={styles.receiptLeft}>
                             <Feather name="image" size={16} color={Colors.primary} />
-                            <Text style={styles.receiptText} numberOfLines={1}>comprovante_pix_octopus.png</Text>
+                            <Text style={styles.receiptText} numberOfLines={1}>{receiptName}</Text>
                         </View>
                         <Text style={styles.receiptActionText}>Ver</Text>
                     </TouchableOpacity>
