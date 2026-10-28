@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -49,7 +49,8 @@ import { profileService } from './src/services/profileService';
 import { storeService } from './src/services/storeService';
 import { rankingService } from './src/services/rankingService';
 import { notificationsService } from './src/services/notificationsService';
-import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput } from './src/types/database';
+import { financeService } from './src/services/financeService';
+import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 
 /** Cores aplicadas em ciclo aos ícones das regras da casa na visualização do estatuto. */
@@ -128,6 +129,19 @@ function MainApp() {
   const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
   const [rankingList, setRankingList] = useState<ResidentRankingItem[]>([]);
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
+  const [expensesList, setExpensesList] = useState<any[]>([]);
+  const [selectedExpenseDetails, setSelectedExpenseDetails] = useState<ExpenseDetailsData | null>(null);
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [settleUpData, setSettleUpData] = useState<{ netBalance: string; isPositive: boolean; debts: any[] }>({
+    netBalance: 'R$ 0,00',
+    isPositive: true,
+    debts: [],
+  });
+  const [reportData, setReportData] = useState<{ totalAmount: string; averagePerResident: string; history: any[] }>({
+    totalAmount: '0,00',
+    averagePerResident: '0,00',
+    history: [],
+  });
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
@@ -196,6 +210,27 @@ function MainApp() {
     }
   };
 
+  const loadFinanceOverview = async (moradiaId: string) => {
+    if (!user) return;
+    try {
+      const settle = await financeService.fetchSettleUpData(moradiaId, user.id);
+      setSettleUpData(settle);
+      const rep = await financeService.fetchFinancialReport(moradiaId);
+      setReportData(rep);
+    } catch (err) {
+      console.warn('App: Erro ao carregar balanço financeiro:', err);
+    }
+  };
+
+  const loadExpenses = async (moradiaId: string) => {
+    try {
+      const exp = await financeService.fetchExpenses(moradiaId);
+      setExpensesList(exp || []);
+    } catch (err) {
+      console.warn('App: Erro ao carregar despesas:', err);
+    }
+  };
+
   const loadNotifications = async () => {
     if (!user) return;
     try {
@@ -229,6 +264,11 @@ function MainApp() {
       setRankingList([]);
       setStoreItems([]);
       setNotificationsList([]);
+      setExpensesList([]);
+      setSelectedExpenseDetails(null);
+      setSelectedExpenseId(null);
+      setSettleUpData({ netBalance: 'R$ 0,00', isPositive: true, debts: [] });
+      setReportData({ totalAmount: '0,00', averagePerResident: '0,00', history: [] });
       return;
     }
     loadMyHouse();
@@ -247,6 +287,8 @@ function MainApp() {
     loadRanking(myHouse.moradia_id);
     loadStore(myHouse.moradia_id);
     loadNotifications();
+    loadExpenses(myHouse.moradia_id);
+    loadFinanceOverview(myHouse.moradia_id);
   }, [myHouse?.moradia_id, myHouse?.status]);
 
   useEffect(() => {
@@ -610,8 +652,8 @@ function MainApp() {
             <HomeScreen
               tasks={tasks}
               houseName={myHouse?.nome || 'Sua moradia'}
-              balanceAmount="0,00"
-              balanceStatus="Tudo em dia"
+              balanceAmount={settleUpData.netBalance.replace('R$ ', '').replace(' (Devedor)', '')}
+              balanceStatus={settleUpData.isPositive ? (settleUpData.netBalance === 'R$ 0,00' ? 'Tudo em dia' : 'A receber') : 'A pagar'}
               leaderName={houseLeader?.name || (profile?.nome_completo || 'Você')}
               leaderXp={houseLeader?.xp || currentMember?.xp || 0}
               userLevel={currentMember?.nivel || 1}
@@ -632,8 +674,8 @@ function MainApp() {
               }}
               onNotificationsPress={() => setCurrentScreen('notifications')}
               onRankingPress={() => setCurrentScreen('ranking')}
-              onSettleUpPress={() => setCurrentScreen('settle_up')}
-              onReportPress={() => setCurrentScreen('report')}
+              onSettleUpPress={() => { if (myHouse?.moradia_id) loadFinanceOverview(myHouse.moradia_id); setCurrentScreen('settle_up'); }}
+              onReportPress={() => { if (myHouse?.moradia_id) loadFinanceOverview(myHouse.moradia_id); setCurrentScreen('report'); }}
               onManageMembersPress={() => setCurrentScreen('manage_members')}
             />
           )}

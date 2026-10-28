@@ -348,3 +348,170 @@ export interface SendNudgeInput {
   moradiaId: string;
 }
 
+
+/**
+ * Categorias permitidas para despesas coletivas.
+ */
+export type CategoriaDespesa = 'Utilidades' | 'Aluguel' | 'Mercado' | 'Limpeza' | 'Outros' | string;
+
+/**
+ * Status de quitação da despesa coletiva.
+ */
+export type StatusDespesa = 'pendente' | 'pago' | 'parcial' | 'recorrente';
+
+/**
+ * Modalidades de rateio de despesa.
+ */
+export type TipoDivisaoDespesa = 'igualitaria' | 'porcentagem' | 'fixo';
+
+/**
+ * Representação da tabela 'public.despesas' no Supabase.
+ */
+export interface DespesaDB {
+  /** Identificador único da despesa (UUID) */
+  id: string;
+  /** UUID da moradia associada */
+  moradia_id: string;
+  /** Título ou descrição resumida da despesa */
+  titulo: string;
+  /** Categoria da conta (ex.: Utilidades, Mercado, Aluguel) */
+  categoria: CategoriaDespesa;
+  /** Valor financeiro total da fatura */
+  valor_total: number;
+  /** Data limite de pagamento (YYYY-MM-DD) */
+  data_vencimento?: string | null;
+  /** Situação atual do pagamento da despesa */
+  status: StatusDespesa;
+  /** Modalidade de rateio adotada */
+  tipo_divisao: TipoDivisaoDespesa;
+  /** UUID do morador que arcou inicialmente com a despesa */
+  pagador_id: string;
+  /** URL pública do anexo da fatura ou nota fiscal */
+  comprovante_url?: string | null;
+  /** Timestamp de registro */
+  criado_em?: string;
+  /** Timestamp da última atualização */
+  atualizado_em?: string;
+}
+
+/**
+ * Representação da tabela 'public.rateios_despesa' no Supabase.
+ * Registra a fração devida por cada membro na despesa coletiva.
+ */
+export interface RateioDespesaDB {
+  /** Identificador único do rateio (UUID) */
+  id: string;
+  /** UUID da despesa de referência */
+  despesa_id: string;
+  /** UUID do morador devedor */
+  usuario_id: string;
+  /** Valor monetário proporcional devido por este morador */
+  valor_parte: number;
+  /** Estado de quitação da parte do morador */
+  status: 'pendente' | 'pago';
+  /** Timestamp de liquidação da parte */
+  pago_em?: string | null;
+}
+
+/**
+ * Representação da tabela 'public.pagamentos_acerto' no Supabase.
+ * Registra transferências e acertos bilaterais entre moradores.
+ */
+export interface PagamentoAcertoDB {
+  /** Identificador único da transferência (UUID) */
+  id: string;
+  /** UUID da moradia */
+  moradia_id: string;
+  /** UUID do morador pagador */
+  devedor_id: string;
+  /** UUID do morador recebedor */
+  credor_id: string;
+  /** Valor monetário transferido */
+  valor: number;
+  /** Estado de auditoria e validação pelo credor */
+  status: 'aguardando_aprovacao' | 'confirmado' | 'rejeitado';
+  /** URL pública do comprovante anexado */
+  comprovante_url?: string | null;
+  /** Método de liquidação utilizado (ex.: pix, dinheiro) */
+  metodo_pagamento: string;
+  /** Timestamp de confirmação pelo recebedor */
+  confirmado_em?: string | null;
+  /** Timestamp de criação do registro */
+  criado_em?: string;
+}
+
+/**
+ * Dados de entrada para o cadastro de uma nova despesa coletiva.
+ */
+export interface CreateExpenseInput {
+  moradiaId: string;
+  titulo: string;
+  categoria: CategoriaDespesa;
+  valorTotal: number;
+  dataVencimento?: string | null;
+  tipoDivisao?: TipoDivisaoDespesa;
+  pagadorId: string;
+  comprovanteUrl?: string | null;
+}
+
+/**
+ * Detalhe de rateio por morador para exibição na tela de detalhes.
+ */
+export interface ExpenseMemberSplit {
+  id: string;
+  userId: string;
+  name: string;
+  initials: string;
+  role?: string;
+  amount: number;
+  isPaid: boolean;
+}
+
+/**
+ * Modelo consolidado de despesa para exibição em listas e detalhes.
+ */
+export interface ExpenseDetailsData {
+  id: string;
+  title: string;
+  amount: string;
+  rawAmount: number;
+  dueDate: string;
+  rawDueDate?: string | null;
+  categoria: string;
+  payerId: string;
+  payerName: string;
+  receiptUrl?: string | null;
+  receiptName?: string;
+  status: StatusDespesa;
+  members: ExpenseMemberSplit[];
+}
+
+/**
+ * Item de pendência bilateral para exibição no Acerto de Contas.
+ */
+export interface DebtBalanceItem {
+  id: string;
+  debtorId: string;
+  debtorName: string;
+  debtorInitials: string;
+  debtorStatus: string;
+  debtAmount: string;
+  rawAmount: number;
+  refText?: string;
+  isSettled?: boolean;
+}
+
+/**
+ * Dados consolidados para o Relatório Financeiro da moradia.
+ */
+export interface FinancialReportData {
+  totalAmount: string;
+  averagePerResident: string;
+  history: {
+    id: string;
+    title: string;
+    subtitle: string;
+    value: string;
+    isIncome?: boolean;
+  }[];
+}

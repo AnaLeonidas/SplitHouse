@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar as RNStatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
-
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
@@ -13,7 +12,9 @@ interface SettleUpScreenProps {
     onBackPress?: () => void;
     /** Callback para iniciar fluxo de liquidação ou pagamento de dívida */
     onPayPress?: () => void;
-    /** Lista de pendências bilaterais */
+    /** Callback para disparar cutucada/lembrete de cobrança amigável */
+    onNudgePress?: (debt: any) => void;
+    /** Lista de pendências bilaterais calculadas */
     debts?: {
         id: string;
         debtorName: string;
@@ -25,6 +26,8 @@ interface SettleUpScreenProps {
     }[];
     /** Saldo líquido formatado */
     netBalance?: string;
+    /** Indica se a situação do usuário é credora (positiva) */
+    isPositive?: boolean;
 }
 
 /**
@@ -36,8 +39,10 @@ interface SettleUpScreenProps {
 export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
     onBackPress,
     onPayPress,
+    onNudgePress,
     debts = [],
     netBalance = 'R$ 0,00',
+    isPositive = true,
 }) => {
     const { profile } = useAuth();
     const displayName = profile?.nome_completo ? profile.nome_completo.toUpperCase() : 'SUA SITUAÇÃO';
@@ -58,8 +63,10 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
                 <View style={styles.statusCard}>
                     <View style={styles.statusTopRow}>
                         <Text style={styles.statusLabel}>SITUAÇÃO DE {displayName}</Text>
-                        <View style={styles.creditorBadge}>
-                            <Text style={styles.creditorBadgeText}>Tudo em dia</Text>
+                        <View style={isPositive ? styles.creditorBadge : styles.debtorBadge}>
+                            <Text style={isPositive ? styles.creditorBadgeText : styles.debtorBadgeText}>
+                                {isPositive ? (netBalance === 'R$ 0,00' ? 'Tudo em dia' : 'A receber') : 'A pagar'}
+                            </Text>
                         </View>
                     </View>
                     <View style={styles.statusValueRow}>
@@ -100,7 +107,10 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
                             {item.refText && !item.isSettled && (
                                 <View style={styles.debtFooter}>
                                     <Text style={styles.refText}>{item.refText}</Text>
-                                    <TouchableOpacity style={styles.smallNudgeBtn}>
+                                    <TouchableOpacity
+                                        style={styles.smallNudgeBtn}
+                                        onPress={() => onNudgePress && onNudgePress(item)}
+                                    >
                                         <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -133,6 +143,8 @@ const styles = StyleSheet.create({
     statusLabel: { fontSize: 10, fontWeight: 'bold', color: Colors.textSecondary, letterSpacing: 0.5 },
     creditorBadge: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     creditorBadgeText: { color: '#10B981', fontSize: 10, fontWeight: 'bold' },
+    debtorBadge: { backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    debtorBadgeText: { color: '#EF4444', fontSize: 10, fontWeight: 'bold' },
     statusValueRow: { flexDirection: 'row', alignItems: 'flex-end' },
     balanceLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
     balanceValue: { fontSize: 26, fontWeight: 'bold', color: Colors.primary },
