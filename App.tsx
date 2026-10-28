@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -49,7 +49,8 @@ import { profileService } from './src/services/profileService';
 import { storeService } from './src/services/storeService';
 import { rankingService } from './src/services/rankingService';
 import { notificationsService } from './src/services/notificationsService';
-import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput } from './src/types/database';
+import { financeService } from './src/services/financeService';
+import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 
 /** Cores aplicadas em ciclo aos ícones das regras da casa na visualização do estatuto. */
@@ -128,6 +129,9 @@ function MainApp() {
   const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
   const [rankingList, setRankingList] = useState<ResidentRankingItem[]>([]);
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
+  const [expensesList, setExpensesList] = useState<any[]>([]);
+  const [selectedExpenseDetails, setSelectedExpenseDetails] = useState<ExpenseDetailsData | null>(null);
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
@@ -196,6 +200,15 @@ function MainApp() {
     }
   };
 
+  const loadExpenses = async (moradiaId: string) => {
+    try {
+      const exp = await financeService.fetchExpenses(moradiaId);
+      setExpensesList(exp || []);
+    } catch (err) {
+      console.warn('App: Erro ao carregar despesas:', err);
+    }
+  };
+
   const loadNotifications = async () => {
     if (!user) return;
     try {
@@ -229,6 +242,9 @@ function MainApp() {
       setRankingList([]);
       setStoreItems([]);
       setNotificationsList([]);
+      setExpensesList([]);
+      setSelectedExpenseDetails(null);
+      setSelectedExpenseId(null);
       return;
     }
     loadMyHouse();
@@ -247,6 +263,7 @@ function MainApp() {
     loadRanking(myHouse.moradia_id);
     loadStore(myHouse.moradia_id);
     loadNotifications();
+    loadExpenses(myHouse.moradia_id);
   }, [myHouse?.moradia_id, myHouse?.status]);
 
   useEffect(() => {

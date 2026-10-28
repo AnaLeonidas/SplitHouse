@@ -18,7 +18,7 @@ interface ExpensesListScreenProps {
     /** Callback para abertura do formulário de criação de nova despesa */
     onAddPress?: () => void;
     /** Callback para visualização dos detalhes e comprovantes de uma despesa */
-    onExpenseDetailsPress?: () => void;
+    onExpenseDetailsPress?: (expense: any) => void;
     /** Nome da moradia conectada */
     houseName?: string;
     /** Lista de despesas reais da moradia */
@@ -39,6 +39,14 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState('Todos');
     const tabs = ['Todos', 'Pendentes', 'Pagas', 'Recorrentes'];
+
+    const filteredExpenses = expenses.filter((e) => {
+        if (activeTab === 'Todos') return true;
+        if (activeTab === 'Pendentes') return e.status === 'pendente';
+        if (activeTab === 'Pagas') return e.status === 'pago';
+        if (activeTab === 'Recorrentes') return e.status === 'recorrente';
+        return true;
+    });
 
     return (
         <View style={styles.wrapper}>
@@ -85,14 +93,20 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                 </ScrollView>
 
                 <View style={styles.listContainer}>
-                    {expenses.length === 0 ? (
+                    {filteredExpenses.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <View style={styles.emptyIconBox}>
                                 <Feather name="dollar-sign" size={32} color={Colors.primary} />
                             </View>
-                            <Text style={styles.emptyTitle}>Nenhuma despesa cadastrada</Text>
+                            <Text style={styles.emptyTitle}>
+                                {activeTab === 'Todos'
+                                    ? 'Nenhuma despesa cadastrada'
+                                    : `Nenhuma despesa em "${activeTab}"`}
+                            </Text>
                             <Text style={styles.emptySubtitle}>
-                                Todas as contas da casa estão em dia ou ainda não foram registradas.
+                                {activeTab === 'Todos'
+                                    ? 'Todas as contas da casa estão em dia ou ainda não foram registradas.'
+                                    : 'Não foram encontrados registros para o filtro selecionado.'}
                             </Text>
                             <TouchableOpacity
                                 style={styles.emptyAddButton}
@@ -104,18 +118,29 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                             </TouchableOpacity>
                         </View>
                     ) : (
-                        expenses.map((expense, index) => (
-                            <TouchableOpacity key={index} style={styles.card} onPress={onExpenseDetailsPress}>
+                        filteredExpenses.map((expense, index) => (
+                            <TouchableOpacity
+                                key={expense.id || index}
+                                style={styles.card}
+                                onPress={() => onExpenseDetailsPress && onExpenseDetailsPress(expense)}
+                            >
                                 <View style={styles.cardMain}>
                                     <View style={styles.iconBoxPurple}>
                                         <Feather name="file-text" size={20} color={Colors.primary} />
                                     </View>
                                     <View style={styles.cardInfo}>
                                         <Text style={styles.cardTitle}>{expense.titulo || 'Despesa'}</Text>
-                                        <Text style={styles.cardSubtitle}>Vence em {expense.vencimento || 'Breve'}</Text>
+                                        <Text style={styles.cardSubtitle}>
+                                            {expense.vencimento ? `Vence em ${expense.vencimento}` : 'Sem vencimento'}
+                                        </Text>
                                     </View>
                                     <View style={styles.cardValues}>
                                         <Text style={styles.totalValue}>R$ {expense.valor || '0,00'}</Text>
+                                        <View style={expense.status === 'pago' ? styles.badgeGreenOutline : styles.badgeGray}>
+                                            <Text style={expense.status === 'pago' ? styles.badgeGreenOutlineText : styles.badgeGrayText}>
+                                                {expense.status === 'pago' ? 'Pago' : (expense.status === 'recorrente' ? 'Recorrente' : 'Pendente')}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
                             </TouchableOpacity>
