@@ -52,7 +52,9 @@ interface StoreScreenProps {
   /** Callback para propor uma nova recompensa */
   onProposePress?: () => void;
   /** Callback para resgatar uma recompensa específica */
-  onRedeemPress?: (item: StoreItem) => void;
+  onRedeemPress?: (item: StoreItem) => Promise<void> | void;
+  /** Callback para salvar nova proposta submetida via modal interno */
+  onProposeSubmit?: (item: Omit<StoreItem, 'id'>) => Promise<void> | void;
 }
 
 const defaultItems: StoreItem[] = [
@@ -117,13 +119,21 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
   onBackPress,
   onProposePress,
   onRedeemPress,
+  onProposeSubmit,
 }) => {
   const [coins, setCoins] = useState(initialCoins);
 
   useEffect(() => {
     setCoins(initialCoins);
   }, [initialCoins]);
+
   const [storeItems, setStoreItems] = useState<StoreItem[]>(items);
+
+  useEffect(() => {
+    if (items && items.length > 0) {
+      setStoreItems(items);
+    }
+  }, [items]);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [isProposeModalVisible, setIsProposeModalVisible] = useState(false);
 
@@ -158,22 +168,29 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Confirmar',
-          onPress: () => {
-            setCoins((prev) => prev - item.cost);
-            if (onRedeemPress) {
-              onRedeemPress(item);
+          onPress: async () => {
+            try {
+              if (onRedeemPress) {
+                await onRedeemPress(item);
+              }
+              setCoins((prev) => Math.max(0, prev - item.cost));
+              Alert.alert(
+                'Recompensa Resgatada!',
+                `Você resgatou "${item.title}". A república foi informada e seu benefício já está ativo.`
+              );
+            } catch (err) {
+              Alert.alert(
+                'Erro ao resgatar',
+                err instanceof Error ? err.message : 'Tente novamente.'
+              );
             }
-            Alert.alert(
-              'Recompensa Resgatada!',
-              `Você resgatou "${item.title}". A república foi informada e seu benefício já está ativo.`
-            );
           },
         },
       ]
     );
   };
 
-  const handleCreateProposal = () => {
+  const handleCreateProposal = async () => {
     if (!propTitle.trim()) {
       Alert.alert('Campo obrigatório', 'Por favor, informe o título da recompensa.');
       return;
@@ -185,24 +202,39 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       return;
     }
 
-    const newItem: StoreItem = {
-      id: String(Date.now()),
+    const newItemPayload = {
       title: propTitle.trim(),
       category: propCategory,
-      subtitle: 'Proposta de morador',
+      subtitle: `${propCategory} sugerida`,
       cost: costNum,
       description: propDescription.trim() || 'Benefício proposto pelos membros da casa.',
       availability: 'Em votação',
-      iconType: propCategory === 'Folga' ? 'minus-circle' : propCategory === 'Convivência' ? 'tv' : 'pizza',
+      iconType: (propCategory === 'Folga' ? 'minus-circle' : propCategory === 'Convivência' ? 'tv' : 'pizza') as StoreItem['iconType'],
     };
 
-    setStoreItems((prev) => [newItem, ...prev]);
-    setPropTitle('');
-    setPropDescription('');
-    setPropCost('100');
-    setIsProposeModalVisible(false);
+    try {
+      if (onProposeSubmit) {
+        await onProposeSubmit(newItemPayload);
+      } else {
+        const newItem: StoreItem = {
+          ...newItemPayload,
+          id: String(Date.now()),
+        };
+        setStoreItems((prev) => [newItem, ...prev]);
+      }
 
-    Alert.alert('Proposta enviada!', 'Sua proposta de recompensa foi adicionada ao catálogo da moradia.');
+      setPropTitle('');
+      setPropDescription('');
+      setPropCost('100');
+      setIsProposeModalVisible(false);
+
+      Alert.alert('Proposta enviada!', 'Sua proposta de recompensa foi adicionada ao catálogo da moradia.');
+    } catch (err) {
+      Alert.alert(
+        'Erro ao propor recompensa',
+        err instanceof Error ? err.message : 'Tente novamente.'
+      );
+    }
   };
 
   const renderItemIcon = (iconType: StoreItem['iconType'], category: StoreItem['category']) => {

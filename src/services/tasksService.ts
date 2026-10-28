@@ -146,6 +146,7 @@ function mapRowToTaskItem(row: TarefaDB, currentUserId?: string): TaskItem {
     deadline: formatPrazoLimite(row.prazo_limite),
     xp: row.recompensa_xp,
     points: row.recompensa_moedas,
+    assigneeId: row.responsavel_id,
     assignee: assigneeDisplay,
     status: visualStatus,
     icon,

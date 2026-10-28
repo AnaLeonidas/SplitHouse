@@ -50,6 +50,7 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
   onSubmit,
 }) => {
   const [rules, setRules] = useState<RuleItem[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateRuleTitle = (id: string, text: string) => {
     setRules((prev) =>
@@ -197,12 +198,23 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
           </View>
 
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[styles.submitButton, isSubmitting && { opacity: 0.6 }]}
             activeOpacity={0.85}
-            onPress={() => onSubmit && onSubmit(rules)}
+            disabled={isSubmitting}
+            onPress={async () => {
+              if (isSubmitting) return;
+              try {
+                setIsSubmitting(true);
+                if (onSubmit) {
+                  await onSubmit(rules);
+                }
+              } catch {
+                setIsSubmitting(false);
+              }
+            }}
           >
             <Text style={styles.submitButtonText}>
-              Salvar regras e gerar convite
+              {isSubmitting ? 'Cadastrando moradia...' : 'Salvar regras e gerar convite'}
             </Text>
             <Feather name="arrow-right" size={18} color={Colors.white} />
           </TouchableOpacity>

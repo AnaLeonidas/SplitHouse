@@ -33,9 +33,9 @@ import { TasksListScreen, TaskItem } from './src/screens/tasks/TasksListScreen';
 import { NewTaskScreen } from './src/screens/tasks/NewTaskScreen';
 import { TaskDetailsScreen } from './src/screens/tasks/TaskDetailsScreen';
 import { ValidateTaskScreen } from './src/screens/tasks/ValidateTaskScreen';
-import { RankingScreen } from './src/screens/ranking/RankingScreen';
-import { StoreScreen } from './src/screens/store/StoreScreen';
-import { NotificationsScreen } from './src/screens/notifications/NotificationsScreen';
+import { RankingScreen, ResidentRankingItem } from './src/screens/ranking/RankingScreen';
+import { StoreScreen, StoreItem } from './src/screens/store/StoreScreen';
+import { NotificationsScreen, NotificationItem } from './src/screens/notifications/NotificationsScreen';
 import { ProfileScreen } from './src/screens/profile/ProfileScreen';
 import { ProposeRewardScreen } from './src/screens/store/ProposeRewardScreen';
 import { EditProfileScreen } from './src/screens/profile/EditProfileScreen';
@@ -46,6 +46,9 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { tasksService } from './src/services/tasksService';
 import { houseService, CreateHouseInput } from './src/services/houseService';
 import { profileService } from './src/services/profileService';
+import { storeService } from './src/services/storeService';
+import { rankingService } from './src/services/rankingService';
+import { notificationsService } from './src/services/notificationsService';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 
@@ -122,6 +125,9 @@ function MainApp() {
   const [members, setMembers] = useState<MembroMoradia[]>([]);
   const [houseRules, setHouseRules] = useState<RegraMoradiaDB[]>([]);
   const [houseDraft, setHouseDraft] = useState<CreateHouseInput | null>(null);
+  const [storeItems, setStoreItems] = useState<StoreItem[]>([]);
+  const [rankingList, setRankingList] = useState<ResidentRankingItem[]>([]);
+  const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
@@ -170,6 +176,36 @@ function MainApp() {
     }
   };
 
+  const loadRanking = async (moradiaId: string) => {
+    try {
+      const items = await rankingService.fetchRanking(moradiaId, user?.id);
+      if (items && items.length > 0) {
+        setRankingList(items);
+      }
+    } catch (err) {
+      console.warn('App: Erro ao carregar ranking:', err);
+    }
+  };
+
+  const loadStore = async (moradiaId: string) => {
+    try {
+      const items = await storeService.fetchStoreItems(moradiaId);
+      setStoreItems(items);
+    } catch (err) {
+      console.warn('App: Erro ao carregar loja:', err);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    try {
+      const notes = await notificationsService.fetchNotifications(user.id, myHouse?.moradia_id);
+      setNotificationsList(notes);
+    } catch (err) {
+      console.warn('App: Erro ao carregar notificações:', err);
+    }
+  };
+
   useEffect(() => {
     if (
       !loading &&
@@ -190,6 +226,9 @@ function MainApp() {
       setMembers([]);
       setHouseRules([]);
       setTasks([]);
+      setRankingList([]);
+      setStoreItems([]);
+      setNotificationsList([]);
       return;
     }
     loadMyHouse();
@@ -199,10 +238,15 @@ function MainApp() {
     if (!myHouse?.moradia_id || myHouse.status !== 'aprovado') {
       setMembers([]);
       setHouseRules([]);
+      setRankingList([]);
+      setStoreItems([]);
       return;
     }
     loadMembers(myHouse.moradia_id);
     loadRules(myHouse.moradia_id);
+    loadRanking(myHouse.moradia_id);
+    loadStore(myHouse.moradia_id);
+    loadNotifications();
   }, [myHouse?.moradia_id, myHouse?.status]);
 
   useEffect(() => {
@@ -212,6 +256,9 @@ function MainApp() {
         user?.id
       );
       setTasks(fetched || []);
+      if (myHouse?.moradia_id && myHouse.status === 'aprovado') {
+        loadRanking(myHouse.moradia_id);
+      }
     }
     loadTasks();
   }, [user, myHouse?.moradia_id, myHouse?.status]);
@@ -219,25 +266,30 @@ function MainApp() {
   const approvedMembers = members.filter((m) => m.status === 'aprovado');
   const pendingMembers = members.filter((m) => m.status === 'pendente');
 
-  const rankingList = [...approvedMembers]
-    .sort((a, b) => b.xp - a.xp)
-    .map((m, index) => ({
-      id: m.id,
-      rank: index + 1,
-      name: m.nome || 'Morador',
-      initials: getInitials(m.nome),
-      isCurrentUser: m.usuario_id === user?.id,
-      tasksCompleted: 0,
-      coins: m.moedas,
-      xp: m.xp,
-      level: m.nivel,
-      pendingTasksCount: tasks.filter(
-        (t) => t.assignee.includes(m.nome || '') && t.status === 'Pendente'
-      ).length,
-    }));
+  const effectiveRankingList: ResidentRankingItem[] =
+    rankingList.length > 0
+      ? rankingList
+      : [...approvedMembers]
+          .sort((a, b) => b.xp - a.xp)
+          .map((m, index) => ({
+            id: m.id,
+            rank: index + 1,
+            name: m.nome || 'Morador',
+            initials: getInitials(m.nome),
+            isCurrentUser: m.usuario_id === user?.id,
+            tasksCompleted: tasks.filter(
+              (t) => (t.assigneeId === m.usuario_id || t.assignee.includes(m.nome || '')) && t.status === 'Concluída'
+            ).length,
+            coins: m.moedas || 0,
+            xp: m.xp || 0,
+            level: m.nivel || 1,
+            pendingTasksCount: tasks.filter(
+              (t) => (t.assigneeId === m.usuario_id || t.assignee.includes(m.nome || '')) && t.status === 'Pendente'
+            ).length,
+          }));
 
   const currentMember = approvedMembers.find((m) => m.usuario_id === user?.id);
-  const houseLeader = rankingList[0];
+  const houseLeader = effectiveRankingList[0];
 
   const newTaskMembersList = approvedMembers.map((m) => ({
     id: m.usuario_id,
@@ -617,8 +669,40 @@ function MainApp() {
             <RankingScreen
               houseName={myHouse?.nome || 'Sua moradia'}
               cycleName={myHouse?.nome_ciclo_atual || 'Ciclo Atual'}
-              rankingList={rankingList}
-              onStorePress={() => setCurrentScreen('store')}
+              rankingList={effectiveRankingList}
+              onStorePress={() => {
+                if (myHouse?.moradia_id) loadStore(myHouse.moradia_id);
+                setCurrentScreen('store');
+              }}
+              onNudgePress={async (residentName, residentId) => {
+                try {
+                  let targetUserId = residentId;
+                  const memberObj = members.find(
+                    (m) =>
+                      m.id === residentId ||
+                      m.usuario_id === residentId ||
+                      m.nome === residentName
+                  );
+                  if (memberObj) {
+                    targetUserId = memberObj.usuario_id;
+                  }
+                  if (targetUserId && myHouse && user) {
+                    await rankingService.sendNudge({
+                      targetUserId,
+                      targetName: residentName,
+                      senderUserId: user.id,
+                      senderName: profileUserData?.name || 'Colega de moradia',
+                      moradiaId: myHouse.moradia_id,
+                    });
+                    Alert.alert(
+                      'Cutucada Enviada!',
+                      `${residentName} foi notificado(a) sobre suas tarefas pendentes.`
+                    );
+                  }
+                } catch {
+                  Alert.alert('Aviso', 'Não foi possível registrar a cutucada.');
+                }
+              }}
             />
           )}
 
@@ -810,15 +894,69 @@ function MainApp() {
         <StoreScreen
           houseName={myHouse?.nome}
           initialCoins={currentMember?.moedas || 0}
-          onBackPress={() => setCurrentScreen('ranking')}
+          items={storeItems}
+          onBackPress={() => {
+            if (myHouse?.moradia_id) loadRanking(myHouse.moradia_id);
+            setCurrentScreen('ranking');
+          }}
           onProposePress={() => setCurrentScreen('propose_reward')}
+          onRedeemPress={async (item) => {
+            if (!user || !myHouse) return;
+            await storeService.redeemReward({
+              rewardId: item.id,
+              userId: user.id,
+              moradiaId: myHouse.moradia_id,
+              cost: item.cost,
+              rewardTitle: item.title,
+            });
+            if (myHouse.moradia_id) {
+              await loadMembers(myHouse.moradia_id);
+              await loadRanking(myHouse.moradia_id);
+              await loadStore(myHouse.moradia_id);
+            }
+          }}
+          onProposeSubmit={async (newItem) => {
+            if (!user || !myHouse) return;
+            await storeService.proposeReward(
+              {
+                title: newItem.title,
+                category: newItem.category,
+                cost: newItem.cost,
+                description: newItem.description,
+                limit: newItem.availability,
+              },
+              user.id,
+              myHouse.moradia_id,
+              profileUserData?.name
+            );
+            await loadStore(myHouse.moradia_id);
+          }}
         />
       )}
 
       {currentScreen === 'propose_reward' && (
         <ProposeRewardScreen
           onBackPress={() => setCurrentScreen('store')}
-          onSubmitSuccess={() => setCurrentScreen('store')}
+          onSubmitSuccess={() => {
+            if (myHouse?.moradia_id) loadStore(myHouse.moradia_id);
+            setCurrentScreen('store');
+          }}
+          onSubmit={async (rewardData) => {
+            if (!user || !myHouse) return;
+            await storeService.proposeReward(
+              {
+                title: rewardData.title,
+                category: rewardData.category,
+                cost: rewardData.cost,
+                description: rewardData.description,
+                limit: rewardData.limit,
+              },
+              user.id,
+              myHouse.moradia_id,
+              profileUserData?.name
+            );
+            await loadStore(myHouse.moradia_id);
+          }}
         />
       )}
 
@@ -910,7 +1048,16 @@ function MainApp() {
       {currentScreen === 'notifications' && (
         <NotificationsScreen
           onBackPress={() => setCurrentScreen('home')}
-          onNotificationAction={(notification) => {
+          notifications={notificationsList.length > 0 ? notificationsList : undefined}
+          onClearReadPress={async () => {
+            if (user) {
+              await notificationsService.clearReadNotifications(user.id);
+              loadNotifications();
+            }
+          }}
+          onNotificationAction={async (notification) => {
+            await notificationsService.markAsRead(notification.id);
+            loadNotifications();
             if (notification.categoryFilter === 'Validações') {
               const valTask = tasks.find((t) => t.requiresValidation) || tasks[0];
               if (valTask) {

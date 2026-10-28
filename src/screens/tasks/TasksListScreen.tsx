@@ -50,6 +50,8 @@ export interface TaskItem {
   xp: number;
   /** Moedas do SplitHouse concedidas ao morador */
   points?: number;
+  /** UUID do morador responsável (referência a auth.users.id) */
+  assigneeId?: string;
   /** Nome do morador responsável pela execução */
   assignee: string;
   /** Estado atual da tarefa no ciclo de vida */

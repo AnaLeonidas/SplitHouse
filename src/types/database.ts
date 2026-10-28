@@ -208,3 +208,143 @@ export interface RegraInput {
   destaque?: string;
   descricao: string;
 }
+
+/**
+ * Categorias permitidas para recompensas da loja da república.
+ */
+export type CategoriaRecompensa = 'Folga' | 'Convivência' | 'Bônus';
+
+/**
+ * Status de moderação de uma recompensa proposta.
+ */
+export type StatusAprovacaoRecompensa = 'pendente' | 'aprovada' | 'recusada';
+
+/**
+ * Representação da tabela 'public.recompensas_loja' no Supabase.
+ */
+export interface RecompensaLojaDB {
+  /** Identificador único da recompensa (UUID) */
+  id: string;
+  /** Identificador da moradia proprietária do item */
+  moradia_id: string;
+  /** Título da recompensa (ex.: 'Isenção da louça') */
+  titulo: string;
+  /** Subtítulo descritivo breve */
+  subtitulo?: string | null;
+  /** Categoria da recompensa */
+  categoria: CategoriaRecompensa;
+  /** Custo em moedas SplitHouse para resgate */
+  custo_moedas: number;
+  /** Descrição detalhada dos termos e condições */
+  descricao?: string | null;
+  /** Informação textual de disponibilidade */
+  disponibilidade?: string | null;
+  /** Limite de resgates por ciclo de moradia */
+  limite_por_ciclo?: number;
+  /** Nome do ícone representativo (minus-circle, tv, sofa, pizza, etc.) */
+  tipo_icone?: string | null;
+  /** Se o item está ativo para visualização na loja */
+  ativo: boolean;
+  /** Status de aprovação comunitária */
+  status_aprovacao: StatusAprovacaoRecompensa;
+  /** UUID do morador que cadastrou ou propôs o benefício */
+  criado_por?: string | null;
+  /** Timestamp de cadastro */
+  criado_em?: string;
+  /** Timestamp de atualização */
+  atualizado_em?: string;
+}
+
+/**
+ * Representação da tabela 'public.resgates_recompensa' no Supabase.
+ * Registra o histórico de troca de moedas por benefícios na loja.
+ */
+export interface ResgateRecompensaDB {
+  /** Identificador único do resgate (UUID) */
+  id: string;
+  /** UUID da recompensa resgatada */
+  recompensa_id: string;
+  /** UUID da moradia */
+  moradia_id: string;
+  /** UUID do morador que resgatou */
+  usuario_id: string;
+  /** Quantidade de moedas debitadas no momento do resgate */
+  custo_moedas: number;
+  /** Estado de usufruto do benefício */
+  status: 'ativo' | 'utilizado' | 'cancelado';
+  /** Timestamp da transação de resgate */
+  resgatado_em?: string;
+}
+
+/**
+ * Dados de entrada para criação ou proposição de nova recompensa.
+ */
+export interface ProposeRewardInput {
+  title: string;
+  category: CategoriaRecompensa;
+  cost: number;
+  description: string;
+  limit?: string;
+  subtitle?: string;
+  iconType?: string;
+}
+
+/**
+ * Parâmetros para transacionar resgate de uma recompensa na loja.
+ */
+export interface RedeemRewardInput {
+  rewardId: string;
+  userId: string;
+  moradiaId: string;
+  cost: number;
+  rewardTitle: string;
+}
+
+/**
+ * Tipos de eventos registrados na central de notificações.
+ */
+export type TipoNotificacao = 'Cutucada' | 'Validação' | 'Vencimento' | 'Concluída' | 'Recompensa';
+
+/**
+ * Representação da tabela 'public.notificacoes' no Supabase.
+ */
+export interface NotificacaoDB {
+  /** Identificador único da notificação (UUID) */
+  id: string;
+  /** UUID da moradia vinculada */
+  moradia_id?: string | null;
+  /** UUID do destinatário da notificação */
+  usuario_id: string;
+  /** UUID do autor da notificação (ex.: quem enviou a cutucada) */
+  remetente_id?: string | null;
+  /** Tipo visual do alerta */
+  tipo: TipoNotificacao;
+  /** Categoria para filtros na interface */
+  category_filter: 'Validações' | 'Finanças' | 'Cutucadas' | 'Geral';
+  /** Título do alerta */
+  titulo: string;
+  /** Mensagem descritiva */
+  descricao: string;
+  /** Rótulo do botão de ação rápida */
+  action_text?: string | null;
+  /** Metadados complementares */
+  extra_meta?: string | null;
+  /** Sinaliza se exibe ícone de moedas */
+  has_coin_icon?: boolean;
+  /** Indica se o morador já visualizou o alerta */
+  lida: boolean;
+  /** Timestamp de envio */
+  criado_em?: string;
+}
+
+/**
+ * Parâmetros para envio de cutucada entre moradores a partir do ranking.
+ */
+export interface SendNudgeInput {
+  targetUserId: string;
+  targetName: string;
+  senderUserId: string;
+  senderName: string;
+  moradiaId: string;
+}
+
