@@ -47,6 +47,8 @@ export interface NotificationItem {
 interface NotificationsScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
+  /** Lista dinâmica de notificações do Supabase */
+  notifications?: NotificationItem[];
   /** Callback disparado ao clicar no botão de ação de um item */
   onNotificationAction?: (notification: NotificationItem) => void;
   /** Callback para limpar as notificações já lidas */
@@ -110,10 +112,21 @@ type FilterCategory = 'Todas' | 'Validações' | 'Finanças' | 'Cutucadas';
  */
 export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onBackPress,
+  notifications: initialNotifications,
   onNotificationAction,
   onClearReadPress,
 }) => {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(defaultNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(
+    initialNotifications && initialNotifications.length > 0
+      ? initialNotifications
+      : defaultNotifications
+  );
+
+  React.useEffect(() => {
+    if (initialNotifications && initialNotifications.length > 0) {
+      setNotifications(initialNotifications);
+    }
+  }, [initialNotifications]);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('Todas');
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;

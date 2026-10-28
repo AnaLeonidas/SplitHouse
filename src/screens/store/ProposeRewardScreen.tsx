@@ -22,6 +22,14 @@ interface ProposeRewardScreenProps {
   onBackPress?: () => void;
   /** Callback executado após submissão bem-sucedida da proposta */
   onSubmitSuccess?: () => void;
+  /** Callback para persistir a nova proposta no Supabase */
+  onSubmit?: (rewardData: {
+    title: string;
+    category: 'Folga' | 'Convivência' | 'Bônus';
+    cost: number;
+    description: string;
+    limit: string;
+  }) => Promise<void> | void;
 }
 
 /**
@@ -38,6 +46,7 @@ type RewardCategory = 'Convivência' | 'Folga de tarefa' | 'Bônus coletivo' | '
 export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   onBackPress,
   onSubmitSuccess,
+  onSubmit,
 }) => {
   const [title, setTitle] = useState('Escolha da playlist da faxina');
   const [category, setCategory] = useState<RewardCategory>('Convivência');
@@ -46,6 +55,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   const [description, setDescription] = useState(
     'Direito exclusivo de conectar o celular na caixa de som durante as 2 horas da faxina coletiva de sábado, sem vetos do grupo.'
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories: RewardCategory[] = [
     'Convivência',
@@ -54,30 +64,55 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
     'Outros',
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Atenção', 'Informe o título da recompensa.');
       return;
     }
-    if (!cost.trim() || isNaN(Number(cost))) {
-      Alert.alert('Atenção', 'Informe um valor válido em moedas.');
+    const costNum = Number(cost.trim());
+    if (!cost.trim() || isNaN(costNum) || costNum <= 0) {
+      Alert.alert('Atenção', 'Informe um valor válido e positivo em moedas.');
       return;
     }
 
-    Alert.alert(
-      'Recompensa Proposta!',
-      `A recompensa "${title}" foi enviada para votação dos moradores da república.`,
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (onSubmitSuccess) {
-              onSubmitSuccess();
-            }
+    let mappedCategory: 'Folga' | 'Convivência' | 'Bônus' = 'Convivência';
+    if (category === 'Folga de tarefa') mappedCategory = 'Folga';
+    else if (category === 'Bônus coletivo') mappedCategory = 'Bônus';
+
+    try {
+      setIsSubmitting(true);
+      if (onSubmit) {
+        await onSubmit({
+          title: title.trim(),
+          category: mappedCategory,
+          cost: costNum,
+          description: description.trim(),
+          limit: limit.trim(),
+        });
+      }
+
+      Alert.alert(
+        'Recompensa Proposta!',
+        `A recompensa "${title}" foi adicionada à loja da república.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (onSubmitSuccess) {
+                onSubmitSuccess();
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (err) {
+      Alert.alert(
+        'Erro ao cadastrar recompensa',
+        err instanceof Error ? err.message : 'Tente novamente.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -218,11 +253,14 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, isSubmitting && { opacity: 0.6 }]}
           activeOpacity={0.8}
           onPress={handleSubmit}
+          disabled={isSubmitting}
         >
-          <Text style={styles.submitButtonText}>Publicar recompensa</Text>
+          <Text style={styles.submitButtonText}>
+            {isSubmitting ? 'Publicando...' : 'Publicar recompensa'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -54,7 +54,7 @@ interface RankingScreenProps {
   /** Lista opcional de moradores ordenada por classificação */
   rankingList?: ResidentRankingItem[];
   /** Callback para notificar/cutucar morador com pendências */
-  onNudgePress?: (residentName: string) => void;
+  onNudgePress?: (residentName: string, residentId?: string) => void;
   /** Callback para navegar até a loja de recompensas da república */
   onStorePress?: () => void;
 }
@@ -79,9 +79,9 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
 
   const leader = rankingList[0];
 
-  const handleNudge = (name: string) => {
+  const handleNudge = (name: string, id?: string) => {
     if (onNudgePress) {
-      onNudgePress(name);
+      onNudgePress(name, id);
     } else {
       Alert.alert(
         'Cutucada Enviada!',
@@ -285,7 +285,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                             isNudged && styles.nudgeButtonActive,
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name)}
+                          onPress={() => handleNudge(item.name, item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}
@@ -308,7 +308,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                             isNudged && styles.nudgeButtonDefaultActive,
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name)}
+                          onPress={() => handleNudge(item.name, item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}
