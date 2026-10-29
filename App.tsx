@@ -372,6 +372,23 @@ function MainApp() {
     loadTasks();
   }, [user, myHouse?.moradia_id, myHouse?.status]);
 
+  useEffect(() => {
+    if (!myHouse?.moradia_id || myHouse.status !== 'aprovado') return;
+    if (currentScreen === 'ranking') {
+      loadMembers(myHouse.moradia_id);
+      loadRanking(myHouse.moradia_id);
+    } else if (currentScreen === 'tasks_list' || currentScreen === 'home') {
+      loadMembers(myHouse.moradia_id);
+      tasksService.fetchTasks(myHouse.moradia_id, user?.id).then((t) => setTasks(t || []));
+      loadRanking(myHouse.moradia_id);
+    } else if (currentScreen === 'store') {
+      loadMembers(myHouse.moradia_id);
+      loadStore(myHouse.moradia_id);
+    } else if (currentScreen === 'notifications') {
+      loadNotifications();
+    }
+  }, [currentScreen, myHouse?.moradia_id, myHouse?.status]);
+
   const approvedMembers = members.filter((m) => m.status === 'aprovado');
   const pendingMembers = members.filter((m) => m.status === 'pendente');
 

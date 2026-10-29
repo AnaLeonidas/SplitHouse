@@ -1,20 +1,39 @@
 import 'react-native-url-polyfill/auto';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Adaptador de armazenamento seguro para o cliente Supabase.
- * Utiliza o Expo SecureStore para persistir
- * os tokens JWT de autenticação e refresh tokens de forma criptografada no dispositivo.
+ * Adaptador de armazenamento para o cliente Supabase.
+ * Utiliza o Expo SecureStore em plataformas móveis (iOS/Android) e
+ * localStorage no ambiente Web para persistência de sessão.
  */
 const ExpoSecureStoreAdapter = {
   getItem: (key: string) => {
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(key);
+      }
+      return null;
+    }
     return SecureStore.getItemAsync(key);
   },
   setItem: (key: string, value: string) => {
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+      return;
+    }
     SecureStore.setItemAsync(key, value);
   },
   removeItem: (key: string) => {
+    if (Platform.OS === 'web') {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key);
+      }
+      return;
+    }
     SecureStore.deleteItemAsync(key);
   },
 };

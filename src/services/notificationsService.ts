@@ -38,7 +38,11 @@ export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
   let mappedCategory: 'Validações' | 'Finanças' | 'Cutucadas' = 'Cutucadas';
   if (row.category_filter === 'Validações' || row.tipo === 'Validação') {
     mappedCategory = 'Validações';
-  } else if (row.category_filter === 'Finanças' || row.tipo === 'Recompensa') {
+  } else if (
+    (row as any).category_filter === 'Finanças' ||
+    (row as any).filtro_categoria === 'Finanças' ||
+    row.tipo === 'Recompensa'
+  ) {
     mappedCategory = 'Finanças';
   } else {
     mappedCategory = 'Cutucadas';
@@ -49,6 +53,11 @@ export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
   else if (row.tipo === 'Vencimento') mappedType = 'Vencimento';
   else if (row.tipo === 'Concluída') mappedType = 'Concluída';
 
+  const actionText =
+    (row as any).action_text ||
+    (row as any).texto_acao ||
+    (mappedCategory === 'Validações' ? 'Validar agora' : undefined);
+
   return {
     id: row.id,
     type: mappedType,
@@ -57,11 +66,30 @@ export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
     timeAgo: formatTimeAgo(row.criado_em),
     title: row.titulo,
     description: row.descricao,
-    actionText: row.action_text || (mappedCategory === 'Validações' ? 'Validar agora' : undefined),
+    actionText,
     actionType: mappedCategory === 'Validações' ? 'primary' : 'secondary',
-    extraMeta: row.extra_meta || undefined,
-    hasCoinIcon: row.has_coin_icon || false,
+    extraMeta: (row as any).extra_meta || (row as any).metadados_extras || undefined,
+    hasCoinIcon: Boolean((row as any).has_coin_icon),
   };
+}
+
+/**
+ * Normaliza o filtro de categoria para satisfazer a restrição CHECK do banco.
+ */
+function normalizeFiltroCategoria(cat?: string): 'Cutucadas' | 'Validacoes' | 'Financas' {
+  if (cat === 'Validações' || cat === 'Validacoes') return 'Validacoes';
+  if (cat === 'Finanças' || cat === 'Financas') return 'Financas';
+  return 'Cutucadas';
+}
+
+/**
+ * Normaliza o tipo de notificação para satisfazer a restrição CHECK do banco.
+ */
+function normalizeTipoNotificacao(tipo?: string): 'Cutucada' | 'Vencimento' | 'Validacao' | 'Concluida' {
+  if (tipo === 'Validação' || tipo === 'Validacao') return 'Validacao';
+  if (tipo === 'Concluída' || tipo === 'Concluida') return 'Concluida';
+  if (tipo === 'Vencimento') return 'Vencimento';
+  return 'Cutucada';
 }
 
 /**
@@ -75,11 +103,22 @@ export const notificationsService = {
     try {
       if (!userId) return [];
 
-      const { data, error } = await supabase
+      // Consulta por destinatario_id (esquema do banco existente) ou usuario_id (fallback)
+      let { data, error } = await supabase
         .from('notificacoes')
         .select('*')
-        .eq('usuario_id', userId)
+        .eq('destinatario_id', userId)
         .order('criado_em', { ascending: false });
+
+      if (error && error.code === '42703') {
+        const retry = await supabase
+          .from('notificacoes')
+          .select('*')
+          .eq('usuario_id', userId)
+          .order('criado_em', { ascending: false });
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) {
         console.error('notificationsService.fetchNotifications erro:', error.message, error.details);
@@ -91,8 +130,8 @@ export const notificationsService = {
 
       // Se moradiaId estiver especificado, filtra em memória preservando notificações globais ou da moradia
       const filtered = moradiaId
-        ? (data as NotificacaoDB[]).filter((n) => !n.moradia_id || n.moradia_id === moradiaId)
-        : (data as NotificacaoDB[]);
+        ? (data as any[]).filter((n) => !n.moradia_id || n.moradia_id === moradiaId)
+        : (data as any[]);
 
       return filtered.map(mapRowToNotificationItem);
     } catch (err) {
@@ -121,11 +160,20 @@ export const notificationsService = {
    */
   async clearReadNotifications(userId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('notificacoes')
         .delete()
-        .eq('usuario_id', userId)
+        .eq('destinatario_id', userId)
         .eq('lida', true);
+
+      if (error && error.code === '42703') {
+        const retry = await supabase
+          .from('notificacoes')
+          .delete()
+          .eq('usuario_id', userId)
+          .eq('lida', true);
+        error = retry.error;
+      }
       return !error;
     } catch {
       return false;
@@ -150,9 +198,29 @@ export const notificationsService = {
     }
   ): Promise<boolean> {
     try {
-      const rows = Array.from(new Set(recipientIds))
-        .filter((id) => id && id !== payload.senderId)
-        .map((usuario_id) => ({
+      const uniqueRecipients = Array.from(new Set(recipientIds)).filter(
+        (id) => id && id !== payload.senderId
+      );
+      if (uniqueRecipients.length === 0) return true;
+
+      const rowsCompat = uniqueRecipients.map((destinatario_id) => ({
+        moradia_id: payload.moradiaId,
+        destinatario_id,
+        remetente_id: payload.senderId || null,
+        tipo: normalizeTipoNotificacao(payload.tipo),
+        filtro_categoria: normalizeFiltroCategoria(payload.categoryFilter),
+        titulo: payload.titulo,
+        descricao: payload.descricao,
+        texto_acao: payload.actionText || null,
+        tipo_acao: payload.actionText ? 'primaria' : 'secundaria',
+        metadados_extras: payload.extraMeta || null,
+        lida: false,
+      }));
+
+      let { error } = await supabase.from('notificacoes').insert(rowsCompat);
+
+      if (error && (error.code === '42703' || error.code === '23514')) {
+        const rowsAlt = uniqueRecipients.map((usuario_id) => ({
           moradia_id: payload.moradiaId,
           usuario_id,
           remetente_id: payload.senderId || null,
@@ -165,8 +233,10 @@ export const notificationsService = {
           has_coin_icon: payload.hasCoinIcon || false,
           lida: false,
         }));
-      if (rows.length === 0) return true;
-      const { error } = await supabase.from('notificacoes').insert(rows);
+        const retry = await supabase.from('notificacoes').insert(rowsAlt);
+        error = retry.error;
+      }
+
       if (error) console.warn('notificationsService.notifyUsers:', error.message);
       return !error;
     } catch {

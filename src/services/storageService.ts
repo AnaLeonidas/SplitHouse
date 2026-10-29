@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { supabase } from './supabase';
 
 /** Nome do bucket público do Supabase Storage usado para fotos e comprovantes. */
@@ -12,20 +12,24 @@ export const STORAGE_BUCKET = 'comprovantes';
 export async function pickImage(source: 'camera' | 'library'): Promise<string | null> {
   try {
     if (source === 'camera') {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permissão necessária', 'Permita o acesso à câmera para tirar a foto.');
-        return null;
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permissão necessária', 'Permita o acesso à câmera para tirar a foto.');
+          return null;
+        }
       }
       const result = await ImagePicker.launchCameraAsync({ quality: 0.6, allowsEditing: false });
       if (result.canceled || !result.assets?.length) return null;
       return result.assets[0].uri;
     }
 
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permissão necessária', 'Permita o acesso à galeria para anexar a imagem.');
-      return null;
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permissão necessária', 'Permita o acesso à galeria para anexar a imagem.');
+        return null;
+      }
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -43,6 +47,10 @@ export async function pickImage(source: 'camera' | 'library'): Promise<string | 
  * Pergunta ao usuário se deseja usar a câmera ou a galeria e retorna a URI escolhida.
  */
 export function pickImageWithPrompt(title = 'Anexar imagem'): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return pickImage('library');
+  }
+
   return new Promise((resolve) => {
     Alert.alert(
       title,

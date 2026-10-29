@@ -142,19 +142,36 @@ export const rankingService = {
         throw new Error('Parâmetros de cutucada inválidos.');
       }
 
-      const { error } = await supabase.from('notificacoes').insert({
+      let { error } = await supabase.from('notificacoes').insert({
         moradia_id: moradiaId,
-        usuario_id: targetUserId,
+        destinatario_id: targetUserId,
         remetente_id: senderUserId || null,
         tipo: 'Cutucada',
-        category_filter: 'Cutucadas',
+        filtro_categoria: 'Cutucadas',
         titulo: 'Cutucada de Tarefas!',
         descricao: `${senderName || 'Um morador'} te cutucou no ranking! Você tem tarefas pendentes na residência.`,
-        action_text: 'Ver tarefas',
-        extra_meta: 'Ranking da casa',
-        has_coin_icon: false,
+        texto_acao: 'Ver tarefas',
+        tipo_acao: 'primaria',
+        metadados_extras: 'Ranking da casa',
         lida: false,
       });
+
+      if (error && error.code === '42703') {
+        const retry = await supabase.from('notificacoes').insert({
+          moradia_id: moradiaId,
+          usuario_id: targetUserId,
+          remetente_id: senderUserId || null,
+          tipo: 'Cutucada',
+          category_filter: 'Cutucadas',
+          titulo: 'Cutucada de Tarefas!',
+          descricao: `${senderName || 'Um morador'} te cutucou no ranking! Você tem tarefas pendentes na residência.`,
+          action_text: 'Ver tarefas',
+          extra_meta: 'Ranking da casa',
+          has_coin_icon: false,
+          lida: false,
+        });
+        error = retry.error;
+      }
 
       if (error) {
         console.error('rankingService.sendNudge erro:', error.message, error.details);

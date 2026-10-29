@@ -96,7 +96,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             .toUpperCase()
         : 'SH';
 
-    const todayTasks = tasks && tasks.length > 0
+    const myPendingTasks = tasks && tasks.length > 0
+        ? tasks.filter((t) => t.assignee === 'Você' && t.status !== 'Concluída')
+        : [];
+    const todayTasks = myPendingTasks.length > 0
+        ? myPendingTasks.slice(0, 3)
+        : tasks && tasks.length > 0
         ? tasks.filter((t) => t.status !== 'Concluída').slice(0, 3)
         : null;
     return (

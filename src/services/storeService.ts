@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { notificationsService } from './notificationsService';
 import {
   CategoriaRecompensa,
   ProposeRewardInput,
@@ -51,26 +52,49 @@ export const DEFAULT_STORE_ITEMS: Omit<StoreItem, 'id'>[] = [
 ];
 
 /**
+ * Normaliza a categoria para inserção em conformidade com a constraint do banco (sem acentos).
+ */
+export function normalizeCategoryForDb(cat?: string): string {
+  if (!cat) return 'Folga';
+  const clean = cat.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (clean === 'Convivencia') return 'Convivencia';
+  if (clean === 'Bonus') return 'Bonus';
+  if (clean === 'Folga') return 'Folga';
+  return 'Outros';
+}
+
+/**
+ * Converte a categoria vinda do banco para exibição visual com acentuação correta.
+ */
+export function mapDbCategoryToVisual(cat?: string): 'Folga' | 'Convivência' | 'Bônus' {
+  if (cat === 'Convivencia' || cat === 'Convivência') return 'Convivência';
+  if (cat === 'Bonus' || cat === 'Bônus') return 'Bônus';
+  return 'Folga';
+}
+
+/**
  * Converte um registro bruto da tabela 'recompensas_loja' para a interface visual StoreItem.
  */
 export function mapRowToStoreItem(row: RecompensaLojaDB): StoreItem {
   let icon: 'minus-circle' | 'tv' | 'sofa' | 'pizza' = 'minus-circle';
   if (row.tipo_icone === 'tv' || row.tipo_icone === 'sofa' || row.tipo_icone === 'pizza') {
     icon = row.tipo_icone;
-  } else if (row.categoria === 'Convivência') {
+  } else if (row.categoria === 'Convivência' || (row.categoria as any) === 'Convivencia') {
     icon = 'tv';
-  } else if (row.categoria === 'Bônus') {
+  } else if (row.categoria === 'Bônus' || (row.categoria as any) === 'Bonus') {
     icon = 'pizza';
   }
+
+  const visualCategory = mapDbCategoryToVisual(row.categoria);
 
   return {
     id: row.id,
     title: row.titulo,
-    category: row.categoria,
-    subtitle: row.subtitulo || `${row.categoria} da casa`,
+    category: visualCategory,
+    subtitle: row.subtitulo || `${visualCategory} da casa`,
     cost: row.custo_moedas,
-    description: row.descricao || 'Sem descrição cadastrada.',
-    availability: row.disponibilidade || 'Disponível',
+    description: (row as any).descricao_regras || row.descricao || 'Sem descrição cadastrada.',
+    availability: (row as any).texto_disponibilidade || row.disponibilidade || 'Disponível',
     iconType: icon,
   };
 }
@@ -109,28 +133,53 @@ export const storeService = {
         }));
       }
 
-      // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto sem ela
-      const activeRows = (data || []).filter((r: any) => r.ativo !== false && r.status_aprovacao !== 'recusada');
+      // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto 'status'
+      const activeRows = (data || []).filter(
+        (r: any) =>
+          r.ativo !== false &&
+          r.status !== 'recusada' &&
+          r.status_aprovacao !== 'recusada'
+      );
 
       // Se a moradia for nova e ainda não tiver itens salvos no banco, insere o catálogo padrão
       if (!activeRows || activeRows.length === 0) {
         try {
-          const seeds = DEFAULT_STORE_ITEMS.map((item) => ({
+          const seedsCompat = DEFAULT_STORE_ITEMS.map((item) => ({
             moradia_id: moradiaId,
             titulo: item.title,
             subtitulo: item.subtitle,
-            categoria: item.category as CategoriaRecompensa,
+            categoria: normalizeCategoryForDb(item.category),
             custo_moedas: item.cost,
-            descricao: item.description,
-            disponibilidade: item.availability,
+            descricao_regras: item.description,
+            texto_disponibilidade: item.availability,
             tipo_icone: item.iconType,
-            status_aprovacao: 'aprovada',
+            status: 'ativa',
           }));
 
-          const { data: inserted, error: seedError } = await supabase
+          let { data: inserted, error: seedError } = await supabase
             .from('recompensas_loja')
-            .insert(seeds)
+            .insert(seedsCompat)
             .select();
+
+          if (seedError && (seedError.code === '42703' || seedError.code === '23502' || seedError.code === '23514')) {
+            const seedsAlt = DEFAULT_STORE_ITEMS.map((item) => ({
+              moradia_id: moradiaId,
+              titulo: item.title,
+              subtitulo: item.subtitle,
+              categoria: item.category as CategoriaRecompensa,
+              custo_moedas: item.cost,
+              descricao: item.description,
+              disponibilidade: item.availability,
+              tipo_icone: item.iconType,
+              status_aprovacao: 'aprovada',
+            }));
+            const retry = await supabase
+              .from('recompensas_loja')
+              .insert(seedsAlt)
+              .select();
+            inserted = retry.data;
+            seedError = retry.error;
+          }
 
           if (inserted && inserted.length > 0) {
             return (inserted as RecompensaLojaDB[]).map(mapRowToStoreItem);
@@ -180,25 +229,43 @@ export const storeService = {
       throw new Error('O custo em moedas deve ser maior que zero.');
     }
 
-    const payload = {
+    const rowCompat = {
       moradia_id: moradiaId,
       titulo: input.title.trim(),
       subtitulo: input.subtitle || `${input.category} da casa`,
-      categoria: input.category,
+      categoria: normalizeCategoryForDb(input.category),
       custo_moedas: Number(input.cost),
-      descricao: input.description.trim() || null,
-      disponibilidade: input.limit || 'Disponível',
+      descricao_regras: input.description.trim() || 'Sem descrição informada.',
+      texto_disponibilidade: input.limit || 'Disponível',
       tipo_icone: input.iconType || (input.category === 'Folga' ? 'minus-circle' : 'tv'),
-      ativo: true,
-      status_aprovacao: 'aprovada' as const,
-      criado_por: userId,
+      status: 'ativa',
+      proposta_por: userId,
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('recompensas_loja')
-      .insert(payload)
+      .insert(rowCompat)
       .select()
       .single();
+
+    if (error && (error.code === '42703' || error.code === '23502' || error.code === '23514')) {
+      const payloadAlt = {
+        moradia_id: moradiaId,
+        titulo: input.title.trim(),
+        subtitulo: input.subtitle || `${input.category} da casa`,
+        categoria: input.category,
+        custo_moedas: Number(input.cost),
+        descricao: input.description.trim() || null,
+        disponibilidade: input.limit || 'Disponível',
+        tipo_icone: input.iconType || (input.category === 'Folga' ? 'minus-circle' : 'tv'),
+        ativo: true,
+        status_aprovacao: 'aprovada' as const,
+        criado_por: userId,
+      };
+      const retry = await supabase.from('recompensas_loja').insert(payloadAlt).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       console.error('storeService.proposeReward: Erro ao propor recompensa:', error);
@@ -207,15 +274,15 @@ export const storeService = {
 
     // Notifica os moradores sobre a nova recompensa disponível
     try {
-      await supabase.from('notificacoes').insert({
-        moradia_id: moradiaId,
-        usuario_id: userId,
+      await notificationsService.notifyUsers([userId], {
+        moradiaId,
+        senderId: userId,
         tipo: 'Recompensa',
-        category_filter: 'Geral',
+        categoryFilter: 'Geral',
         titulo: 'Nova Recompensa na Loja!',
         descricao: `${userName || 'Um morador'} adicionou "${input.title}" por ${input.cost} moedas.`,
-        action_text: 'Ver na loja',
-        has_coin_icon: true,
+        actionText: 'Ver na loja',
+        hasCoinIcon: true,
       });
     } catch {
       // Notificação não-bloqueante
@@ -270,20 +337,35 @@ export const storeService = {
       throw new Error('Falha ao debitar moedas da conta: ' + updateError.message);
     }
 
-    // 3. Registra o resgate na tabela 'resgates_recompensa'
+    // 3. Registra o resgate na tabela 'resgates_recompensa' (suporta moedas_gastas ou custo_moedas)
     let redemptionId: string | undefined;
     try {
-      const { data: resgate } = await supabase
+      let { data: resgate, error: resgateError } = await supabase
         .from('resgates_recompensa')
         .insert({
           recompensa_id: rewardId,
           moradia_id: moradiaId,
           usuario_id: userId,
-          custo_moedas: cost,
+          moedas_gastas: cost,
           status: 'ativo',
         })
         .select('id')
         .single();
+
+      if (resgateError && resgateError.code === '42703') {
+        const retry = await supabase
+          .from('resgates_recompensa')
+          .insert({
+            recompensa_id: rewardId,
+            moradia_id: moradiaId,
+            usuario_id: userId,
+            custo_moedas: cost,
+            status: 'ativo',
+          })
+          .select('id')
+          .single();
+        resgate = retry.data;
+      }
 
       if (resgate) {
         redemptionId = resgate.id;
@@ -294,14 +376,14 @@ export const storeService = {
 
     // 4. Cria notificação de confirmação do benefício ativo
     try {
-      await supabase.from('notificacoes').insert({
-        moradia_id: moradiaId,
-        usuario_id: userId,
+      await notificationsService.notifyUsers([userId], {
+        moradiaId,
+        senderId: userId,
         tipo: 'Recompensa',
-        category_filter: 'Finanças',
+        categoryFilter: 'Finanças',
         titulo: 'Recompensa Resgatada!',
         descricao: `Você resgatou "${rewardTitle}" por ${cost} moedas. Seu benefício está ativo no ciclo atual.`,
-        has_coin_icon: true,
+        hasCoinIcon: true,
       });
     } catch {
       // Notificação não-bloqueante

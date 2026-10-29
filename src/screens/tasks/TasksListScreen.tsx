@@ -87,9 +87,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
   const getFilteredTasks = () => {
     switch (activeTab) {
       case 'my_tasks':
-        return taskList.filter(
-          (t) => t.assignee === 'Você' || t.requiresValidation
-        );
+        return taskList.filter((t) => t.assignee === 'Você');
       case 'house':
         return taskList;
       case 'validate':
