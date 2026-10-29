@@ -99,8 +99,6 @@ export const storeService = {
         .from('recompensas_loja')
         .select('*')
         .eq('moradia_id', moradiaId)
-        .eq('ativo', true)
-        .eq('status_aprovacao', 'aprovada')
         .order('custo_moedas', { ascending: true });
 
       if (error) {
@@ -111,8 +109,11 @@ export const storeService = {
         }));
       }
 
+      // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto sem ela
+      const activeRows = (data || []).filter((r: any) => r.ativo !== false && r.status_aprovacao !== 'recusada');
+
       // Se a moradia for nova e ainda não tiver itens salvos no banco, insere o catálogo padrão
-      if (!data || data.length === 0) {
+      if (!activeRows || activeRows.length === 0) {
         try {
           const seeds = DEFAULT_STORE_ITEMS.map((item) => ({
             moradia_id: moradiaId,
@@ -123,17 +124,19 @@ export const storeService = {
             descricao: item.description,
             disponibilidade: item.availability,
             tipo_icone: item.iconType,
-            ativo: true,
             status_aprovacao: 'aprovada',
           }));
 
-          const { data: inserted } = await supabase
+          const { data: inserted, error: seedError } = await supabase
             .from('recompensas_loja')
             .insert(seeds)
             .select();
 
           if (inserted && inserted.length > 0) {
             return (inserted as RecompensaLojaDB[]).map(mapRowToStoreItem);
+          }
+          if (seedError) {
+            console.warn('storeService: Erro ao realizar seed:', seedError.message);
           }
         } catch (seedErr) {
           console.warn('storeService: Não foi possível realizar seed automático:', seedErr);
@@ -145,7 +148,7 @@ export const storeService = {
         }));
       }
 
-      return (data as RecompensaLojaDB[]).map(mapRowToStoreItem);
+      return activeRows.map(mapRowToStoreItem);
     } catch (err) {
       console.warn('storeService.fetchStoreItems: exceção capturada:', err);
       return DEFAULT_STORE_ITEMS.map((item, index) => ({

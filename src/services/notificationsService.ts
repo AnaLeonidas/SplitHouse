@@ -75,23 +75,28 @@ export const notificationsService = {
     try {
       if (!userId) return [];
 
-      let query = supabase
+      const { data, error } = await supabase
         .from('notificacoes')
         .select('*')
         .eq('usuario_id', userId)
         .order('criado_em', { ascending: false });
 
-      if (moradiaId) {
-        query = query.or(`moradia_id.eq.${moradiaId},moradia_id.is.null`);
+      if (error) {
+        console.error('notificationsService.fetchNotifications erro:', error.message, error.details);
+        return [];
       }
-
-      const { data, error } = await query;
-      if (error || !data) {
+      if (!data) {
         return [];
       }
 
-      return (data as NotificacaoDB[]).map(mapRowToNotificationItem);
-    } catch {
+      // Se moradiaId estiver especificado, filtra em memória preservando notificações globais ou da moradia
+      const filtered = moradiaId
+        ? (data as NotificacaoDB[]).filter((n) => !n.moradia_id || n.moradia_id === moradiaId)
+        : (data as NotificacaoDB[]);
+
+      return filtered.map(mapRowToNotificationItem);
+    } catch (err) {
+      console.error('notificationsService.fetchNotifications exceção:', err);
       return [];
     }
   },
@@ -126,5 +131,48 @@ export const notificationsService = {
       return false;
     }
   },
+
+  /**
+   * Cria notificações para um ou mais destinatários (cada morador recebe a sua).
+   */
+  async notifyUsers(
+    recipientIds: string[],
+    payload: {
+      moradiaId: string;
+      senderId?: string;
+      tipo: NotificacaoDB['tipo'];
+      categoryFilter: NotificacaoDB['category_filter'];
+      titulo: string;
+      descricao: string;
+      actionText?: string;
+      extraMeta?: string;
+      hasCoinIcon?: boolean;
+    }
+  ): Promise<boolean> {
+    try {
+      const rows = Array.from(new Set(recipientIds))
+        .filter((id) => id && id !== payload.senderId)
+        .map((usuario_id) => ({
+          moradia_id: payload.moradiaId,
+          usuario_id,
+          remetente_id: payload.senderId || null,
+          tipo: payload.tipo,
+          category_filter: payload.categoryFilter,
+          titulo: payload.titulo,
+          descricao: payload.descricao,
+          action_text: payload.actionText || null,
+          extra_meta: payload.extraMeta || null,
+          has_coin_icon: payload.hasCoinIcon || false,
+          lida: false,
+        }));
+      if (rows.length === 0) return true;
+      const { error } = await supabase.from('notificacoes').insert(rows);
+      if (error) console.warn('notificationsService.notifyUsers:', error.message);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
 };
+
 

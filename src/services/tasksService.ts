@@ -4,6 +4,7 @@ import { TaskItem } from '../screens/tasks/TasksListScreen';
 import { TaskFormData } from '../screens/tasks/NewTaskScreen';
 import { Colors } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
+import { uploadImage } from './storageService';
 
 /**
  * Converte strings amigáveis de prazo (ex.: "Hoje, 22:00", "Amanhã, 10:00", "Em 2 dias")
@@ -152,10 +153,10 @@ function mapRowToTaskItem(row: TarefaDB, currentUserId?: string): TaskItem {
     icon,
     iconBg,
     iconColor,
-    requiresValidation: row.status === 'em_validacao' || (row.requer_validacao && row.status === 'pendente'),
+    requiresValidation: row.status === 'em_validacao',
     executorInfo:
       row.status === 'em_validacao'
-        ? `Aguardando validação de foto`
+        ? `Executada por ${assigneeDisplay === 'Você' ? 'você' : rawName} com foto`
         : undefined,
   };
 }
@@ -259,44 +260,69 @@ export const tasksService = {
   },
 
   /**
-   * Envia uma tarefa para validação comunitária anexando foto e dados de execução.
+   * Envia uma tarefa para validação comunitária anexando a foto real tirada pelo executor.
    *
    * @param taskId Identificador da tarefa.
-   * @param photoUrl URL da foto comprobatória.
+   * @param photoUri URI local da foto capturada (será enviada ao Storage).
    * @param executorId UUID do usuário executor.
-   * @param executorName Nome do morador executor.
-   * @returns {Promise<boolean>} Sucesso da operação.
+   * @returns URL pública da foto enviada.
+   * @throws Error se o upload ou a gravação falharem.
    */
   async submitTaskValidation(
     taskId: string,
-    photoUrl?: string,
-    executorId?: string,
-    executorName?: string
-  ): Promise<boolean> {
+    photoUri: string,
+    executorId: string
+  ): Promise<string> {
+    const photoUrl = await uploadImage(photoUri, 'tarefas');
+
+    const { error: valError } = await supabase.from('validacoes_tarefa').insert({
+      tarefa_id: taskId,
+      executor_id: executorId,
+      foto_comprovante_url: photoUrl,
+      status: 'pendente',
+    });
+    if (valError) {
+      throw new Error(`Falha ao registrar a validação: ${valError.message}`);
+    }
+
+    const { error } = await supabase
+      .from('tarefas')
+      .update({
+        status: 'em_validacao',
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', taskId);
+    if (error) {
+      throw new Error(`Falha ao atualizar a tarefa: ${error.message}`);
+    }
+
+    return photoUrl;
+  },
+
+  /**
+   * Busca a foto e os dados do envio pendente de validação de uma tarefa.
+   */
+  async getPendingValidation(
+    taskId: string
+  ): Promise<{ photoUrl: string | null; executorId: string | null; sentAt: string | null } | null> {
     try {
-      if (executorId) {
-        await supabase.from('validacoes_tarefa').insert({
-          tarefa_id: taskId,
-          executor_id: executorId,
-          foto_comprovante_url:
-            photoUrl ||
-            'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=400&q=80',
-          status: 'pendente',
-        });
-      }
-
-      const { error } = await supabase
-        .from('tarefas')
-        .update({
-          status: 'em_validacao',
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq('id', taskId);
-
-      return !error;
-    } catch (err) {
-      console.warn('Supabase: Exceção ao submeter validação:', err);
-      return false;
+      const { data, error } = await supabase
+        .from('validacoes_tarefa')
+        .select('*')
+        .eq('tarefa_id', taskId)
+        .eq('status', 'pendente');
+      if (error || !data || data.length === 0) return null;
+      const rows = [...data].sort((a: any, b: any) =>
+        String(b.criado_em || b.created_at || '').localeCompare(String(a.criado_em || a.created_at || ''))
+      );
+      const row: any = rows[0];
+      return {
+        photoUrl: row.foto_comprovante_url || null,
+        executorId: row.executor_id || null,
+        sentAt: row.criado_em || row.created_at || null,
+      };
+    } catch {
+      return null;
     }
   },
 
@@ -318,7 +344,7 @@ export const tasksService = {
     justification?: string
   ): Promise<boolean> {
     try {
-      // 1. Atualiza registro na tabela validacoes_tarefa se houver
+      // 1. Atualiza o envio pendente na tabela validacoes_tarefa
       await supabase
         .from('validacoes_tarefa')
         .update({
@@ -327,7 +353,8 @@ export const tasksService = {
           justificativa: justification || null,
           validado_em: new Date().toISOString(),
         })
-        .eq('tarefa_id', taskId);
+        .eq('tarefa_id', taskId)
+        .eq('status', 'pendente');
 
       // 2. Atualiza estado em tarefas
       const newStatus = approved ? 'concluida' : 'pendente';

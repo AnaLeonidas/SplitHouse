@@ -8,10 +8,13 @@ import {
   Platform,
   StatusBar as RNStatusBar,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { pickImage } from '../../services/storageService';
 
 /**
  * Estrutura de dados detalhada de uma tarefa para visualização completa.
@@ -47,8 +50,10 @@ interface TaskDetailsScreenProps {
   onBackPress?: () => void;
   /** Callback para opções avançadas de edição ou exclusão */
   onOptionsPress?: () => void;
-  /** Callback para envio da tarefa para validação com foto */
-  onSubmitValidation?: () => void;
+  /** Callback para envio da tarefa para validação com a foto tirada (URI local) */
+  onSubmitValidation?: (photoUri: string) => void | Promise<void>;
+  /** Se o usuário logado é o responsável e pode enviar a conclusão */
+  canSubmit?: boolean;
 }
 
 /**
@@ -62,8 +67,11 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   onBackPress,
   onOptionsPress,
   onSubmitValidation,
+  canSubmit = true,
 }) => {
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const hasPhoto = !!photoUri;
 
   const title = task?.title || 'Tarefa';
   const description =
@@ -76,17 +84,26 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const xp = task?.xp ?? 30;
   const points = task?.points ?? 10;
 
-  const handlePhotoPress = () => {
-    setHasPhoto((prev) => !prev);
+  const handlePhotoPress = async () => {
+    if (!canSubmit) {
+      Alert.alert('Apenas o responsável', 'Somente o morador responsável pode enviar a foto desta tarefa.');
+      return;
+    }
+    const uri = await pickImage('camera');
+    if (uri) setPhotoUri(uri);
   };
 
-  const handleSendValidation = () => {
-    if (!hasPhoto) {
+  const handleSendValidation = async () => {
+    if (!canSubmit) {
+      Alert.alert('Apenas o responsável', 'Somente o morador responsável pode enviar esta tarefa para validação.');
+      return;
+    }
+    if (!photoUri) {
       Alert.alert(
         'Foto necessária',
         'Tire uma foto como comprovante antes de enviar a tarefa para validação.',
         [
-          { text: 'Tirar foto agora', onPress: () => setHasPhoto(true) },
+          { text: 'Tirar foto agora', onPress: handlePhotoPress },
           { text: 'Cancelar', style: 'cancel' },
         ]
       );
@@ -94,9 +111,12 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
 
     if (onSubmitValidation) {
-      onSubmitValidation();
-    } else {
-      Alert.alert('Sucesso', 'Tarefa enviada para validação dos moradores!');
+      try {
+        setSubmitting(true);
+        await onSubmitValidation(photoUri);
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -191,19 +211,19 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           activeOpacity={0.8}
           onPress={handlePhotoPress}
         >
-          <View style={[styles.cameraIconBox, hasPhoto && styles.cameraIconBoxAttached]}>
-            <Feather
-              name={hasPhoto ? 'check' : 'camera'}
-              size={24}
-              color={hasPhoto ? Colors.success : Colors.primary}
-            />
-          </View>
+          {hasPhoto ? (
+            <Image source={{ uri: photoUri! }} style={styles.photoPreview} resizeMode="cover" />
+          ) : (
+            <View style={styles.cameraIconBox}>
+              <Feather name="camera" size={24} color={Colors.primary} />
+            </View>
+          )}
           <Text style={styles.evidenceTitle}>
-            {hasPhoto ? 'Foto anexada com sucesso' : 'Tirar foto da pia limpa'}
+            {hasPhoto ? 'Foto anexada com sucesso' : 'Tirar foto da tarefa concluída'}
           </Text>
           <Text style={styles.evidenceSubtitle}>
             {hasPhoto
-              ? 'Toque para alterar ou tirar outra foto de comprovante.'
+              ? 'Toque para tirar outra foto de comprovante.'
               : 'A foto servirá como comprovante para que outro morador valide sua conclusão.'}
           </Text>
         </TouchableOpacity>
@@ -221,12 +241,19 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, submitting && { opacity: 0.7 }]}
           activeOpacity={0.88}
+          disabled={submitting}
           onPress={handleSendValidation}
         >
-          <Feather name="check" size={18} color="#FCFCFC" />
-          <Text style={styles.submitButtonText}>Enviar para validação</Text>
+          {submitting ? (
+            <ActivityIndicator color="#FCFCFC" />
+          ) : (
+            <Feather name="check" size={18} color="#FCFCFC" />
+          )}
+          <Text style={styles.submitButtonText}>
+            {submitting ? 'Enviando...' : 'Enviar para validação'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.homeIndicator} />
@@ -391,6 +418,12 @@ const styles = StyleSheet.create({
   },
   cameraIconBoxAttached: {
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   evidenceTitle: {
     fontSize: 12,

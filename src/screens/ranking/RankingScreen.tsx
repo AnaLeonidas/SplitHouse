@@ -19,6 +19,8 @@ import { Colors } from '../../constants/theme';
 export interface ResidentRankingItem {
   /** Identificador único do morador */
   id: string;
+  /** UUID do usuário no auth.users (necessário para notificações e cutucadas) */
+  userId?: string;
   /** Posição na tabela de classificação */
   rank: number;
   /** Nome de exibição do morador */
@@ -285,7 +287,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                             isNudged && styles.nudgeButtonActive,
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name, item.id)}
+                          onPress={() => handleNudge(item.name, item.userId || item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}
@@ -308,7 +310,7 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                             isNudged && styles.nudgeButtonDefaultActive,
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name, item.id)}
+                          onPress={() => handleNudge(item.name, item.userId || item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}

@@ -57,53 +57,6 @@ interface StoreScreenProps {
   onProposeSubmit?: (item: Omit<StoreItem, 'id'>) => Promise<void> | void;
 }
 
-const defaultItems: StoreItem[] = [
-  {
-    id: '1',
-    title: 'Isenção da louça',
-    category: 'Folga',
-    subtitle: 'Fim de semana livre',
-    cost: 150,
-    description:
-      'Fique livre da louça de almoço e jantar no sábado e domingo. A escala pula para o próximo.',
-    availability: '2 vagas no mês',
-    iconType: 'minus-circle',
-  },
-  {
-    id: '2',
-    title: 'Escolha do filme',
-    category: 'Convivência',
-    subtitle: 'Sessão de sexta-feira',
-    cost: 80,
-    description:
-      'Controle remoto exclusivo da TV da sala.',
-    availability: 'Disponível semanalmente',
-    iconType: 'tv',
-  },
-  {
-    id: '3',
-    title: 'Rei do sofá retrátil',
-    category: 'Convivência',
-    subtitle: 'Reserva por 7 dias',
-    cost: 200,
-    description:
-      'Preferência assegurada no assento de preferência.',
-    availability: '1 morador por ciclo',
-    iconType: 'sofa',
-  },
-  {
-    id: '4',
-    title: 'Pizza coletiva',
-    category: 'Bônus',
-    subtitle: 'Fundo comum da casa',
-    cost: 350,
-    description:
-      'Pizza grande com borda recheada financiado pela caixinha de bônus.',
-    availability: '1 disponível',
-    iconType: 'pizza',
-  },
-];
-
 type CategoryFilter = 'all' | 'Folga' | 'Convivência' | 'Bônus';
 
 /**
@@ -115,7 +68,7 @@ type CategoryFilter = 'all' | 'Folga' | 'Convivência' | 'Bônus';
 export const StoreScreen: React.FC<StoreScreenProps> = ({
   houseName = 'Sua moradia',
   initialCoins = 0,
-  items = defaultItems,
+  items = [],
   onBackPress,
   onProposePress,
   onRedeemPress,
@@ -127,12 +80,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
     setCoins(initialCoins);
   }, [initialCoins]);
 
-  const [storeItems, setStoreItems] = useState<StoreItem[]>(items);
+  const [storeItems, setStoreItems] = useState<StoreItem[]>(items || []);
 
   useEffect(() => {
-    if (items && items.length > 0) {
-      setStoreItems(items);
-    }
+    setStoreItems(items || []);
   }, [items]);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
   const [isProposeModalVisible, setIsProposeModalVisible] = useState(false);
@@ -391,67 +342,84 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         </ScrollView>
 
         <View style={styles.itemsListContainer}>
-          {filteredItems.map((item) => (
-            <View key={item.id} style={styles.itemCard}>
-              <View style={styles.itemHeaderRow}>
-                <View style={styles.itemLeftGroup}>
-                  {renderItemIcon(item.iconType, item.category)}
-                  <View style={styles.itemTitleCol}>
-                    <View style={styles.titleBadgeRow}>
-                      <Text style={styles.itemTitle}>{item.title}</Text>
-                      <View
-                        style={[
-                          styles.categoryBadge,
-                          item.category === 'Folga'
-                            ? styles.categoryBadgeFolga
-                            : item.category === 'Convivência'
-                            ? styles.categoryBadgeConvivencia
-                            : styles.categoryBadgeBonus,
-                        ]}
-                      >
-                        <Text
+          {filteredItems.length === 0 ? (
+            <View style={styles.emptyItemsBox}>
+              <Feather name="gift" size={36} color={Colors.primary} style={{ marginBottom: 12, opacity: 0.8 }} />
+              <Text style={styles.emptyItemsTitle}>Nenhuma recompensa encontrada</Text>
+              <Text style={styles.emptyItemsSubtitle}>
+                Cadastre ou proponha novas recompensas para a lojinha da moradia!
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyProposeBtn}
+                onPress={() => (onProposePress ? onProposePress() : setIsProposeModalVisible(true))}
+              >
+                <Feather name="plus" size={16} color={Colors.white} />
+                <Text style={styles.emptyProposeBtnText}>Propor recompensa</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            filteredItems.map((item) => (
+              <View key={item.id} style={styles.itemCard}>
+                <View style={styles.itemHeaderRow}>
+                  <View style={styles.itemLeftGroup}>
+                    {renderItemIcon(item.iconType, item.category)}
+                    <View style={styles.itemTitleCol}>
+                      <View style={styles.titleBadgeRow}>
+                        <Text style={styles.itemTitle}>{item.title}</Text>
+                        <View
                           style={[
-                            styles.categoryBadgeText,
+                            styles.categoryBadge,
                             item.category === 'Folga'
-                              ? styles.categoryBadgeTextFolga
+                              ? styles.categoryBadgeFolga
                               : item.category === 'Convivência'
-                              ? styles.categoryBadgeTextConvivencia
-                              : styles.categoryBadgeTextBonus,
+                              ? styles.categoryBadgeConvivencia
+                              : styles.categoryBadgeBonus,
                           ]}
                         >
-                          {item.category}
-                        </Text>
+                          <Text
+                            style={[
+                              styles.categoryBadgeText,
+                              item.category === 'Folga'
+                                ? styles.categoryBadgeTextFolga
+                                : item.category === 'Convivência'
+                                ? styles.categoryBadgeTextConvivencia
+                                : styles.categoryBadgeTextBonus,
+                            ]}
+                          >
+                            {item.category}
+                          </Text>
+                        </View>
                       </View>
+                      <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
                     </View>
-                    <Text style={styles.itemSubtitle}>{item.subtitle}</Text>
+                  </View>
+
+                  <View style={styles.costBadge}>
+                    <Feather name="award" size={13} color={Colors.primary} />
+                    <Text style={styles.costBadgeText}>{item.cost}</Text>
                   </View>
                 </View>
 
-                <View style={styles.costBadge}>
-                  <Feather name="award" size={13} color={Colors.primary} />
-                  <Text style={styles.costBadgeText}>{item.cost}</Text>
+                <Text style={styles.itemDescription}>{item.description}</Text>
+
+                <View style={styles.itemFooterRow}>
+                  <Text style={styles.availabilityText}>{item.availability}</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.redeemButton,
+                      coins < item.cost && { opacity: 0.6 },
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => handleRedeem(item)}
+                  >
+                    <Text style={styles.redeemButtonText}>
+                      {coins >= item.cost ? 'Resgatar' : 'Saldo insuficiente'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              <Text style={styles.itemDescription}>{item.description}</Text>
-
-              <View style={styles.itemFooterRow}>
-                <Text style={styles.availabilityText}>{item.availability}</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.redeemButton,
-                    coins < item.cost && { opacity: 0.6 },
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => handleRedeem(item)}
-                >
-                  <Text style={styles.redeemButtonText}>
-                    {coins >= item.cost ? 'Resgatar' : 'Saldo insuficiente'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -1016,5 +984,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.primary,
+  },
+  emptyItemsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    marginTop: 8,
+  },
+  emptyItemsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptyItemsSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyProposeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyProposeBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.white,
   },
 });

@@ -11,6 +11,8 @@ interface ExpenseDetailsScreenProps {
     onBackPress?: () => void;
     /** Callback para enviar lembrete amigável (cutucada) aos membros pendentes */
     onNudgePress?: () => void;
+    /** Callback para abrir o comprovante anexado */
+    onReceiptPress?: () => void;
     /** Detalhes da despesa */
     expense?: {
         title: string;
@@ -39,6 +41,7 @@ interface ExpenseDetailsScreenProps {
 export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({
     onBackPress,
     onNudgePress,
+    onReceiptPress,
     expense,
     members = [],
 }) => {
@@ -93,7 +96,7 @@ export const ExpenseDetailsScreen: React.FC<ExpenseDetailsScreenProps> = ({
                         </View>
 
                         {expense?.receiptName && (
-                            <TouchableOpacity style={styles.receiptCard}>
+                            <TouchableOpacity style={styles.receiptCard} onPress={onReceiptPress}>
                                 <View style={styles.receiptIconBox}>
                                     <Feather name="file-text" size={16} color="#10B981" />
                                 </View>

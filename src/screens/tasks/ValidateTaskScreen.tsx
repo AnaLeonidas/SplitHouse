@@ -10,6 +10,8 @@ import {
   StatusBar as RNStatusBar,
   KeyboardAvoidingView,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
@@ -28,9 +30,9 @@ export interface TaskValidationData {
   executorName?: string;
   /** Data e hora em que a tarefa foi marcada como feita */
   executedAt?: string;
-  /** Nome do arquivo da foto comprobatória */
-  photoFilename?: string;
-  /** Timestamp gravado no registro da foto */
+  /** URL pública da foto comprobatória enviada pelo executor */
+  photoUrl?: string | null;
+  /** Horário em que a foto foi enviada */
   photoTimestamp?: string;
   /** Quantidade de XP a ser liberada se aprovada */
   xp?: number;
@@ -65,14 +67,15 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   onRejectPress,
 }) => {
   const [justification, setJustification] = useState('');
+  const [imageLoading, setImageLoading] = useState(true);
 
-  const title = task?.title || 'Aspirar tapete da sala';
-  const executorName = task?.executorName || 'Doutor Octopus';
-  const executedAt = task?.executedAt || 'Hoje às 11:15';
-  const photoFilename = task?.photoFilename || 'tapete_sala_concluido.jpg';
-  const photoTimestamp = task?.photoTimestamp || '11/09/2026 11:15';
-  const xp = task?.xp ?? 25;
-  const points = task?.points ?? 10;
+  const title = task?.title || 'Tarefa';
+  const executorName = task?.executorName || 'Morador';
+  const executedAt = task?.executedAt || '';
+  const photoUrl = task?.photoUrl || null;
+  const photoTimestamp = task?.photoTimestamp || '';
+  const xp = task?.xp ?? 0;
+  const points = task?.points ?? 0;
 
   const handleApprove = () => {
     if (onApprovePress) {
@@ -154,29 +157,27 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
           <Text style={styles.photoCardLabel}>FOTO ANEXADA PELO EXECUTOR</Text>
 
           <View style={styles.photoContainer}>
-            <LinearGradient
-              colors={['#18181B', '#27272A', '#3F3F46']}
-              start={{ x: 0, y: 1 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-
-            <View style={styles.photoGraphicBox}>
-              <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
-                  stroke="#D4D4D8"
-                  strokeWidth={1.8}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            {photoUrl ? (
+              <>
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                  onLoadEnd={() => setImageLoading(false)}
                 />
-              </Svg>
-              <Text style={styles.photoFilename}>{photoFilename}</Text>
-            </View>
-
-            <View style={styles.photoTimestampBadge}>
-              <Text style={styles.photoTimestampText}>{photoTimestamp}</Text>
-            </View>
+                {imageLoading && <ActivityIndicator color="#FCFCFC" />}
+                {!!photoTimestamp && (
+                  <View style={styles.photoTimestampBadge}>
+                    <Text style={styles.photoTimestampText}>{photoTimestamp}</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.photoGraphicBox}>
+                <Feather name="image" size={36} color="#D4D4D8" />
+                <Text style={styles.photoFilename}>Foto não disponível</Text>
+              </View>
+            )}
           </View>
         </View>
 

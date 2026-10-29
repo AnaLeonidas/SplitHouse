@@ -55,53 +55,6 @@ interface NotificationsScreenProps {
   onClearReadPress?: () => void;
 }
 
-const defaultNotifications: NotificationItem[] = [
-  {
-    id: '1',
-    type: 'Validação',
-    categoryFilter: 'Validações',
-    isRead: false,
-    timeAgo: 'Há 15 min',
-    title: 'Doutor Octopus concluiu uma tarefa',
-    description: '"Limpar geladeira" foi finalizada com foto anexada para revisão.',
-    actionText: 'Validar agora',
-    actionType: 'primary',
-    extraMeta: '+80 XP em jogo',
-  },
-  {
-    id: '2',
-    type: 'Cutucada',
-    categoryFilter: 'Cutucadas',
-    isRead: false,
-    timeAgo: 'Há 1 hora',
-    title: 'Lagarto te cutucou',
-    description: '"Norman, não esquece que hoje é dia de descer o lixo!"',
-    actionText: 'Ver minha tarefa',
-    actionType: 'secondary',
-  },
-  {
-    id: '3',
-    type: 'Vencimento',
-    categoryFilter: 'Finanças',
-    isRead: false,
-    timeAgo: 'Ontem',
-    title: 'Conta de energia em 3 dias',
-    description: 'Fatura da Enel de R$ 340,00 dividida entre 4. Sua cota é de R$ 85,00.',
-    actionText: 'Ver detalhes',
-    actionType: 'primary',
-  },
-  {
-    id: '4',
-    type: 'Concluída',
-    categoryFilter: 'Validações',
-    isRead: true,
-    timeAgo: '2 dias atrás',
-    title: 'Faxina da sala aprovada',
-    description: 'Validada por Doutor Octopus. +120 XP e +35 moedas creditadas.',
-    hasCoinIcon: true,
-  },
-];
-
 type FilterCategory = 'Todas' | 'Validações' | 'Finanças' | 'Cutucadas';
 
 /**
@@ -117,15 +70,11 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onClearReadPress,
 }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>(
-    initialNotifications && initialNotifications.length > 0
-      ? initialNotifications
-      : defaultNotifications
+    initialNotifications ?? []
   );
 
   React.useEffect(() => {
-    if (initialNotifications && initialNotifications.length > 0) {
-      setNotifications(initialNotifications);
-    }
+    setNotifications(initialNotifications ?? []);
   }, [initialNotifications]);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('Todas');
 
@@ -295,6 +244,19 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
         </ScrollView>
 
         <View style={styles.listContainer}>
+          {filteredNotifications.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 }}>
+              <View style={styles.iconBoxPurple}>
+                <Feather name="bell-off" size={20} color={Colors.primary} />
+              </View>
+              <Text style={[styles.notificationTitle, { marginTop: 12, textAlign: 'center' }]}>
+                Nenhuma notificação por aqui
+              </Text>
+              <Text style={[styles.notificationDescription, { textAlign: 'center', marginTop: 4 }]}>
+                Quando alguém cutucar você, enviar uma tarefa para validação ou cadastrar uma despesa, você será avisado aqui.
+              </Text>
+            </View>
+          )}
           {filteredNotifications.map((item) => {
             const isUnread = !item.isRead;
             const isValidationUnread = isUnread && item.type === 'Validação';
@@ -319,12 +281,12 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 
                     <Text style={styles.notificationTitle}>{item.title}</Text>
 
-                    {item.hasCoinIcon ? (
-                      <View style={styles.descriptionWithCoinRow}>
-                        <Text style={styles.notificationDescription}>
-                          Validada por Doutor Octopus. +120 XP e{' '}
-                        </Text>
-                        <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                    <View style={styles.descriptionWithCoinRow}>
+                      <Text style={styles.notificationDescription}>
+                        {item.description}
+                      </Text>
+                      {item.hasCoinIcon && (
+                        <Svg width={11} height={11} viewBox="0 0 24 24" fill="none" style={{ marginLeft: 4 }}>
                           <Circle
                             cx={12}
                             cy={12}
@@ -334,23 +296,10 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
                             fill="#CC92C2"
                             fillOpacity={0.4}
                           />
-                          <Circle
-                            cx={12}
-                            cy={12}
-                            r={4.5}
-                            stroke="#CC92C2"
-                            strokeWidth={2.5}
-                          />
+                          <Circle cx={12} cy={12} r={4.5} stroke="#CC92C2" strokeWidth={2.5} />
                         </Svg>
-                        <Text style={styles.notificationDescription}>
-                          {' '}+35 moedas creditadas.
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.notificationDescription}>
-                        {item.description}
-                      </Text>
-                    )}
+                      )}
+                    </View>
 
                     {item.actionText && (
                       <View style={styles.actionFooterRow}>

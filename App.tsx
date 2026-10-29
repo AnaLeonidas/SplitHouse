@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -8,6 +8,7 @@ import {
   PanResponder,
   StyleSheet,
   Alert,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
@@ -50,6 +51,7 @@ import { storeService } from './src/services/storeService';
 import { rankingService } from './src/services/rankingService';
 import { notificationsService } from './src/services/notificationsService';
 import { financeService } from './src/services/financeService';
+import { pickImageWithPrompt, uploadImage } from './src/services/storageService';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 
@@ -132,6 +134,13 @@ function MainApp() {
   const [expensesList, setExpensesList] = useState<any[]>([]);
   const [selectedExpenseDetails, setSelectedExpenseDetails] = useState<ExpenseDetailsData | null>(null);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [taskValidation, setTaskValidation] = useState<{
+    photoUrl: string | null;
+    executorId: string | null;
+    sentAt: string | null;
+  } | null>(null);
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [settleUpData, setSettleUpData] = useState<{ netBalance: string; isPositive: boolean; debts: any[] }>({
     netBalance: 'R$ 0,00',
     isPositive: true,
@@ -217,6 +226,7 @@ function MainApp() {
       setSettleUpData(settle);
       const rep = await financeService.fetchFinancialReport(moradiaId);
       setReportData(rep);
+      setPendingPayments(await financeService.fetchPendingPayments(moradiaId, user.id));
     } catch (err) {
       console.warn('App: Erro ao carregar balanço financeiro:', err);
     }
@@ -238,6 +248,63 @@ function MainApp() {
       setNotificationsList(notes);
     } catch (err) {
       console.warn('App: Erro ao carregar notificações:', err);
+    }
+  };
+
+  /** Notifica os demais moradores aprovados da moradia (cada um recebe a sua notificação). */
+  const notifyHouse = (
+    payload: Omit<Parameters<typeof notificationsService.notifyUsers>[1], 'moradiaId' | 'senderId'>,
+    onlyUserIds?: string[]
+  ) => {
+    if (!myHouse?.moradia_id || !user) return;
+    const targets =
+      onlyUserIds ?? members.filter((m) => m.status === 'aprovado').map((m) => m.usuario_id);
+    notificationsService.notifyUsers(targets, {
+      ...payload,
+      moradiaId: myHouse.moradia_id,
+      senderId: user.id,
+    });
+  };
+
+  // Atualiza notificações, tarefas e despesas periodicamente (ações de outros moradores)
+  useEffect(() => {
+    if (!user || myHouse?.status !== 'aprovado') return;
+    const refresh = () => {
+      loadNotifications();
+      reloadTasks();
+      loadExpenses(myHouse.moradia_id);
+    };
+    loadNotifications();
+    const timer = setInterval(refresh, 15000);
+    return () => clearInterval(timer);
+  }, [user?.id, myHouse?.moradia_id, myHouse?.status]);
+
+  /** Recarrega tarefas da moradia. */
+  const reloadTasks = async () => {
+    const fetched = await tasksService.fetchTasks(
+      myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
+      user?.id
+    );
+    setTasks(fetched || []);
+  };
+
+  /** Abre a tarefa na tela adequada conforme o estado dela. */
+  const openTask = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    setSelectedTaskId(taskId);
+    if (task.status === 'Aguardando validação') {
+      if (task.assignee === 'Você') {
+        Alert.alert('Aguardando validação', 'Sua tarefa foi enviada. Outro morador precisa aprová-la.');
+        return;
+      }
+      setTaskValidation(null);
+      setCurrentScreen('task_validation');
+      setTaskValidation(await tasksService.getPendingValidation(taskId));
+    } else if (task.status === 'Concluída') {
+      Alert.alert('Tarefa concluída', 'Esta tarefa já foi validada e concluída.');
+    } else {
+      setCurrentScreen('task_details');
     }
   };
 
@@ -315,6 +382,7 @@ function MainApp() {
           .sort((a, b) => b.xp - a.xp)
           .map((m, index) => ({
             id: m.id,
+            userId: m.usuario_id,
             rank: index + 1,
             name: m.nome || 'Morador',
             initials: getInitials(m.nome),
@@ -414,6 +482,71 @@ function MainApp() {
       },
     })
   ).current;
+
+  /** Aprova ou recusa a tarefa em validação (nunca a própria) e avisa o executor. */
+  const handleTaskValidation = async (approved: boolean, justification?: string) => {
+    if (!selectedTaskId || !selectedTask || !user) return;
+    if (selectedTask.assigneeId === user.id) {
+      Alert.alert('Não permitido', 'Você não pode validar a sua própria tarefa.');
+      return;
+    }
+    try {
+      const ok = await tasksService.validateTask(selectedTaskId, user.id, approved, justification);
+      if (!ok) throw new Error('Não foi possível registrar a validação.');
+      if (selectedTask.assigneeId) {
+        notifyHouse(
+          {
+            tipo: 'Concluída',
+            categoryFilter: 'Validações',
+            titulo: approved ? `${selectedTask.title} aprovada` : `${selectedTask.title} recusada`,
+            descricao: approved
+              ? `Validada por ${profileUserData.name}. +${selectedTask.xp} XP e +${selectedTask.points ?? 0} moedas creditadas.`
+              : `Recusada por ${profileUserData.name}: ${justification || 'sem justificativa'}. Refaça a tarefa e envie outra foto.`,
+            hasCoinIcon: approved,
+          },
+          [selectedTask.assigneeId]
+        );
+      }
+      await reloadTasks();
+      if (myHouse?.moradia_id) {
+        loadMembers(myHouse.moradia_id);
+        loadRanking(myHouse.moradia_id);
+      }
+      setTaskValidation(null);
+      setCurrentScreen('tasks_list');
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+    }
+  };
+
+  /** Confirma ou rejeita um pagamento de acerto informado por outro morador. */
+  const handlePaymentDecision = async (approved: boolean) => {
+    if (!selectedPaymentId || !myHouse) return;
+    const payment = pendingPayments.find((p) => p.id === selectedPaymentId);
+    try {
+      await financeService.confirmPayment(selectedPaymentId, approved);
+      if (payment) {
+        notifyHouse(
+          {
+            tipo: 'Vencimento',
+            categoryFilter: 'Finanças',
+            titulo: approved ? 'Pagamento confirmado' : 'Pagamento não confirmado',
+            descricao: approved
+              ? `${profileUserData.name} confirmou o recebimento de ${payment.amount}.`
+              : `${profileUserData.name} informou que não recebeu o pagamento de ${payment.amount}.`,
+            actionText: 'Ver acertos',
+          },
+          [payment.payerId]
+        );
+      }
+      setSelectedPaymentId(null);
+      await loadExpenses(myHouse.moradia_id);
+      await loadFinanceOverview(myHouse.moradia_id);
+      setCurrentScreen('settle_up');
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+    }
+  };
 
   return (
     <>
@@ -662,15 +795,8 @@ function MainApp() {
               onNewExpensePress={() => setCurrentScreen('new_expense')}
               onNewTaskPress={() => setCurrentScreen('new_task')}
               onTaskPress={(title) => {
-                const found = tasks.find((t) => t.title === title) || tasks[0];
-                if (found) {
-                  setSelectedTaskId(found.id);
-                  if (found.requiresValidation) {
-                    setCurrentScreen('task_validation');
-                  } else {
-                    setCurrentScreen('task_details');
-                  }
-                }
+                const found = tasks.find((t) => t.title === title);
+                if (found) openTask(found.id);
               }}
               onNotificationsPress={() => setCurrentScreen('notifications')}
               onRankingPress={() => setCurrentScreen('ranking')}
@@ -683,9 +809,15 @@ function MainApp() {
           {currentScreen === 'expenses_list' && (
             <ExpensesListScreen
               houseName={myHouse?.nome || 'Sua moradia'}
-              expenses={[]}
+              expenses={expensesList}
               onAddPress={() => setCurrentScreen('new_expense')}
-              onExpenseDetailsPress={() => setCurrentScreen('expense_details')}
+              onExpenseDetailsPress={async (expense) => {
+                if (!expense?.id) return;
+                setSelectedExpenseId(expense.id);
+                setSelectedExpenseDetails(null);
+                setCurrentScreen('expense_details');
+                setSelectedExpenseDetails(await financeService.getExpenseDetails(expense.id));
+              }}
             />
           )}
 
@@ -694,16 +826,9 @@ function MainApp() {
               tasks={tasks}
               onNewTaskPress={() => setCurrentScreen('new_task')}
               onValidatePress={(taskId) => {
-                const targetId = taskId || tasks.find((t) => t.requiresValidation)?.id;
-                if (targetId) {
-                  setSelectedTaskId(targetId);
-                  setCurrentScreen('task_validation');
-                }
+                if (taskId) openTask(taskId);
               }}
-              onTaskPress={(taskId) => {
-                setSelectedTaskId(taskId);
-                setCurrentScreen('task_details');
-              }}
+              onTaskPress={(taskId) => openTask(taskId)}
             />
           )}
 
@@ -721,28 +846,30 @@ function MainApp() {
                   let targetUserId = residentId;
                   const memberObj = members.find(
                     (m) =>
-                      m.id === residentId ||
                       m.usuario_id === residentId ||
+                      m.id === residentId ||
                       m.nome === residentName
                   );
                   if (memberObj) {
                     targetUserId = memberObj.usuario_id;
                   }
-                  if (targetUserId && myHouse && user) {
-                    await rankingService.sendNudge({
-                      targetUserId,
-                      targetName: residentName,
-                      senderUserId: user.id,
-                      senderName: profileUserData?.name || 'Colega de moradia',
-                      moradiaId: myHouse.moradia_id,
-                    });
-                    Alert.alert(
-                      'Cutucada Enviada!',
-                      `${residentName} foi notificado(a) sobre suas tarefas pendentes.`
-                    );
+                  if (!targetUserId || !myHouse || !user) {
+                    Alert.alert('Atenção', 'Morador não encontrado para enviar cutucada.');
+                    return;
                   }
-                } catch {
-                  Alert.alert('Aviso', 'Não foi possível registrar a cutucada.');
+                  await rankingService.sendNudge({
+                    targetUserId,
+                    targetName: residentName,
+                    senderUserId: user.id,
+                    senderName: profileUserData?.name || 'Colega de moradia',
+                    moradiaId: myHouse.moradia_id,
+                  });
+                  Alert.alert(
+                    'Cutucada Enviada!',
+                    `${residentName} foi notificado(a) sobre suas tarefas pendentes.`
+                  );
+                } catch (err) {
+                  Alert.alert('Erro ao cutucar', err instanceof Error ? err.message : 'Não foi possível registrar a cutucada.');
                 }
               }}
             />
@@ -806,26 +933,25 @@ function MainApp() {
               : undefined
           }
           onBackPress={() => setCurrentScreen('tasks_list')}
-          onSubmitValidation={async () => {
-            if (selectedTaskId) {
-              const executor = selectedTask?.assignee === 'Você'
-                ? (profile?.nome_completo || 'Você')
-                : (selectedTask?.assignee || 'Morador');
-              await tasksService.submitTaskValidation(selectedTaskId, undefined, user?.id, executor);
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.id === selectedTaskId
-                    ? {
-                      ...t,
-                      status: 'Aguardando validação',
-                      requiresValidation: true,
-                      executorInfo: `Executada por ${executor} com foto`,
-                    }
-                    : t
-                )
-              );
+          canSubmit={!!selectedTask && selectedTask.assigneeId === user?.id}
+          onSubmitValidation={async (photoUri) => {
+            if (!selectedTaskId || !user || !myHouse) return;
+            try {
+              await tasksService.submitTaskValidation(selectedTaskId, photoUri, user.id);
+              notifyHouse({
+                tipo: 'Validação',
+                categoryFilter: 'Validações',
+                titulo: `${profileUserData.name} concluiu uma tarefa`,
+                descricao: `"${selectedTask?.title}" foi finalizada com foto anexada para revisão.`,
+                actionText: 'Validar agora',
+                extraMeta: `+${selectedTask?.xp ?? 0} XP em jogo`,
+              });
+              await reloadTasks();
+              Alert.alert('Enviada!', 'Tarefa enviada para validação dos moradores.');
+              setCurrentScreen('tasks_list');
+            } catch (err) {
+              Alert.alert('Erro ao enviar', err instanceof Error ? err.message : 'Tente novamente.');
             }
-            setCurrentScreen('tasks_list');
           }}
         />
       )}
@@ -837,101 +963,235 @@ function MainApp() {
               ? {
                 id: selectedTask.id,
                 title: selectedTask.title,
-                executorName:
-                  selectedTask.assignee === 'Você'
-                    ? (profile?.nome_completo || 'Você')
-                    : selectedTask.assignee,
-                executedAt: selectedTask.deadline,
+                executorName: selectedTask.assignee,
+                executedAt: taskValidation?.sentAt
+                  ? new Date(taskValidation.sentAt).toLocaleString('pt-BR')
+                  : '',
+                photoUrl: taskValidation?.photoUrl,
+                photoTimestamp: taskValidation?.sentAt
+                  ? new Date(taskValidation.sentAt).toLocaleString('pt-BR')
+                  : '',
                 xp: selectedTask.xp,
                 points: selectedTask.points,
               }
               : undefined
           }
           onBackPress={() => setCurrentScreen('tasks_list')}
-          onApprovePress={async () => {
-            if (selectedTaskId) {
-              await tasksService.validateTask(
-                selectedTaskId,
-                user?.id || 'anon',
-                true
-              );
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.id === selectedTaskId
-                    ? {
-                      ...t,
-                      status: 'Concluída',
-                      requiresValidation: false,
-                    }
-                    : t
-                )
-              );
-              if (myHouse?.moradia_id) {
-                loadMembers(myHouse.moradia_id);
-              }
-            }
-            setCurrentScreen('tasks_list');
-          }}
-          onRejectPress={async (justification) => {
-            if (selectedTaskId) {
-              await tasksService.validateTask(
-                selectedTaskId,
-                user?.id || 'anon',
-                false,
-                justification
-              );
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.id === selectedTaskId
-                    ? {
-                      ...t,
-                      status: 'Pendente',
-                      requiresValidation: false,
-                    }
-                    : t
-                )
-              );
-            }
-            setCurrentScreen('tasks_list');
-          }}
+          onApprovePress={() => handleTaskValidation(true)}
+          onRejectPress={(justification) => handleTaskValidation(false, justification)}
         />
       )}
 
       {currentScreen === 'new_expense' && (
         <NewExpenseScreen
+          membersList={approvedMembers.map((m) => ({
+            id: m.usuario_id,
+            name: m.usuario_id === user?.id ? `${m.nome || 'Você'} (Você)` : (m.nome || 'Morador'),
+          }))}
           onBackPress={() => setCurrentScreen('expenses_list')}
-          onSubmitPress={() => setCurrentScreen('expenses_list')}
+          onSubmitPress={async (data) => {
+            if (!user || !myHouse) {
+              Alert.alert('Atenção', 'Você precisa estar em uma moradia para cadastrar despesas.');
+              return;
+            }
+            try {
+              let comprovanteUrl: string | null = null;
+              if (data.receiptUri) comprovanteUrl = await uploadImage(data.receiptUri, 'despesas');
+
+              const splits = data.splits && data.splits.length > 0
+                ? data.splits
+                : approvedMembers.map((m) => ({
+                    userId: m.usuario_id,
+                    amount: parseFloat((data.amount / approvedMembers.length).toFixed(2)),
+                  }));
+
+              const targetMemberIds = splits.map((s) => s.userId);
+
+              await financeService.createExpense(
+                {
+                  moradiaId: myHouse.moradia_id,
+                  titulo: data.title,
+                  categoria: data.category,
+                  valorTotal: data.amount,
+                  dataVencimento: data.dueDate,
+                  tipoDivisao: data.divisionType,
+                  pagadorId: data.payerId,
+                  comprovanteUrl,
+                },
+                targetMemberIds,
+                splits
+              );
+
+              const fmt = (v: number) =>
+                v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              notifyHouse(
+                {
+                  tipo: 'Vencimento',
+                  categoryFilter: 'Finanças',
+                  titulo: `Nova despesa: ${data.title}`,
+                  descricao: `${profileUserData.name} registrou uma despesa de R$ ${fmt(data.amount)} (${data.divisionType === 'igualitaria' ? 'Divisão igualitária' : data.divisionType === 'porcentagem' ? 'Divisão por porcentagem' : 'Divisão por valor fixo'}).`,
+                  actionText: 'Ver despesas',
+                },
+                targetMemberIds
+              );
+
+              await loadExpenses(myHouse.moradia_id);
+              await loadFinanceOverview(myHouse.moradia_id);
+              setCurrentScreen('expenses_list');
+              Alert.alert('Despesa cadastrada', 'A despesa foi dividida com sucesso.');
+            } catch (err) {
+              Alert.alert('Erro ao cadastrar despesa', err instanceof Error ? err.message : 'Tente novamente.');
+            }
+          }}
         />
       )}
 
       {currentScreen === 'expense_details' && (
         <ExpenseDetailsScreen
+          expense={
+            selectedExpenseDetails
+              ? {
+                title: selectedExpenseDetails.title,
+                amount: selectedExpenseDetails.amount,
+                dueDate: selectedExpenseDetails.dueDate,
+                category: selectedExpenseDetails.categoria,
+                payerName: selectedExpenseDetails.payerName,
+                receiptName: selectedExpenseDetails.receiptName,
+              }
+              : undefined
+          }
+          members={selectedExpenseDetails?.members.map((m) => ({
+            id: m.id,
+            name: m.name,
+            initials: m.initials,
+            role: m.role,
+            isPaid: m.isPaid,
+          }))}
           onBackPress={() => setCurrentScreen('expenses_list')}
-          onNudgePress={() => alert('Moradores notificados!')}
+          onReceiptPress={() => {
+            if (selectedExpenseDetails?.receiptUrl) Linking.openURL(selectedExpenseDetails.receiptUrl);
+          }}
+          onNudgePress={() => {
+            if (!selectedExpenseDetails) return;
+            const pendingIds = selectedExpenseDetails.members
+              .filter((m) => !m.isPaid && m.userId !== user?.id)
+              .map((m) => m.userId);
+            if (pendingIds.length === 0) {
+              Alert.alert('Tudo certo', 'Não há moradores com pagamento pendente nesta despesa.');
+              return;
+            }
+            notifyHouse(
+              {
+                tipo: 'Vencimento',
+                categoryFilter: 'Finanças',
+                titulo: 'Lembrete de despesa',
+                descricao: `${profileUserData.name} lembrou você da despesa "${selectedExpenseDetails.title}".`,
+                actionText: 'Ver despesas',
+              },
+              pendingIds
+            );
+            Alert.alert('Moradores notificados!', 'Os moradores pendentes receberam o lembrete.');
+          }}
         />
       )}
 
       {currentScreen === 'settle_up' && (
         <SettleUpScreen
+          debts={settleUpData.debts}
+          netBalance={settleUpData.netBalance}
+          isPositive={settleUpData.isPositive}
+          pendingPayments={pendingPayments}
           onBackPress={() => setCurrentScreen('home')}
-          onPayPress={() => setCurrentScreen('payment_validation')}
+          onValidatePayment={(paymentId) => {
+            setSelectedPaymentId(paymentId);
+            setCurrentScreen('payment_validation');
+          }}
+          onNudgePress={(debt) => {
+            if (!(debt.rawAmount > 0)) {
+              Alert.alert('Atenção', 'Esta pendência é sua. Informe o pagamento quando acertar.');
+              return;
+            }
+            notifyHouse(
+              {
+                tipo: 'Vencimento',
+                categoryFilter: 'Finanças',
+                titulo: 'Lembrete de pagamento',
+                descricao: `${profileUserData.name} lembrou você de acertar ${debt.debtAmount}.`,
+                actionText: 'Ver acertos',
+              },
+              [debt.debtorId]
+            );
+            Alert.alert('Lembrete enviado', `${debt.debtorName} foi notificado(a).`);
+          }}
+          onPayPress={() => {
+            if (!user || !myHouse) return;
+            const owed = settleUpData.debts.filter((d) => d.rawAmount < 0);
+            if (owed.length === 0) {
+              Alert.alert('Nada a pagar', 'Você não possui dívidas pendentes com os moradores.');
+              return;
+            }
+            const pay = async (debt: any) => {
+              const uri = await pickImageWithPrompt('Comprovante do pagamento');
+              if (!uri) {
+                Alert.alert('Comprovante necessário', 'Anexe o comprovante para informar o pagamento.');
+                return;
+              }
+              try {
+                const url = await uploadImage(uri, 'pagamentos');
+                await financeService.informPayment({
+                  moradiaId: myHouse.moradia_id,
+                  devedorId: user.id,
+                  credorId: debt.debtorId,
+                  valor: Math.abs(debt.rawAmount),
+                  comprovanteUrl: url,
+                });
+                notifyHouse(
+                  {
+                    tipo: 'Vencimento',
+                    categoryFilter: 'Finanças',
+                    titulo: 'Pagamento informado',
+                    descricao: `${profileUserData.name} informou um pagamento de ${debt.debtAmount}. Confirme o recebimento.`,
+                    actionText: 'Validar pagamento',
+                  },
+                  [debt.debtorId]
+                );
+                Alert.alert('Pagamento informado', `${debt.debtorName} precisa confirmar o recebimento.`);
+              } catch (err) {
+                Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+              }
+            };
+            if (owed.length === 1) {
+              pay(owed[0]);
+            } else {
+              Alert.alert('Quem você pagou?', 'Selecione o morador.', [
+                ...owed.slice(0, 3).map((d) => ({
+                  text: `${d.debtorName} (${d.debtAmount})`,
+                  onPress: () => pay(d),
+                })),
+                { text: 'Cancelar', style: 'cancel' as const },
+              ]);
+            }
+          }}
         />
       )}
 
       {currentScreen === 'payment_validation' && (
         <ConfirmPaymentScreen
+          paymentData={pendingPayments.find((p) => p.id === selectedPaymentId)}
           onBackPress={() => setCurrentScreen('settle_up')}
-          onConfirmPress={() => setCurrentScreen('home')}
-          onRejectPress={() => setCurrentScreen('settle_up')}
+          onConfirmPress={() => handlePaymentDecision(true)}
+          onRejectPress={() => handlePaymentDecision(false)}
         />
       )}
 
       {currentScreen === 'report' && (
         <ReportScreen
+          totalAmount={reportData.totalAmount}
+          averagePerResident={reportData.averagePerResident}
+          history={reportData.history}
           onBackPress={() => setCurrentScreen('home')}
         />
       )}
-
       {currentScreen === 'store' && (
         <StoreScreen
           houseName={myHouse?.nome}
@@ -1090,7 +1350,7 @@ function MainApp() {
       {currentScreen === 'notifications' && (
         <NotificationsScreen
           onBackPress={() => setCurrentScreen('home')}
-          notifications={notificationsList.length > 0 ? notificationsList : undefined}
+          notifications={notificationsList}
           onClearReadPress={async () => {
             if (user) {
               await notificationsService.clearReadNotifications(user.id);
@@ -1101,19 +1361,30 @@ function MainApp() {
             await notificationsService.markAsRead(notification.id);
             loadNotifications();
             if (notification.categoryFilter === 'Validações') {
-              const valTask = tasks.find((t) => t.requiresValidation) || tasks[0];
-              if (valTask) {
-                setSelectedTaskId(valTask.id);
+              await reloadTasks();
+              const pending = (await tasksService.fetchTasks(myHouse?.moradia_id, user?.id)).find(
+                (t) => t.status === 'Aguardando validação' && t.assignee !== 'Você'
+              );
+              if (pending) {
+                setSelectedTaskId(pending.id);
+                setTaskValidation(null);
                 setCurrentScreen('task_validation');
+                setTaskValidation(await tasksService.getPendingValidation(pending.id));
+              } else {
+                setCurrentScreen('tasks_list');
               }
             } else if (notification.categoryFilter === 'Finanças') {
-              setCurrentScreen('expense_details');
-            } else {
-              const myTask = tasks.find((t) => t.assignee === 'Você') || tasks[0];
-              if (myTask) {
-                setSelectedTaskId(myTask.id);
-                setCurrentScreen('task_details');
+              if (myHouse?.moradia_id) {
+                loadExpenses(myHouse.moradia_id);
+                loadFinanceOverview(myHouse.moradia_id);
               }
+              setCurrentScreen(
+                notification.actionText === 'Validar pagamento' || notification.actionText === 'Ver acertos'
+                  ? 'settle_up'
+                  : 'expenses_list'
+              );
+            } else {
+              setCurrentScreen('tasks_list');
             }
           }}
         />

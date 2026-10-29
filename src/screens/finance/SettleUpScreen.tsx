@@ -28,6 +28,10 @@ interface SettleUpScreenProps {
     netBalance?: string;
     /** Indica se a situação do usuário é credora (positiva) */
     isPositive?: boolean;
+    /** Pagamentos informados por outros moradores aguardando sua confirmação */
+    pendingPayments?: { id: string; payerName: string; payerInitials: string; amount: string }[];
+    /** Abre a tela de validação de um pagamento pendente */
+    onValidatePayment?: (paymentId: string) => void;
 }
 
 /**
@@ -43,6 +47,8 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
     debts = [],
     netBalance = 'R$ 0,00',
     isPositive = true,
+    pendingPayments = [],
+    onValidatePayment,
 }) => {
     const { profile } = useAuth();
     const displayName = profile?.nome_completo ? profile.nome_completo.toUpperCase() : 'SUA SITUAÇÃO';
@@ -74,6 +80,32 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
                         <Text style={styles.balanceValue}>{netBalance}</Text>
                     </View>
                 </View>
+
+                {pendingPayments.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Pagamentos aguardando sua confirmação</Text>
+                        {pendingPayments.map((p) => (
+                            <View key={p.id} style={styles.debtCard}>
+                                <View style={styles.debtMain}>
+                                    <View style={styles.avatar}>
+                                        <Text style={styles.avatarText}>{p.payerInitials}</Text>
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={styles.debtorName}>{p.payerName}</Text>
+                                        <Text style={styles.debtorStatus}>Informou que te pagou</Text>
+                                    </View>
+                                    <Text style={styles.debtAmount}>{p.amount}</Text>
+                                </View>
+                                <View style={styles.debtFooter}>
+                                    <Text style={styles.refText}>Confira o comprovante e confirme</Text>
+                                    <TouchableOpacity style={styles.smallNudgeBtn} onPress={() => onValidatePayment && onValidatePayment(p.id)}>
+                                        <Text style={styles.smallNudgeText}>Validar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </>
+                )}
 
                 <Text style={styles.sectionTitle}>Pendências bilaterais na casa</Text>
 

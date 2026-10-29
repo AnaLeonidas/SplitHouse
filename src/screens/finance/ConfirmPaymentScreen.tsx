@@ -7,6 +7,7 @@ import {
     ScrollView,
     Platform,
     StatusBar as RNStatusBar,
+    Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -22,6 +23,8 @@ export interface PaymentValidationData {
     reference: string;
     dateTime: string;
     receiptName?: string;
+    /** URL pública do comprovante anexado */
+    receiptUrl?: string | null;
 }
 
 /**
@@ -56,7 +59,7 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     const amount = paymentData?.amount || 'R$ 0,00';
     const reference = paymentData?.reference || 'Acerto de contas da moradia';
     const dateTime = paymentData?.dateTime || 'Pendente de validação';
-    const receiptName = paymentData?.receiptName || 'comprovante_pix.png';
+    const receiptUrl = paymentData?.receiptUrl || null;
 
     return (
         <View style={styles.wrapper}>
@@ -113,13 +116,15 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
                         <Text style={styles.infoValue}>{dateTime}</Text>
                     </View>
 
-                    <TouchableOpacity style={styles.receiptButton}>
-                        <View style={styles.receiptLeft}>
-                            <Feather name="image" size={16} color={Colors.primary} />
-                            <Text style={styles.receiptText} numberOfLines={1}>{receiptName}</Text>
-                        </View>
-                        <Text style={styles.receiptActionText}>Ver</Text>
-                    </TouchableOpacity>
+                    {receiptUrl ? (
+                        <TouchableOpacity style={styles.receiptButton} onPress={() => Linking.openURL(receiptUrl)}>
+                            <View style={styles.receiptLeft}>
+                                <Feather name="image" size={16} color={Colors.primary} />
+                                <Text style={styles.receiptText} numberOfLines={1}>Comprovante anexado</Text>
+                            </View>
+                            <Text style={styles.receiptActionText}>Ver</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
             </ScrollView>
 

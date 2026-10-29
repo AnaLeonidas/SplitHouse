@@ -109,6 +109,7 @@ export const rankingService = {
       // 6. Atribui a posição no ranking (1º, 2º, ...)
       return mapped.map((item, index) => ({
         id: item.id,
+        userId: item.userId,
         rank: index + 1,
         name: item.name,
         initials: item.initials,
@@ -144,7 +145,7 @@ export const rankingService = {
       const { error } = await supabase.from('notificacoes').insert({
         moradia_id: moradiaId,
         usuario_id: targetUserId,
-        remetente_id: senderUserId,
+        remetente_id: senderUserId || null,
         tipo: 'Cutucada',
         category_filter: 'Cutucadas',
         titulo: 'Cutucada de Tarefas!',
@@ -156,15 +157,14 @@ export const rankingService = {
       });
 
       if (error) {
-        console.warn('rankingService.sendNudge: erro ao persistir notificação:', error.message);
-        // Mesmo se a tabela de notificações não existir ainda, simula sucesso para não travar UX
-        return true;
+        console.error('rankingService.sendNudge erro:', error.message, error.details);
+        throw new Error(error.message || 'Falha ao registrar a cutucada no banco.');
       }
 
       return true;
     } catch (err) {
-      console.warn('rankingService.sendNudge: exceção:', err);
-      return true;
+      console.error('rankingService.sendNudge exceção:', err);
+      throw err;
     }
   },
 };

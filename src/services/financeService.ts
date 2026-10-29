@@ -83,12 +83,20 @@ export const financeService = {
    * @param input Dados cadastrais da nova despesa.
    * @param memberUserIds Lista de UUIDs dos moradores ativos que participarão do rateio.
    */
-  async createExpense(input: CreateExpenseInput, memberUserIds: string[]) {
+  async createExpense(
+    input: CreateExpenseInput,
+    memberUserIds: string[],
+    customSplits?: { userId: string; amount: number }[]
+  ) {
     if (!input.moradiaId || !input.pagadorId) {
       throw new Error('Moradia e pagador são obrigatórios para registrar uma despesa.');
     }
 
-    if (!memberUserIds || memberUserIds.length === 0) {
+    const targetUserIds = customSplits && customSplits.length > 0
+      ? customSplits.map((s) => s.userId)
+      : memberUserIds;
+
+    if (!targetUserIds || targetUserIds.length === 0) {
       throw new Error('Nenhum morador selecionado para a divisão da conta.');
     }
 
@@ -113,20 +121,33 @@ export const financeService = {
       throw new Error(despesaError?.message || 'Falha ao registrar a despesa no banco.');
     }
 
-    // 2. Calcular fração igualitária por morador
-    const valorParte = parseFloat((input.valorTotal / memberUserIds.length).toFixed(2));
+    // 2. Gerar rateios individuais para cada morador
+    let rateiosParaInserir: any[] = [];
 
-    // 3. Gerar rateios individuais para cada morador
-    const rateiosParaInserir = memberUserIds.map((userId) => {
-      const isPagador = userId === input.pagadorId;
-      return {
-        despesa_id: despesaCriada.id,
-        usuario_id: userId,
-        valor_parte: valorParte,
-        status: isPagador ? 'pago' : 'pendente',
-        pago_em: isPagador ? new Date().toISOString() : null,
-      };
-    });
+    if (customSplits && customSplits.length > 0) {
+      rateiosParaInserir = customSplits.map((split) => {
+        const isPagador = split.userId === input.pagadorId;
+        return {
+          despesa_id: despesaCriada.id,
+          usuario_id: split.userId,
+          valor_parte: parseFloat(split.amount.toFixed(2)),
+          status: isPagador ? 'pago' : 'pendente',
+          pago_em: isPagador ? new Date().toISOString() : null,
+        };
+      });
+    } else {
+      const valorParte = parseFloat((input.valorTotal / targetUserIds.length).toFixed(2));
+      rateiosParaInserir = targetUserIds.map((userId) => {
+        const isPagador = userId === input.pagadorId;
+        return {
+          despesa_id: despesaCriada.id,
+          usuario_id: userId,
+          valor_parte: valorParte,
+          status: isPagador ? 'pago' : 'pendente',
+          pago_em: isPagador ? new Date().toISOString() : null,
+        };
+      });
+    }
 
     const { error: rateiosError } = await supabase
       .from('rateios_despesa')
@@ -217,7 +238,7 @@ export const financeService = {
       payerId: despesa.pagador_id,
       payerName: pagadorPerfil?.nome_completo || 'Morador',
       receiptUrl: despesa.comprovante_url,
-      receiptName: despesa.comprovante_url ? 'comprovante_anexo.pdf' : undefined,
+      receiptName: despesa.comprovante_url ? 'Comprovante anexado' : undefined,
       status: despesa.status,
       members,
     };
@@ -397,7 +418,107 @@ export const financeService = {
       throw new Error(error.message || 'Falha ao atualizar status do pagamento.');
     }
 
-    return data as PagamentoAcertoDB;
+    const pagamento = data as PagamentoAcertoDB;
+
+    if (isApproved) {
+      // Acerto confirmado: quita os rateios pendentes entre os dois moradores (nos dois sentidos)
+      const { data: despesas } = await supabase
+        .from('despesas')
+        .select('id, pagador_id')
+        .eq('moradia_id', pagamento.moradia_id)
+        .in('pagador_id', [pagamento.credor_id, pagamento.devedor_id]);
+
+      const affected = (despesas || []).map((d) => d.id);
+      if (affected.length > 0) {
+        const payerOf = new Map((despesas || []).map((d) => [d.id, d.pagador_id]));
+        const { data: rateios } = await supabase
+          .from('rateios_despesa')
+          .select('*')
+          .in('despesa_id', affected)
+          .eq('status', 'pendente');
+
+        const toSettle = (rateios || [])
+          .filter((r: RateioDespesaDB) => {
+            const payer = payerOf.get(r.despesa_id);
+            return (
+              (payer === pagamento.credor_id && r.usuario_id === pagamento.devedor_id) ||
+              (payer === pagamento.devedor_id && r.usuario_id === pagamento.credor_id)
+            );
+          })
+          .map((r: RateioDespesaDB) => r.id);
+
+        if (toSettle.length > 0) {
+          await supabase
+            .from('rateios_despesa')
+            .update({ status: 'pago', pago_em: new Date().toISOString() })
+            .in('id', toSettle);
+        }
+
+        // Despesas sem nenhum rateio pendente passam a 'pago'
+        const { data: stillPending } = await supabase
+          .from('rateios_despesa')
+          .select('despesa_id')
+          .in('despesa_id', affected)
+          .eq('status', 'pendente');
+        const pendingSet = new Set((stillPending || []).map((r: { despesa_id: string }) => r.despesa_id));
+        const settledExpenses = affected.filter((id) => !pendingSet.has(id));
+        if (settledExpenses.length > 0) {
+          await supabase
+            .from('despesas')
+            .update({ status: 'pago', atualizado_em: new Date().toISOString() })
+            .in('id', settledExpenses);
+        }
+      }
+    }
+
+    return pagamento;
+  },
+
+  /**
+   * Lista os pagamentos informados por outros moradores aguardando a confirmação do usuário (credor).
+   */
+  async fetchPendingPayments(moradiaId: string, creditorId: string) {
+    if (!moradiaId || !creditorId) return [];
+    const { data, error } = await supabase
+      .from('pagamentos_acerto')
+      .select('*')
+      .eq('moradia_id', moradiaId)
+      .eq('credor_id', creditorId)
+      .eq('status', 'aguardando_aprovacao')
+      .order('criado_em', { ascending: false });
+    if (error || !data) return [];
+
+    const ids = Array.from(new Set((data as PagamentoAcertoDB[]).map((p) => p.devedor_id)));
+    const names: Record<string, string> = {};
+    if (ids.length > 0) {
+      const { data: perfis } = await supabase.from('perfis').select('id, nome_completo').in('id', ids);
+      (perfis || []).forEach((p: { id: string; nome_completo: string }) => {
+        names[p.id] = p.nome_completo;
+      });
+    }
+
+    return (data as PagamentoAcertoDB[]).map((p) => {
+      const name = names[p.devedor_id] || 'Morador';
+      const initials = name
+        .split(' ')
+        .filter(Boolean)
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+      const created = p.criado_em ? new Date(p.criado_em) : null;
+      return {
+        id: p.id,
+        payerId: p.devedor_id,
+        payerName: name,
+        payerInitials: initials,
+        paymentMethod: p.metodo_pagamento === 'pix' ? 'Transferência via Pix' : p.metodo_pagamento,
+        amount: `R$ ${formatMoney(p.valor)}`,
+        reference: 'Acerto de contas da moradia',
+        dateTime: created ? created.toLocaleString('pt-BR') : '',
+        receiptUrl: p.comprovante_url || null,
+      };
+    });
   },
 
   /**

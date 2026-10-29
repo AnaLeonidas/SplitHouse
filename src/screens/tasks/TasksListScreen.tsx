@@ -68,80 +68,6 @@ export interface TaskItem {
   executorInfo?: string;
 }
 
-export const mockTasks: TaskItem[] = [
-  {
-    id: '1',
-    title: 'Lavar louça do almoço',
-    type: 'Rotativa',
-    location: 'Cozinha',
-    deadline: 'hoje às 14:00',
-    xp: 30,
-    points: 10,
-    assignee: 'Você',
-    status: 'Pendente',
-    icon: 'home',
-    iconBg: 'rgba(94, 43, 151, 0.1)',
-    iconColor: Colors.primary,
-  },
-  {
-    id: '2',
-    title: 'Tirar lixo reciclável',
-    type: 'Fixa',
-    location: 'Área externa',
-    deadline: 'hoje às 19:00',
-    xp: 15,
-    points: 5,
-    assignee: 'Você',
-    status: 'Pendente',
-    icon: 'trash-2',
-    iconBg: 'rgba(204, 146, 194, 0.25)',
-    iconColor: Colors.primary,
-  },
-  {
-    id: '3',
-    title: 'Aspirar tapete da sala',
-    type: 'Fixa',
-    location: 'Sala de estar',
-    deadline: 'hoje às 12:00',
-    xp: 25,
-    assignee: 'Doutor Octopus',
-    status: 'Aguardando validação',
-    icon: 'check-circle',
-    iconBg: 'rgba(94, 43, 151, 0.12)',
-    iconColor: Colors.primary,
-    requiresValidation: true,
-    executorInfo: 'Executada por Doutor Octopus com foto',
-  },
-  {
-    id: '4',
-    title: 'Limpar a geladeira',
-    type: 'Rotativa',
-    location: 'Cozinha',
-    deadline: 'Amanhã às 10:00',
-    xp: 40,
-    points: 15,
-    assignee: 'Lagarto',
-    status: 'Pendente',
-    icon: 'archive',
-    iconBg: 'rgba(132, 130, 143, 0.12)',
-    iconColor: Colors.textSecondary,
-  },
-  {
-    id: '5',
-    title: 'Comprar materiais de limpeza',
-    type: 'Emergencial',
-    location: 'Mercado',
-    deadline: 'Em 2 dias',
-    xp: 35,
-    points: 10,
-    assignee: 'Homem-Areia',
-    status: 'Pendente',
-    icon: 'shopping-bag',
-    iconBg: 'rgba(204, 146, 194, 0.2)',
-    iconColor: Colors.primary,
-  },
-];
-
 /**
  * Tela do painel e quadro geral de tarefas domésticas da república (Tela 20).
  * Apresenta abas de filtro (Minhas tarefas, Tarefas da casa, Aguardando validação) e atalhos rápidos de criação.
@@ -167,7 +93,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
       case 'house':
         return taskList;
       case 'validate':
-        return taskList.filter((t) => t.requiresValidation);
+        return taskList.filter((t) => t.requiresValidation && t.assignee !== 'Você');
       default:
         return taskList;
     }
@@ -319,16 +245,21 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
 
                   <View style={styles.cardFooter}>
                     <Text style={styles.validationFooterStatus}>
-                      Aguardando sua validação
+                      {task.assignee === 'Você'
+                        ? 'Aguardando validação dos colegas'
+                        : 'Aguardando sua validação'}
                     </Text>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => onValidatePress && onValidatePress(task.id)}
-                    >
-                      <Text style={styles.validationActionText}>
-                        Avaliar foto →
-                      </Text>
-                    </TouchableOpacity>
+                    {task.assignee !== 'Você' && (
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => onValidatePress && onValidatePress(task.id)}
+                      >
+                        <Text style={styles.validationActionText}>
+                          Avaliar foto →
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
                   </View>
                 </TouchableOpacity>
               );
