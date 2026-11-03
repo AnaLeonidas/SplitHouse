@@ -5,6 +5,7 @@ import { TaskFormData } from '../screens/tasks/NewTaskScreen';
 import { Colors } from '../constants/theme';
 import { Feather } from '@expo/vector-icons';
 import { uploadImage } from './storageService';
+import { calculateLevelAndTitle } from '../utils/gamification';
 
 /**
  * Converte strings amigáveis de prazo (ex.: "Hoje, 22:00", "Amanhã, 10:00", "Em 2 dias")
@@ -373,23 +374,40 @@ export const tasksService = {
         return false;
       }
 
-      // 3. Se aprovada, credita XP e Moedas ao membro
+      // 3. Se aprovada, credita XP e Moedas e recalcula nível e título honorífico
       if (approved && updatedTask) {
         const { data: membro } = await supabase
           .from('membros_moradia')
-          .select('id, xp, moedas')
+          .select('id, xp, moedas, nivel')
           .eq('moradia_id', updatedTask.moradia_id)
           .eq('usuario_id', updatedTask.responsavel_id)
           .single();
 
         if (membro) {
-          await supabase
+          const newXp = (membro.xp || 0) + (updatedTask.recompensa_xp || 0);
+          const newMoedas = (membro.moedas || 0) + (updatedTask.recompensa_moedas || 0);
+          const { level: newLevel, title: newTitle } = calculateLevelAndTitle(newXp);
+
+          const { error: updateMembError } = await supabase
             .from('membros_moradia')
             .update({
-              xp: (membro.xp || 0) + (updatedTask.recompensa_xp || 0),
-              moedas: (membro.moedas || 0) + (updatedTask.recompensa_moedas || 0),
+              xp: newXp,
+              moedas: newMoedas,
+              nivel: newLevel,
+              titulo_nivel: newTitle,
             })
             .eq('id', membro.id);
+
+          if (updateMembError && updateMembError.code === '42703') {
+            await supabase
+              .from('membros_moradia')
+              .update({
+                xp: newXp,
+                moedas: newMoedas,
+                nivel: newLevel,
+              })
+              .eq('id', membro.id);
+          }
         }
       }
 

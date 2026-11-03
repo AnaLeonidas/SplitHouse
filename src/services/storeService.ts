@@ -9,47 +9,9 @@ import {
 import { StoreItem } from '../screens/store/StoreScreen';
 
 /**
- * Recompensas padrão do SplitHouse para inicialização da loja da moradia.
+ * Recompensas padrão (mantido vazio para não exibir itens fictícios/mockados).
  */
-export const DEFAULT_STORE_ITEMS: Omit<StoreItem, 'id'>[] = [
-  {
-    title: 'Isenção da louça',
-    category: 'Folga',
-    subtitle: 'Fim de semana livre',
-    cost: 150,
-    description:
-      'Fique livre da louça de almoço e jantar no sábado e domingo. A escala pula para o próximo.',
-    availability: '2 vagas no mês',
-    iconType: 'minus-circle',
-  },
-  {
-    title: 'Escolha do filme',
-    category: 'Convivência',
-    subtitle: 'Sessão de sexta-feira',
-    cost: 80,
-    description: 'Controle remoto exclusivo da TV da sala na sessão coletiva.',
-    availability: 'Disponível semanalmente',
-    iconType: 'tv',
-  },
-  {
-    title: 'Rei do sofá retrátil',
-    category: 'Convivência',
-    subtitle: 'Reserva por 7 dias',
-    cost: 200,
-    description: 'Preferência assegurada no assento principal da sala durante a semana.',
-    availability: '1 morador por ciclo',
-    iconType: 'sofa',
-  },
-  {
-    title: 'Pizza coletiva',
-    category: 'Bônus',
-    subtitle: 'Fundo comum da casa',
-    cost: 350,
-    description: 'Pizza grande com borda recheada financiada pela caixinha de bônus da república.',
-    availability: '1 disponível',
-    iconType: 'pizza',
-  },
-];
+export const DEFAULT_STORE_ITEMS: Omit<StoreItem, 'id'>[] = [];
 
 /**
  * Normaliza a categoria para inserção em conformidade com a constraint do banco (sem acentos).
@@ -104,19 +66,16 @@ export function mapRowToStoreItem(row: RecompensaLojaDB): StoreItem {
  */
 export const storeService = {
   /**
-   * Consulta os itens ativos da loja da moradia.
-   * Caso a república ainda não possua recompensas cadastradas, insere os itens padrão automaticamente.
+   * Consulta os itens ativos da loja da moradia no Supabase.
+   * Não exibe itens mockados nem realiza seed de dados falsos.
    *
    * @param moradiaId UUID da moradia.
-   * @returns Lista de recompensas ativas formatadas para a interface.
+   * @returns Lista de recompensas ativas da república.
    */
   async fetchStoreItems(moradiaId: string): Promise<StoreItem[]> {
     try {
       if (!moradiaId) {
-        return DEFAULT_STORE_ITEMS.map((item, index) => ({
-          ...item,
-          id: String(index + 1),
-        }));
+        return [];
       }
 
       const { data, error } = await supabase
@@ -126,11 +85,8 @@ export const storeService = {
         .order('custo_moedas', { ascending: true });
 
       if (error) {
-        console.warn('storeService.fetchStoreItems: aviso do Supabase, aplicando fallback:', error.message);
-        return DEFAULT_STORE_ITEMS.map((item, index) => ({
-          ...item,
-          id: String(index + 1),
-        }));
+        console.warn('storeService.fetchStoreItems: aviso do Supabase:', error.message);
+        return [];
       }
 
       // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto 'status'
@@ -141,69 +97,10 @@ export const storeService = {
           r.status_aprovacao !== 'recusada'
       );
 
-      // Se a moradia for nova e ainda não tiver itens salvos no banco, insere o catálogo padrão
-      if (!activeRows || activeRows.length === 0) {
-        try {
-          const seedsCompat = DEFAULT_STORE_ITEMS.map((item) => ({
-            moradia_id: moradiaId,
-            titulo: item.title,
-            subtitulo: item.subtitle,
-            categoria: normalizeCategoryForDb(item.category),
-            custo_moedas: item.cost,
-            descricao_regras: item.description,
-            texto_disponibilidade: item.availability,
-            tipo_icone: item.iconType,
-            status: 'ativa',
-          }));
-
-          let { data: inserted, error: seedError } = await supabase
-            .from('recompensas_loja')
-            .insert(seedsCompat)
-            .select();
-
-          if (seedError && (seedError.code === '42703' || seedError.code === '23502' || seedError.code === '23514')) {
-            const seedsAlt = DEFAULT_STORE_ITEMS.map((item) => ({
-              moradia_id: moradiaId,
-              titulo: item.title,
-              subtitulo: item.subtitle,
-              categoria: item.category as CategoriaRecompensa,
-              custo_moedas: item.cost,
-              descricao: item.description,
-              disponibilidade: item.availability,
-              tipo_icone: item.iconType,
-              status_aprovacao: 'aprovada',
-            }));
-            const retry = await supabase
-              .from('recompensas_loja')
-              .insert(seedsAlt)
-              .select();
-            inserted = retry.data;
-            seedError = retry.error;
-          }
-
-          if (inserted && inserted.length > 0) {
-            return (inserted as RecompensaLojaDB[]).map(mapRowToStoreItem);
-          }
-          if (seedError) {
-            console.warn('storeService: Erro ao realizar seed:', seedError.message);
-          }
-        } catch (seedErr) {
-          console.warn('storeService: Não foi possível realizar seed automático:', seedErr);
-        }
-
-        return DEFAULT_STORE_ITEMS.map((item, index) => ({
-          ...item,
-          id: String(index + 1),
-        }));
-      }
-
       return activeRows.map(mapRowToStoreItem);
     } catch (err) {
       console.warn('storeService.fetchStoreItems: exceção capturada:', err);
-      return DEFAULT_STORE_ITEMS.map((item, index) => ({
-        ...item,
-        id: String(index + 1),
-      }));
+      return [];
     }
   },
 

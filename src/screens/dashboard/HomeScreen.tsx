@@ -55,6 +55,8 @@ interface HomeScreenProps {
     leaderXp?: number;
     /** Nível de gamificação do morador */
     userLevel?: number;
+    /** Quantidade de solicitações de novos moradores aguardando aprovação */
+    pendingMembersCount?: number;
 }
 
 /**
@@ -83,6 +85,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     leaderName,
     leaderXp = 0,
     userLevel = 1,
+    pendingMembersCount = 0,
 }) => {
     const { profile } = useAuth();
     const userName = profile?.nome_completo || 'Morador';
@@ -99,11 +102,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     const myPendingTasks = tasks && tasks.length > 0
         ? tasks.filter((t) => t.assignee === 'Você' && t.status !== 'Concluída')
         : [];
-    const todayTasks = myPendingTasks.length > 0
-        ? myPendingTasks.slice(0, 3)
-        : tasks && tasks.length > 0
-        ? tasks.filter((t) => t.status !== 'Concluída').slice(0, 3)
-        : null;
+    const todayTasks = myPendingTasks.slice(0, 3);
     return (
         <View style={styles.wrapper}>
             <ScrollView
@@ -143,6 +142,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         </TouchableOpacity>
                     </View>
                 </View>
+
+                {pendingMembersCount > 0 && (
+                    <TouchableOpacity
+                        style={styles.pendingMembersBanner}
+                        activeOpacity={0.8}
+                        onPress={onManageMembersPress}
+                    >
+                        <View style={styles.bannerDot} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.bannerTitle}>
+                                {pendingMembersCount === 1
+                                    ? '1 solicitação de morador pendente'
+                                    : `${pendingMembersCount} solicitações de moradores pendentes`}
+                            </Text>
+                            <Text style={styles.bannerSubtitle}>Toque para gerenciar os membros da casa</Text>
+                        </View>
+                        <Feather name="chevron-right" size={18} color={Colors.primary} />
+                    </TouchableOpacity>
+                )}
 
                 <View style={styles.balanceCard}>
                     <View style={styles.balanceHeader}>
@@ -584,5 +602,33 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(94, 43, 151, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    pendingMembersBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginBottom: 16,
+        gap: 10,
+    },
+    bannerDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#F59E0B',
+    },
+    bannerTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#92400E',
+    },
+    bannerSubtitle: {
+        fontSize: 11,
+        color: '#B45309',
+        marginTop: 1,
     },
 });

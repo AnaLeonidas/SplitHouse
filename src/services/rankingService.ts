@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { SendNudgeInput } from '../types/database';
 import { ResidentRankingItem } from '../screens/ranking/RankingScreen';
+import { calculateLevel } from '../utils/gamification';
 
 /**
  * Extrai as duas primeiras letras iniciais de um nome para exibição em avatares.
@@ -34,20 +35,27 @@ export const rankingService = {
     try {
       if (!moradiaId) return [];
 
-      // 1. Busca os membros aprovados na moradia
+      // 1. Busca os membros da moradia (suporta 'aprovado', 'ativo' ou legado sem status)
       const { data: membros, error: membError } = await supabase
         .from('membros_moradia')
         .select('id, usuario_id, papel, status, nivel, xp, moedas, entrou_em')
-        .eq('moradia_id', moradiaId)
-        .eq('status', 'aprovado');
+        .eq('moradia_id', moradiaId);
 
       if (membError || !membros) {
         console.warn('rankingService.fetchRanking: Erro ao listar membros:', membError?.message);
         return [];
       }
 
+      const membrosAtivos = membros.filter(
+        (m) => m.status === 'aprovado' || m.status === 'ativo' || !m.status
+      );
+
+      if (membrosAtivos.length === 0) {
+        return [];
+      }
+
       // 2. Busca nomes e perfis dos membros
-      const userIds = membros.map((m) => m.usuario_id);
+      const userIds = membrosAtivos.map((m) => m.usuario_id);
       const { data: perfis } = await supabase
         .from('perfis')
         .select('id, nome_completo, email')
@@ -67,7 +75,7 @@ export const rankingService = {
       const tarefasList = tarefas || [];
 
       // 4. Mapeia cada morador com contadores reais
-      const mapped = membros.map((m) => {
+      const mapped = membrosAtivos.map((m) => {
         const perfil = perfilMap.get(m.usuario_id);
         const nome = perfil?.nome_completo || 'Morador';
 
@@ -94,7 +102,7 @@ export const rankingService = {
           tasksCompleted: completedCount,
           coins: m.moedas || 0,
           xp: m.xp || 0,
-          level: m.nivel || Math.max(1, Math.floor((m.xp || 0) / 100) + 1),
+          level: m.nivel || calculateLevel(m.xp || 0),
           pendingTasksCount: pendingCount,
           highlightNudge: pendingCount > 0,
         };

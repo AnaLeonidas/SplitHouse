@@ -90,7 +90,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
   const [propTitle, setPropTitle] = useState('');
   const [propCategory, setPropCategory] = useState<'Folga' | 'Convivência' | 'Bônus'>('Folga');
-  const [propCost, setPropCost] = useState('100');
+  const [propCost, setPropCost] = useState('');
   const [propDescription, setPropDescription] = useState('');
 
   const countFor = (cat: CategoryFilter) => {

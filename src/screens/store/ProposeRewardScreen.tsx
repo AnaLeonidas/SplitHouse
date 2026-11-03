@@ -48,13 +48,11 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   onSubmitSuccess,
   onSubmit,
 }) => {
-  const [title, setTitle] = useState('Escolha da playlist da faxina');
+  const [title, setTitle] = useState('');
   const [category, setCategory] = useState<RewardCategory>('Convivência');
-  const [cost, setCost] = useState('75');
-  const [limit, setLimit] = useState('3 resgates por ciclo');
-  const [description, setDescription] = useState(
-    'Direito exclusivo de conectar o celular na caixa de som durante as 2 horas da faxina coletiva de sábado, sem vetos do grupo.'
-  );
+  const [cost, setCost] = useState('');
+  const [limit, setLimit] = useState('');
+  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories: RewardCategory[] = [

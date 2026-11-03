@@ -14,7 +14,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
-import { pickImage } from '../../services/storageService';
+import { pickImageWithPrompt } from '../../services/storageService';
 
 /**
  * Estrutura de dados detalhada de uma tarefa para visualização completa.
@@ -89,7 +89,7 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       Alert.alert('Apenas o responsável', 'Somente o morador responsável pode enviar a foto desta tarefa.');
       return;
     }
-    const uri = await pickImage('camera');
+    const uri = await pickImageWithPrompt('Foto da tarefa');
     if (uri) setPhotoUri(uri);
   };
 

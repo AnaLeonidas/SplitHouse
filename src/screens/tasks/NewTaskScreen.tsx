@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -102,6 +102,12 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   const [location, setLocation] = useState('');
   const [taskType, setTaskType] = useState<'Fixa' | 'Rotativa' | 'Emergencial'>('Rotativa');
   const [selectedMember, setSelectedMember] = useState<MemberOption>(defaultMember);
+
+  useEffect(() => {
+    if (membersList.length > 0 && selectedMember.id === 'unassigned') {
+      setSelectedMember(membersList[0]);
+    }
+  }, [membersList]);
   const [deadline, setDeadline] = useState('Hoje, 22:00');
   const [xp, setXp] = useState(30);
   const [coins, setCoins] = useState(10);

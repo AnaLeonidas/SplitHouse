@@ -54,6 +54,7 @@ import { financeService } from './src/services/financeService';
 import { pickImageWithPrompt, uploadImage } from './src/services/storageService';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
+import { calculateLevelAndTitle } from './src/utils/gamification';
 
 /** Cores aplicadas em ciclo aos ícones das regras da casa na visualização do estatuto. */
 const RULE_COLORS: Pick<HouseRule, 'iconBgColor' | 'iconColor'>[] = [
@@ -185,7 +186,9 @@ function MainApp() {
 
   const loadMembers = async (moradiaId: string) => {
     try {
-      setMembers(await houseService.listMembers(moradiaId));
+      const data = await houseService.listMembers(moradiaId);
+      setMembers(data);
+      loadRanking(moradiaId);
     } catch (err) {
       Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar moradores.');
     }
@@ -438,16 +441,22 @@ function MainApp() {
       avatarTextColor: '#FFFFFF',
     }));
 
+  const memberLevelDetails = calculateLevelAndTitle(currentMember?.xp || 0);
+  const numericNetBalance = (settleUpData?.debts || []).reduce(
+    (sum, d) => sum + (d.rawAmount || 0),
+    0
+  );
+
   const profileUserData = {
     name: profile?.nome_completo || 'Morador',
     role: myHouse?.papel === 'admin' ? 'Admin' : 'Morador',
     email: user?.email || profile?.email || '',
     republicName: myHouse?.nome || 'Minha Moradia',
-    level: currentMember?.nivel || 1,
-    levelTitle: currentMember?.titulo_nivel || 'Morador Iniciante',
+    level: currentMember?.nivel || memberLevelDetails.level,
+    levelTitle: currentMember?.titulo_nivel || memberLevelDetails.title,
     xp: currentMember?.xp || 0,
-    nextLevelXp: (currentMember?.nivel || 1) * 100,
-    balance: 0,
+    nextLevelXp: memberLevelDetails.nextLevelXp,
+    balance: numericNetBalance,
     coins: currentMember?.moedas || 0,
     completedTasks: tasks.filter(
       (t) =>
@@ -762,7 +771,10 @@ function MainApp() {
           onApprove={async (memberId) => {
             try {
               await houseService.respondRequest(memberId, true);
-              if (myHouse) await loadMembers(myHouse.moradia_id);
+              if (myHouse) {
+                await loadMembers(myHouse.moradia_id);
+                await loadRanking(myHouse.moradia_id);
+              }
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
             }
@@ -770,7 +782,10 @@ function MainApp() {
           onReject={async (memberId) => {
             try {
               await houseService.respondRequest(memberId, false);
-              if (myHouse) await loadMembers(myHouse.moradia_id);
+              if (myHouse) {
+                await loadMembers(myHouse.moradia_id);
+                await loadRanking(myHouse.moradia_id);
+              }
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
             }
@@ -806,7 +821,8 @@ function MainApp() {
               balanceStatus={settleUpData.isPositive ? (settleUpData.netBalance === 'R$ 0,00' ? 'Tudo em dia' : 'A receber') : 'A pagar'}
               leaderName={houseLeader?.name || (profile?.nome_completo || 'Você')}
               leaderXp={houseLeader?.xp || currentMember?.xp || 0}
-              userLevel={currentMember?.nivel || 1}
+              userLevel={profileUserData.level}
+              pendingMembersCount={isAdmin ? pendingMembers.length : 0}
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
