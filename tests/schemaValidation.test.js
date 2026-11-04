@@ -34,7 +34,7 @@ describe('Validação do Esquema SQL do Supabase (schema_tarefas_home.sql)', () 
       'Restrição de tipologia de tarefa ausente'
     );
     assert.ok(
-      content.includes("CHECK (status IN ('Pendente', 'Concluída', 'Aguardando validação'))"),
+      content.includes("CHECK (status IN ('Pendente', 'Concluída', 'Aguardando validação', 'pendente', 'concluida', 'em_validacao'))"),
       'Restrição de status de ciclo de vida de tarefa ausente'
     );
   });
@@ -54,7 +54,7 @@ describe('Validação do Esquema SQL do Supabase (schema_tarefas_home.sql)', () 
       'Chave estrangeira validador_id ausente'
     );
     assert.ok(
-      content.includes("CHECK (status IN ('aprovada', 'recusada'))"),
+      content.includes("CHECK (status IN ('pendente', 'aprovada', 'recusada'))"),
       'Restrição de status de validação ausente'
     );
   });

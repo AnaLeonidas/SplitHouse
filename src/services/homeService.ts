@@ -76,7 +76,8 @@ export const homeService = {
         const prazo = t.deadline.toLowerCase();
         return (
           t.status !== 'Concluída' &&
-          (prazo.includes('hoje') || prazo.includes('amanhã') || prazo.includes('14:00') || prazo.includes('19:00'))
+          (prazo.includes('hoje') || prazo.includes('14:00') || prazo.includes('19:00')) &&
+          !prazo.includes('amanhã')
         );
       });
 

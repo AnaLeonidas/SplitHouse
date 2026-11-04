@@ -144,6 +144,47 @@ CREATE TABLE IF NOT EXISTS public.notificacoes (
     criado_em TIMESTAMPTZ DEFAULT now()
 );
 
+-- 10. Tabela de Despesas Coletivas da Moradia
+CREATE TABLE IF NOT EXISTS public.despesas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    moradia_id UUID NOT NULL REFERENCES public.moradias(id) ON DELETE CASCADE,
+    titulo TEXT NOT NULL,
+    categoria TEXT NOT NULL DEFAULT 'Geral',
+    valor_total NUMERIC(10, 2) NOT NULL CHECK (valor_total > 0),
+    data_vencimento DATE,
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'parcial', 'recorrente')),
+    tipo_divisao TEXT NOT NULL DEFAULT 'igualitaria' CHECK (tipo_divisao IN ('igualitaria', 'porcentagem', 'fixo')),
+    pagador_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    comprovante_url TEXT,
+    criado_em TIMESTAMPTZ DEFAULT now(),
+    atualizado_em TIMESTAMPTZ DEFAULT now()
+);
+
+-- 11. Tabela de Rateios Individuais da Despesa
+CREATE TABLE IF NOT EXISTS public.rateios_despesa (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    despesa_id UUID NOT NULL REFERENCES public.despesas(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    valor_parte NUMERIC(10, 2) NOT NULL CHECK (valor_parte >= 0),
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago')),
+    pago_em TIMESTAMPTZ,
+    UNIQUE (despesa_id, usuario_id)
+);
+
+-- 12. Tabela de Pagamentos e Acertos Bilaterais entre Moradores
+CREATE TABLE IF NOT EXISTS public.pagamentos_acerto (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    moradia_id UUID NOT NULL REFERENCES public.moradias(id) ON DELETE CASCADE,
+    devedor_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    credor_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    valor NUMERIC(10, 2) NOT NULL CHECK (valor > 0),
+    status TEXT NOT NULL DEFAULT 'aguardando_aprovacao' CHECK (status IN ('aguardando_aprovacao', 'confirmado', 'rejeitado')),
+    comprovante_url TEXT,
+    metodo_pagamento TEXT NOT NULL DEFAULT 'pix',
+    confirmado_em TIMESTAMPTZ,
+    criado_em TIMESTAMPTZ DEFAULT now()
+);
+
 -- Habilitar Row Level Security (RLS) em todas as tabelas
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.moradias ENABLE ROW LEVEL SECURITY;
@@ -151,20 +192,116 @@ ALTER TABLE public.membros_moradia ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.regras_moradia ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tarefas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.validacoes_tarefa ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rateios_despesa ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pagamentos_acerto ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recompensas_loja ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.resgates_recompensa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notificacoes ENABLE ROW LEVEL SECURITY;
 
--- Políticas de Acesso RLS
+-- Políticas de Acesso RLS Isoladas por Usuário e Moradia
 CREATE POLICY "Leitura de perfis por autenticados" ON public.perfis FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Atualizacao do proprio perfil" ON public.perfis FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Insercao do proprio perfil" ON public.perfis FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Acesso a moradias por autenticados" ON public.moradias FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a membros por autenticados" ON public.membros_moradia FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a regras por autenticados" ON public.regras_moradia FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a tarefas por autenticados" ON public.tarefas FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a validacoes por autenticados" ON public.validacoes_tarefa FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a recompensas por autenticados" ON public.recompensas_loja FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a resgates por autenticados" ON public.resgates_recompensa FOR ALL TO authenticated USING (true);
-CREATE POLICY "Acesso a notificacoes por autenticados" ON public.notificacoes FOR ALL TO authenticated USING (true);
+CREATE POLICY "Leitura de moradias por membros ou convite" ON public.moradias FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Criacao de moradias por autenticados" ON public.moradias FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Atualizacao de moradia por administradores" ON public.moradias FOR UPDATE TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.moradias.id AND usuario_id = auth.uid() AND papel = 'admin')
+);
+
+CREATE POLICY "Leitura de membros da mesma moradia" ON public.membros_moradia FOR SELECT TO authenticated USING (
+    usuario_id = auth.uid() OR EXISTS (SELECT 1 FROM public.membros_moradia m WHERE m.moradia_id = public.membros_moradia.moradia_id AND m.usuario_id = auth.uid())
+);
+CREATE POLICY "Insercao de vinculo de morador" ON public.membros_moradia FOR INSERT TO authenticated WITH CHECK (usuario_id = auth.uid());
+CREATE POLICY "Atualizacao de vinculo por admin ou proprio usuario" ON public.membros_moradia FOR UPDATE TO authenticated USING (
+    usuario_id = auth.uid() OR EXISTS (SELECT 1 FROM public.membros_moradia m WHERE m.moradia_id = public.membros_moradia.moradia_id AND m.usuario_id = auth.uid() AND m.papel = 'admin')
+);
+
+CREATE POLICY "Leitura de regras por moradores" ON public.regras_moradia FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.regras_moradia.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Gestao de regras por administradores" ON public.regras_moradia FOR ALL TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.regras_moradia.moradia_id AND usuario_id = auth.uid() AND papel = 'admin')
+);
+
+CREATE POLICY "Leitura de tarefas por membros da moradia" ON public.tarefas FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Insercao de tarefas por membros da moradia" ON public.tarefas FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Atualizacao de tarefas por membros da moradia" ON public.tarefas FOR UPDATE TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+);
+
+CREATE POLICY "Acesso a validacoes por membros da moradia" ON public.validacoes_tarefa FOR ALL TO authenticated USING (
+    EXISTS (
+        SELECT 1 FROM public.tarefas t
+        JOIN public.membros_moradia m ON m.moradia_id = t.moradia_id
+        WHERE t.id = public.validacoes_tarefa.tarefa_id AND m.usuario_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Leitura de despesas por membros da moradia" ON public.despesas FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Insercao de despesas por membros da moradia" ON public.despesas FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Atualizacao de despesas por membros da moradia" ON public.despesas FOR UPDATE TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+);
+
+CREATE POLICY "Leitura de rateios por membros da moradia" ON public.rateios_despesa FOR SELECT TO authenticated USING (
+    EXISTS (
+        SELECT 1 FROM public.despesas d
+        JOIN public.membros_moradia m ON m.moradia_id = d.moradia_id
+        WHERE d.id = public.rateios_despesa.despesa_id AND m.usuario_id = auth.uid()
+    )
+);
+CREATE POLICY "Insercao e atualizacao de rateios por membros" ON public.rateios_despesa FOR ALL TO authenticated USING (
+    EXISTS (
+        SELECT 1 FROM public.despesas d
+        JOIN public.membros_moradia m ON m.moradia_id = d.moradia_id
+        WHERE d.id = public.rateios_despesa.despesa_id AND m.usuario_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Leitura de pagamentos por membros da moradia" ON public.pagamentos_acerto FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.pagamentos_acerto.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Insercao de pagamentos pelo devedor" ON public.pagamentos_acerto FOR INSERT TO authenticated WITH CHECK (
+    devedor_id = auth.uid()
+);
+CREATE POLICY "Confirmacao de pagamentos pelo credor" ON public.pagamentos_acerto FOR UPDATE TO authenticated USING (
+    credor_id = auth.uid() OR devedor_id = auth.uid()
+);
+
+CREATE POLICY "Leitura de recompensas por membros" ON public.recompensas_loja FOR SELECT TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Criacao de recompensas por membros" ON public.recompensas_loja FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Atualizacao de recompensas por membros" ON public.recompensas_loja FOR UPDATE TO authenticated USING (
+    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+);
+
+CREATE POLICY "Leitura de resgates por membros" ON public.resgates_recompensa FOR SELECT TO authenticated USING (
+    auth.uid() = usuario_id OR EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.resgates_recompensa.moradia_id AND usuario_id = auth.uid())
+);
+CREATE POLICY "Insercao de resgate pelo proprio usuario" ON public.resgates_recompensa FOR INSERT TO authenticated WITH CHECK (
+    auth.uid() = usuario_id
+);
+
+CREATE POLICY "Leitura de notificacoes pelo destinatario" ON public.notificacoes FOR SELECT TO authenticated USING (
+    auth.uid() = usuario_id
+);
+CREATE POLICY "Criacao de notificacoes por autenticados" ON public.notificacoes FOR INSERT TO authenticated WITH CHECK (
+    auth.uid() IS NOT NULL
+);
+CREATE POLICY "Atualizacao de notificacoes pelo destinatario" ON public.notificacoes FOR UPDATE TO authenticated USING (
+    auth.uid() = usuario_id
+);
 

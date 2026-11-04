@@ -52,6 +52,7 @@ import { rankingService } from './src/services/rankingService';
 import { notificationsService } from './src/services/notificationsService';
 import { financeService } from './src/services/financeService';
 import { pickImageWithPrompt, uploadImage } from './src/services/storageService';
+import { supabase } from './src/services/supabase';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 import { calculateLevelAndTitle } from './src/utils/gamification';
@@ -205,9 +206,7 @@ function MainApp() {
   const loadRanking = async (moradiaId: string) => {
     try {
       const items = await rankingService.fetchRanking(moradiaId, user?.id);
-      if (items && items.length > 0) {
-        setRankingList(items);
-      }
+      setRankingList(items || []);
     } catch (err) {
       console.warn('App: Erro ao carregar ranking:', err);
     }
@@ -609,7 +608,18 @@ function MainApp() {
           onLoginSubmit={() => routeAfterAuth()}
           onForgotPasswordPress={() => setCurrentScreen('forgot_password')}
           onRegisterPress={() => setCurrentScreen('register')}
-          onGooglePress={() => routeAfterAuth()}
+          onGooglePress={async () => {
+            try {
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+              });
+              if (error) {
+                Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
+              }
+            } catch (err: any) {
+              Alert.alert('Login com Google', err?.message || 'Configuração OAuth do Google indisponível no momento.');
+            }
+          }}
         />
       )}
 
@@ -983,7 +993,10 @@ function MainApp() {
                 titulo: `${profileUserData.name} concluiu uma tarefa`,
                 descricao: `"${selectedTask?.title}" foi finalizada com foto anexada para revisão.`,
                 actionText: 'Validar agora',
-                extraMeta: `+${selectedTask?.xp ?? 0} XP em jogo`,
+                extraMeta: JSON.stringify({
+                  taskId: selectedTaskId,
+                  display: `+${selectedTask?.xp ?? 0} XP em jogo`,
+                }),
               });
               await reloadTasks();
               Alert.alert('Enviada!', 'Tarefa enviada para validação dos moradores.');
@@ -1409,9 +1422,23 @@ function MainApp() {
             loadNotifications();
             if (notification.categoryFilter === 'Validações') {
               await reloadTasks();
-              const pending = (await tasksService.fetchTasks(myHouse?.moradia_id, user?.id)).find(
-                (t) => t.status === 'Aguardando validação' && t.assignee !== 'Você'
-              );
+              let targetTaskId: string | undefined;
+              if (notification.extraMeta) {
+                try {
+                  if (notification.extraMeta.startsWith('{')) {
+                    const parsed = JSON.parse(notification.extraMeta);
+                    targetTaskId = parsed.taskId;
+                  }
+                } catch {
+                  // ignorar erro de parsing se extraMeta for texto plano
+                }
+              }
+              const allTasks = await tasksService.fetchTasks(myHouse?.moradia_id, user?.id);
+              const pending = targetTaskId
+                ? allTasks.find((t) => t.id === targetTaskId) ||
+                  allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você')
+                : allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você');
+
               if (pending) {
                 setSelectedTaskId(pending.id);
                 setTaskValidation(null);

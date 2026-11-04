@@ -59,42 +59,67 @@ ALTER TABLE public.notificacoes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Leitura de recompensas por usuarios autenticados"
     ON public.recompensas_loja FOR SELECT
     TO authenticated
-    USING (true);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.membros_moradia m
+            WHERE m.moradia_id = public.recompensas_loja.moradia_id
+              AND m.usuario_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Insercao de recompensas por usuarios autenticados"
     ON public.recompensas_loja FOR INSERT
     TO authenticated
-    WITH CHECK (true);
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.membros_moradia m
+            WHERE m.moradia_id = public.recompensas_loja.moradia_id
+              AND m.usuario_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Atualizacao de recompensas por usuarios autenticados"
     ON public.recompensas_loja FOR UPDATE
     TO authenticated
-    USING (true);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.membros_moradia m
+            WHERE m.moradia_id = public.recompensas_loja.moradia_id
+              AND m.usuario_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Leitura de resgates por usuarios autenticados"
     ON public.resgates_recompensa FOR SELECT
     TO authenticated
-    USING (true);
+    USING (
+        auth.uid() = usuario_id
+        OR EXISTS (
+            SELECT 1 FROM public.membros_moradia m
+            WHERE m.moradia_id = public.resgates_recompensa.moradia_id
+              AND m.usuario_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Insercao de resgates por usuarios autenticados"
     ON public.resgates_recompensa FOR INSERT
     TO authenticated
-    WITH CHECK (true);
+    WITH CHECK (auth.uid() = usuario_id);
 
 CREATE POLICY "Leitura de notificacoes pelo destinatario autenticado"
     ON public.notificacoes FOR SELECT
     TO authenticated
-    USING (auth.uid() = usuario_id OR true);
+    USING (auth.uid() = usuario_id);
 
 CREATE POLICY "Insercao de notificacoes por usuarios autenticados"
     ON public.notificacoes FOR INSERT
     TO authenticated
-    WITH CHECK (true);
+    WITH CHECK (auth.uid() IS NOT NULL);
 
 CREATE POLICY "Atualizacao de notificacoes por usuarios autenticados"
     ON public.notificacoes FOR UPDATE
     TO authenticated
-    USING (auth.uid() = usuario_id OR true);
+    USING (auth.uid() = usuario_id);
 
 -- 6. Índices para Otimização de Consultas de Ranking e Loja
 CREATE INDEX IF NOT EXISTS idx_recompensas_moradia ON public.recompensas_loja (moradia_id, ativo);

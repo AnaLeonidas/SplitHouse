@@ -46,6 +46,7 @@ O banco de dados relacional foi estruturado em tabelas modulares com Row Level S
 
 ### Scripts de Provisionamento SQL
 - **Tarefas e Dashboard:** `supabase/schema_tarefas_home.sql`
+- **Finanças e Despesas:** `supabase/schema_despesas.sql`
 - **Ranking, Loja, Recompensas e Notificações (#64):** `supabase/schema_ranking_loja.sql`
 - **Esquema Relacional Unificado Completo:** `supabase/schema_completo.sql`
 

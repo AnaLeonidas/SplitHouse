@@ -227,54 +227,67 @@ export const storeService = {
         `Saldo insuficiente. Você possui ${currentCoins} moedas, mas a recompensa custa ${cost} moedas.`
       );
     }
-
     const updatedCoins = currentCoins - cost;
 
-    // 2. Debita moedas no banco
-    const { error: updateError } = await supabase
-      .from('membros_moradia')
-      .update({ moedas: updatedCoins })
-      .eq('id', membro.id);
-
-    if (updateError) {
-      throw new Error('Falha ao debitar moedas da conta: ' + updateError.message);
-    }
-
-    // 3. Registra o resgate na tabela 'resgates_recompensa' (suporta moedas_gastas ou custo_moedas)
+    // 2. Registra o resgate na tabela 'resgates_recompensa' antes de debitar moedas
     let redemptionId: string | undefined;
-    try {
-      let { data: resgate, error: resgateError } = await supabase
+    let resgateInsertError: any = null;
+
+    let { data: resgate, error: resgateError } = await supabase
+      .from('resgates_recompensa')
+      .insert({
+        recompensa_id: rewardId,
+        moradia_id: moradiaId,
+        usuario_id: userId,
+        moedas_gastas: cost,
+        status: 'ativo',
+      })
+      .select('id')
+      .single();
+
+    if (resgateError && resgateError.code === '42703') {
+      const retry = await supabase
         .from('resgates_recompensa')
         .insert({
           recompensa_id: rewardId,
           moradia_id: moradiaId,
           usuario_id: userId,
-          moedas_gastas: cost,
+          custo_moedas: cost,
           status: 'ativo',
         })
         .select('id')
         .single();
+      resgate = retry.data;
+      resgateInsertError = retry.error;
+    } else {
+      resgateInsertError = resgateError;
+    }
 
-      if (resgateError && resgateError.code === '42703') {
-        const retry = await supabase
-          .from('resgates_recompensa')
-          .insert({
-            recompensa_id: rewardId,
-            moradia_id: moradiaId,
-            usuario_id: userId,
-            custo_moedas: cost,
-            status: 'ativo',
-          })
-          .select('id')
-          .single();
-        resgate = retry.data;
-      }
+    if (resgateInsertError || !resgate) {
+      throw new Error(
+        'Falha ao registrar resgate da recompensa: ' +
+          (resgateInsertError?.message || 'Erro desconhecido no banco.')
+      );
+    }
 
-      if (resgate) {
-        redemptionId = resgate.id;
-      }
-    } catch (resgateErr) {
-      console.warn('storeService.redeemReward: Não foi possível registrar em resgates_recompensa:', resgateErr);
+    redemptionId = resgate.id;
+
+    // 3. Debita moedas no banco verificando se o saldo ainda é suficiente
+    const { data: updatedMember, error: updateError } = await supabase
+      .from('membros_moradia')
+      .update({ moedas: updatedCoins })
+      .eq('id', membro.id)
+      .gte('moedas', cost)
+      .select('id, moedas')
+      .single();
+
+    if (updateError || !updatedMember) {
+      // Rollback do registro de resgate caso a cobrança de moedas falhe
+      await supabase.from('resgates_recompensa').delete().eq('id', redemptionId);
+      throw new Error(
+        'Falha ao debitar moedas da conta: ' +
+          (updateError?.message || 'Saldo indisponível no momento do débito.')
+      );
     }
 
     // 4. Cria notificação de confirmação do benefício ativo

@@ -125,12 +125,15 @@ export const financeService = {
     let rateiosParaInserir: any[] = [];
 
     if (customSplits && customSplits.length > 0) {
-      rateiosParaInserir = customSplits.map((split) => {
+      const sumSplits = customSplits.reduce((acc, s) => acc + s.amount, 0);
+      const diff = parseFloat((input.valorTotal - sumSplits).toFixed(2));
+      rateiosParaInserir = customSplits.map((split, index) => {
         const isPagador = split.userId === input.pagadorId;
+        const adjustedAmount = index === 0 ? parseFloat((split.amount + diff).toFixed(2)) : parseFloat(split.amount.toFixed(2));
         return {
           despesa_id: despesaCriada.id,
           usuario_id: split.userId,
-          valor_parte: parseFloat(split.amount.toFixed(2)),
+          valor_parte: adjustedAmount,
           status: isPagador ? 'pago' : 'pendente',
           pago_em: isPagador ? new Date().toISOString() : null,
         };
@@ -158,6 +161,8 @@ export const financeService = {
 
     if (rateiosError) {
       console.warn('financeService: Erro ao inserir rateios:', rateiosError.message);
+      await supabase.from('despesas').delete().eq('id', despesaCriada.id);
+      throw new Error(`Falha ao registrar a divisão da despesa: ${rateiosError.message}`);
     }
 
     return despesaCriada as DespesaDB;
@@ -424,52 +429,86 @@ export const financeService = {
     const pagamento = data as PagamentoAcertoDB;
 
     if (isApproved) {
-      // Acerto confirmado: quita os rateios pendentes entre os dois moradores (nos dois sentidos)
-      const { data: despesas } = await supabase
+      // O devedor está pagando o credor. Buscamos despesas pagas pelo credor na moradia
+      const { data: despesas, error: despesasError } = await supabase
         .from('despesas')
         .select('id, pagador_id')
         .eq('moradia_id', pagamento.moradia_id)
-        .in('pagador_id', [pagamento.credor_id, pagamento.devedor_id]);
+        .eq('pagador_id', pagamento.credor_id);
+
+      if (despesasError) {
+        // Reverte o pagamento para aguardando_aprovacao
+        await supabase
+          .from('pagamentos_acerto')
+          .update({ status: 'aguardando_aprovacao', confirmado_em: null })
+          .eq('id', pagamentoId);
+        throw new Error(`Falha ao consultar despesas para quitação: ${despesasError.message}`);
+      }
 
       const affected = (despesas || []).map((d) => d.id);
       if (affected.length > 0) {
-        const payerOf = new Map((despesas || []).map((d) => [d.id, d.pagador_id]));
-        const { data: rateios } = await supabase
+        // Buscar apenas os rateios pendentes onde o devedor deve ao credor, ordenados pelos mais antigos
+        const { data: rateios, error: rateiosError } = await supabase
           .from('rateios_despesa')
           .select('*')
           .in('despesa_id', affected)
-          .eq('status', 'pendente');
+          .eq('usuario_id', pagamento.devedor_id)
+          .eq('status', 'pendente')
+          .order('criado_em', { ascending: true });
 
-        const toSettle = (rateios || [])
-          .filter((r: RateioDespesaDB) => {
-            const payer = payerOf.get(r.despesa_id);
-            return (
-              (payer === pagamento.credor_id && r.usuario_id === pagamento.devedor_id) ||
-              (payer === pagamento.devedor_id && r.usuario_id === pagamento.credor_id)
-            );
-          })
-          .map((r: RateioDespesaDB) => r.id);
+        if (rateiosError) {
+          await supabase
+            .from('pagamentos_acerto')
+            .update({ status: 'aguardando_aprovacao', confirmado_em: null })
+            .eq('id', pagamentoId);
+          throw new Error(`Falha ao consultar rateios para quitação: ${rateiosError.message}`);
+        }
+
+        // Quitar rateios correspondentes estritamente até o valor confirmado
+        let remaining = Number(pagamento.valor || 0);
+        const toSettle: string[] = [];
+
+        for (const r of (rateios || [])) {
+          const rValor = Number(r.valor_parte || 0);
+          if (remaining >= rValor - 0.01) {
+            toSettle.push(r.id);
+            remaining -= rValor;
+          } else {
+            break;
+          }
+        }
 
         if (toSettle.length > 0) {
-          await supabase
+          const { error: updateRateiosError } = await supabase
             .from('rateios_despesa')
             .update({ status: 'pago', pago_em: new Date().toISOString() })
             .in('id', toSettle);
+
+          if (updateRateiosError) {
+            await supabase
+              .from('pagamentos_acerto')
+              .update({ status: 'aguardando_aprovacao', confirmado_em: null })
+              .eq('id', pagamentoId);
+            throw new Error(`Falha ao quitar rateios: ${updateRateiosError.message}`);
+          }
         }
 
         // Despesas sem nenhum rateio pendente passam a 'pago'
-        const { data: stillPending } = await supabase
+        const { data: stillPending, error: pendingError } = await supabase
           .from('rateios_despesa')
           .select('despesa_id')
           .in('despesa_id', affected)
           .eq('status', 'pendente');
-        const pendingSet = new Set((stillPending || []).map((r: { despesa_id: string }) => r.despesa_id));
-        const settledExpenses = affected.filter((id) => !pendingSet.has(id));
-        if (settledExpenses.length > 0) {
-          await supabase
-            .from('despesas')
-            .update({ status: 'pago', atualizado_em: new Date().toISOString() })
-            .in('id', settledExpenses);
+
+        if (!pendingError) {
+          const pendingSet = new Set((stillPending || []).map((r: { despesa_id: string }) => r.despesa_id));
+          const settledExpenses = affected.filter((id) => !pendingSet.has(id));
+          if (settledExpenses.length > 0) {
+            await supabase
+              .from('despesas')
+              .update({ status: 'pago', atualizado_em: new Date().toISOString() })
+              .in('id', settledExpenses);
+          }
         }
       }
     }

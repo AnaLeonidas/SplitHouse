@@ -63,6 +63,19 @@ type FilterCategory = 'Todas' | 'Validações' | 'Finanças' | 'Cutucadas';
  *
  * @param props Callbacks de navegação de retorno, execução de ações da notificação e limpeza de lidas.
  */
+function formatDisplayMeta(meta?: string): string {
+  if (!meta) return '';
+  if (meta.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(meta);
+      return parsed.display || parsed.label || meta;
+    } catch {
+      return meta;
+    }
+  }
+  return meta;
+}
+
 export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onBackPress,
   notifications: initialNotifications,
@@ -326,7 +339,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
                         </TouchableOpacity>
 
                         {item.extraMeta && (
-                          <Text style={styles.extraMetaText}>{item.extraMeta}</Text>
+                          <Text style={styles.extraMetaText}>{formatDisplayMeta(item.extraMeta)}</Text>
                         )}
                       </View>
                     )}

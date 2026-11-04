@@ -120,8 +120,10 @@ export const houseService = {
     if (rules.length > 0) {
       try {
         await this.saveRules(moradia.id, rules);
-      } catch {
-        // A casa foi criada; as regras podem ser editadas depois.
+      } catch (err: any) {
+        await supabase.from('membros_moradia').delete().eq('moradia_id', moradia.id);
+        await supabase.from('moradias').delete().eq('id', moradia.id);
+        throw toError(err, 'A moradia foi criada, mas não foi possível salvar as regras iniciais.');
       }
     }
 
@@ -164,6 +166,14 @@ export const houseService = {
       throw new Error('Você já participa de uma moradia.');
     }
 
+    // Cancela solicitações pendentes anteriores em outras moradias para não haver múltiplos vínculos conflitantes
+    await supabase
+      .from('membros_moradia')
+      .update({ status: 'recusado' })
+      .eq('usuario_id', userId)
+      .eq('status', 'pendente')
+      .neq('moradia_id', moradia.id);
+
     const mesmoLugar = existentes.find((v) => v.moradia_id === moradia.id);
     if (mesmoLugar) {
       if (mesmoLugar.status !== 'pendente') {
@@ -198,7 +208,8 @@ export const houseService = {
       .from('membros_moradia')
       .select('*')
       .eq('usuario_id', userId)
-      .in('status', ['aprovado', 'pendente']);
+      .in('status', ['aprovado', 'pendente'])
+      .order('entrou_em', { ascending: false });
 
     if (error) {
       throw toError(error, 'Não foi possível carregar sua moradia.');
@@ -315,6 +326,12 @@ export const houseService = {
   async saveRules(moradiaId: string, rules: RegraInput[]): Promise<void> {
     const validas = rules.filter((r) => r.titulo.trim());
 
+    // Salva cópia das regras atuais para rollback em caso de falha
+    const { data: existingRules } = await supabase
+      .from('regras_moradia')
+      .select('*')
+      .eq('moradia_id', moradiaId);
+
     const { error: delError } = await supabase
       .from('regras_moradia')
       .delete()
@@ -335,6 +352,9 @@ export const houseService = {
       }))
     );
     if (error) {
+      if (existingRules && existingRules.length > 0) {
+        await supabase.from('regras_moradia').insert(existingRules);
+      }
       throw toError(error, 'Não foi possível salvar as regras.');
     }
   },
@@ -378,7 +398,15 @@ export const houseService = {
 
       const lista = (restantes || []) as Pick<MembroMoradiaDB, 'id' | 'papel'>[];
       if (lista.length > 0 && !lista.some((m) => m.papel === 'admin')) {
-        await supabase.from('membros_moradia').update({ papel: 'admin' }).eq('id', lista[0].id);
+        const { error: promoteError } = await supabase
+          .from('membros_moradia')
+          .update({ papel: 'admin' })
+          .eq('id', lista[0].id);
+
+        if (promoteError) {
+          console.warn('houseService.leaveHouse: Falha ao promover novo administrador:', promoteError.message);
+          throw toError(promoteError, 'Falha ao transferir a administração da moradia para o próximo morador.');
+        }
       }
     }
   },

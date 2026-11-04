@@ -100,7 +100,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         : 'SH';
 
     const myPendingTasks = tasks && tasks.length > 0
-        ? tasks.filter((t) => t.assignee === 'Você' && t.status !== 'Concluída')
+        ? tasks.filter(
+            (t) =>
+                t.assignee === 'Você' &&
+                t.status !== 'Concluída' &&
+                (t.deadline || '').toLowerCase().includes('hoje')
+        )
         : [];
     const todayTasks = myPendingTasks.slice(0, 3);
     return (

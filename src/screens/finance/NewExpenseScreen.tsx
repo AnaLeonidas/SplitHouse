@@ -326,6 +326,13 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                     };
                 })
                 .filter((s) => s.amount > 0);
+
+            // Ajuste de pequenas diferenças (até R$ 0.05) para fechar o total exato
+            const fixedSumCalculated = splits.reduce((acc, s) => acc + s.amount, 0);
+            const fixedDiff = parseFloat((numericTotal - fixedSumCalculated).toFixed(2));
+            if (fixedDiff !== 0 && splits.length > 0) {
+                splits[0].amount = parseFloat((splits[0].amount + fixedDiff).toFixed(2));
+            }
         }
 
         if (splits.length === 0) {

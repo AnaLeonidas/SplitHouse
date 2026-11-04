@@ -346,7 +346,7 @@ export const tasksService = {
   ): Promise<boolean> {
     try {
       // 1. Atualiza o envio pendente na tabela validacoes_tarefa
-      await supabase
+      const { error: valError } = await supabase
         .from('validacoes_tarefa')
         .update({
           validador_id: validatorId,
@@ -357,7 +357,12 @@ export const tasksService = {
         .eq('tarefa_id', taskId)
         .eq('status', 'pendente');
 
-      // 2. Atualiza estado em tarefas
+      if (valError) {
+        console.error('Supabase: Erro ao atualizar validacao:', valError.message);
+        return false;
+      }
+
+      // 2. Atualiza estado em tarefas somente se ainda estiver aguardando validação
       const newStatus = approved ? 'concluida' : 'pendente';
       const { data: updatedTask, error } = await supabase
         .from('tarefas')
@@ -366,48 +371,61 @@ export const tasksService = {
           atualizado_em: new Date().toISOString(),
         })
         .eq('id', taskId)
-        .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas')
+        .in('status', ['em_validacao', 'Aguardando validação'])
+        .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas, xp, moedas')
         .single();
 
-      if (error) {
-        console.error('Supabase: Erro ao validar tarefa:', error.message);
+      if (error || !updatedTask) {
+        console.error('Supabase: Tarefa não encontrada ou não está aguardando validação:', error?.message);
         return false;
       }
 
       // 3. Se aprovada, credita XP e Moedas e recalcula nível e título honorífico
       if (approved && updatedTask) {
-        const { data: membro } = await supabase
+        const { data: membro, error: membFetchError } = await supabase
           .from('membros_moradia')
           .select('id, xp, moedas, nivel')
           .eq('moradia_id', updatedTask.moradia_id)
           .eq('usuario_id', updatedTask.responsavel_id)
           .single();
 
-        if (membro) {
-          const newXp = (membro.xp || 0) + (updatedTask.recompensa_xp || 0);
-          const newMoedas = (membro.moedas || 0) + (updatedTask.recompensa_moedas || 0);
-          const { level: newLevel, title: newTitle } = calculateLevelAndTitle(newXp);
+        if (membFetchError || !membro) {
+          console.error('Supabase: Erro ao buscar membro para creditar recompensa:', membFetchError?.message);
+          return false;
+        }
 
-          const { error: updateMembError } = await supabase
+        const xpReward = updatedTask.recompensa_xp ?? (updatedTask as any).xp ?? 25;
+        const coinReward = updatedTask.recompensa_moedas ?? (updatedTask as any).moedas ?? 10;
+
+        const newXp = (membro.xp || 0) + xpReward;
+        const newMoedas = (membro.moedas || 0) + coinReward;
+        const { level: newLevel, title: newTitle } = calculateLevelAndTitle(newXp);
+
+        let { error: updateMembError } = await supabase
+          .from('membros_moradia')
+          .update({
+            xp: newXp,
+            moedas: newMoedas,
+            nivel: newLevel,
+            titulo_nivel: newTitle,
+          })
+          .eq('id', membro.id);
+
+        if (updateMembError && updateMembError.code === '42703') {
+          const retry = await supabase
             .from('membros_moradia')
             .update({
               xp: newXp,
               moedas: newMoedas,
               nivel: newLevel,
-              titulo_nivel: newTitle,
             })
             .eq('id', membro.id);
+          updateMembError = retry.error;
+        }
 
-          if (updateMembError && updateMembError.code === '42703') {
-            await supabase
-              .from('membros_moradia')
-              .update({
-                xp: newXp,
-                moedas: newMoedas,
-                nivel: newLevel,
-              })
-              .eq('id', membro.id);
-          }
+        if (updateMembError) {
+          console.error('Supabase: Erro ao creditar saldo do membro:', updateMembError.message);
+          return false;
         }
       }
 

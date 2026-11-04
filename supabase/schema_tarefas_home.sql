@@ -12,23 +12,33 @@ CREATE TABLE IF NOT EXISTS public.tarefas (
     responsavel_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     responsavel_nome TEXT,
     prazo TEXT NOT NULL,
+    prazo_limite TIMESTAMPTZ,
     xp INTEGER NOT NULL DEFAULT 20,
-    status TEXT NOT NULL DEFAULT 'Pendente' CHECK (status IN ('Pendente', 'Concluída', 'Aguardando validação')),
+    recompensa_xp INTEGER NOT NULL DEFAULT 25,
+    moedas INTEGER NOT NULL DEFAULT 10,
+    recompensa_moedas INTEGER NOT NULL DEFAULT 10,
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('Pendente', 'Concluída', 'Aguardando validação', 'pendente', 'concluida', 'em_validacao')),
     requer_validacao BOOLEAN NOT NULL DEFAULT false,
     foto_comprovante_url TEXT,
     executor_info TEXT,
+    criado_por UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     criado_em TIMESTAMPTZ DEFAULT now(),
-    concluido_em TIMESTAMPTZ
+    concluido_em TIMESTAMPTZ,
+    atualizado_em TIMESTAMPTZ DEFAULT now()
 );
 
 -- 2. Tabela de validacoes por pares de tarefas
 CREATE TABLE IF NOT EXISTS public.validacoes_tarefa (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tarefa_id UUID NOT NULL REFERENCES public.tarefas(id) ON DELETE CASCADE,
+    executor_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     validador_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     validador_nome TEXT,
-    status TEXT NOT NULL CHECK (status IN ('aprovada', 'recusada')),
+    status TEXT NOT NULL CHECK (status IN ('pendente', 'aprovada', 'recusada')),
     justificativa TEXT,
+    foto_comprovante_url TEXT,
+    data_hora_foto TIMESTAMPTZ,
+    validado_em TIMESTAMPTZ,
     criado_em TIMESTAMPTZ DEFAULT now()
 );
 
@@ -63,11 +73,11 @@ CREATE POLICY "Insercao de validacoes por usuarios autenticados"
     WITH CHECK (true);
 
 -- 5. Carga inicial de dados de exemplo para demonstracao
-INSERT INTO public.tarefas (titulo, comodo, tipo, responsavel_nome, prazo, xp, moedas, status, requer_validacao)
+INSERT INTO public.tarefas (titulo, comodo, tipo, responsavel_nome, prazo, prazo_limite, xp, recompensa_xp, moedas, recompensa_moedas, status, requer_validacao)
 VALUES
-    ('Lavar louça do almoço', 'Cozinha', 'Rotativa', 'Você', 'hoje às 14:00', 30, 10, 'Pendente', false),
-    ('Tirar lixo reciclável', 'Área externa', 'Fixa', 'Você', 'hoje às 19:00', 15, 5, 'Pendente', false),
-    ('Aspirar tapete da sala', 'Sala de estar', 'Fixa', 'Doutor Octopus', 'hoje às 12:00', 25, 10, 'Aguardando validação', true),
-    ('Limpar a geladeira', 'Cozinha', 'Rotativa', 'Lagarto', 'Amanhã às 10:00', 40, 15, 'Pendente', false),
-    ('Comprar materiais de limpeza', 'Mercado', 'Emergencial', 'Homem-Areia', 'Em 2 dias', 35, 10, 'Pendente', false)
+    ('Lavar louça do almoço', 'Cozinha', 'Rotativa', 'Você', 'hoje às 14:00', now(), 30, 30, 10, 10, 'pendente', false),
+    ('Tirar lixo reciclável', 'Área externa', 'Fixa', 'Você', 'hoje às 19:00', now(), 15, 15, 5, 5, 'pendente', false),
+    ('Aspirar tapete da sala', 'Sala de estar', 'Fixa', 'Doutor Octopus', 'hoje às 12:00', now(), 25, 25, 10, 10, 'em_validacao', true),
+    ('Limpar a geladeira', 'Cozinha', 'Rotativa', 'Lagarto', 'Amanhã às 10:00', now() + interval '1 day', 40, 40, 15, 15, 'pendente', false),
+    ('Comprar materiais de limpeza', 'Mercado', 'Emergencial', 'Homem-Areia', 'Em 2 dias', now() + interval '2 days', 35, 35, 10, 10, 'pendente', false)
 ON CONFLICT DO NOTHING;
