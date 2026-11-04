@@ -130,3 +130,4 @@ describe('Isolamento de Tarefas no Dashboard Home (homeScreen)', () => {
     assert.strictEqual(todayTasks.length, 0, 'Tarefas de outros moradores não devem aparecer');
   });
 });
+

@@ -136,9 +136,12 @@ export const financeService = {
         };
       });
     } else {
-      const valorParte = parseFloat((input.valorTotal / targetUserIds.length).toFixed(2));
-      rateiosParaInserir = targetUserIds.map((userId) => {
+      const count = targetUserIds.length;
+      const equalShare = Math.floor((input.valorTotal / count) * 100) / 100;
+      const remainder = parseFloat((input.valorTotal - equalShare * count).toFixed(2));
+      rateiosParaInserir = targetUserIds.map((userId, index) => {
         const isPagador = userId === input.pagadorId;
+        const valorParte = index === 0 ? parseFloat((equalShare + remainder).toFixed(2)) : equalShare;
         return {
           despesa_id: despesaCriada.id,
           usuario_id: userId,

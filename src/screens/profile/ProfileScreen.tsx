@@ -98,9 +98,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onTasksPress,
   onLogoutPress,
 }) => {
+  const currentLevelProgress = user.xp % 100;
   const xpPercent = Math.min(
     100,
-    Math.round((user.xp / user.nextLevelXp) * 100)
+    Math.round((currentLevelProgress / 100) * 100)
   );
   const xpRemaining = Math.max(0, user.nextLevelXp - user.xp);
   const initials =

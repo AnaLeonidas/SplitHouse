@@ -475,6 +475,11 @@ function MainApp() {
     currentScreen === 'ranking' ||
     currentScreen === 'profile';
 
+  const currentScreenRef = useRef(currentScreen);
+  useEffect(() => {
+    currentScreenRef.current = currentScreen;
+  }, [currentScreen]);
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
@@ -484,24 +489,25 @@ function MainApp() {
         );
       },
       onPanResponderRelease: (_, gestureState) => {
+        const active = currentScreenRef.current;
         if (gestureState.dx < -50) {
-          if (currentScreen === 'home') {
+          if (active === 'home') {
             setCurrentScreen('expenses_list');
-          } else if (currentScreen === 'expenses_list') {
+          } else if (active === 'expenses_list') {
             setCurrentScreen('tasks_list');
-          } else if (currentScreen === 'tasks_list') {
+          } else if (active === 'tasks_list') {
             setCurrentScreen('ranking');
-          } else if (currentScreen === 'ranking') {
+          } else if (active === 'ranking') {
             setCurrentScreen('profile');
           }
         } else if (gestureState.dx > 50) {
-          if (currentScreen === 'profile') {
+          if (active === 'profile') {
             setCurrentScreen('ranking');
-          } else if (currentScreen === 'ranking') {
+          } else if (active === 'ranking') {
             setCurrentScreen('tasks_list');
-          } else if (currentScreen === 'tasks_list') {
+          } else if (active === 'tasks_list') {
             setCurrentScreen('expenses_list');
-          } else if (currentScreen === 'expenses_list') {
+          } else if (active === 'expenses_list') {
             setCurrentScreen('home');
           }
         }
@@ -1031,12 +1037,16 @@ function MainApp() {
               let comprovanteUrl: string | null = null;
               if (data.receiptUri) comprovanteUrl = await uploadImage(data.receiptUri, 'despesas');
 
-              const splits = data.splits && data.splits.length > 0
-                ? data.splits
-                : approvedMembers.map((m) => ({
-                    userId: m.usuario_id,
-                    amount: parseFloat((data.amount / approvedMembers.length).toFixed(2)),
-                  }));
+              let splits = data.splits;
+              if (!splits || splits.length === 0) {
+                const count = approvedMembers.length || 1;
+                const equalShare = Math.floor((data.amount / count) * 100) / 100;
+                const remainder = parseFloat((data.amount - equalShare * count).toFixed(2));
+                splits = approvedMembers.map((m, index) => ({
+                  userId: m.usuario_id,
+                  amount: index === 0 ? parseFloat((equalShare + remainder).toFixed(2)) : equalShare,
+                }));
+              }
 
               const targetMemberIds = splits.map((s) => s.userId);
 
@@ -1237,17 +1247,21 @@ function MainApp() {
           onProposePress={() => setCurrentScreen('propose_reward')}
           onRedeemPress={async (item) => {
             if (!user || !myHouse) return;
-            await storeService.redeemReward({
-              rewardId: item.id,
-              userId: user.id,
-              moradiaId: myHouse.moradia_id,
-              cost: item.cost,
-              rewardTitle: item.title,
-            });
-            if (myHouse.moradia_id) {
-              await loadMembers(myHouse.moradia_id);
-              await loadRanking(myHouse.moradia_id);
-              await loadStore(myHouse.moradia_id);
+            try {
+              await storeService.redeemReward({
+                rewardId: item.id,
+                userId: user.id,
+                moradiaId: myHouse.moradia_id,
+                cost: item.cost,
+                rewardTitle: item.title,
+              });
+              if (myHouse.moradia_id) {
+                await loadMembers(myHouse.moradia_id);
+                await loadRanking(myHouse.moradia_id);
+                await loadStore(myHouse.moradia_id);
+              }
+            } catch (err) {
+              Alert.alert('Erro ao resgatar', err instanceof Error ? err.message : 'Não foi possível resgatar a recompensa.');
             }
           }}
           onProposeSubmit={async (newItem) => {
@@ -1363,7 +1377,7 @@ function MainApp() {
         <LeaveHouseScreen
           republicName={myHouse?.nome}
           candidates={leaveCandidates}
-          balance={0}
+          balance={numericNetBalance}
           onBackPress={() => setCurrentScreen('profile')}
           onCancelPress={() => setCurrentScreen('profile')}
           onConfirmSuccess={async () => {
@@ -1551,7 +1565,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FCFCFC',
     borderTopWidth: 1,
     borderTopColor: 'rgba(132, 130, 143, 0.2)',
-    paddingBottom: Platform.OS === 'android' ? 44 : 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
     paddingTop: 10,
     justifyContent: 'space-around',
     position: 'absolute',

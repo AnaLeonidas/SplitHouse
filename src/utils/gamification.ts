@@ -59,3 +59,4 @@ export function calculateLevelAndTitle(xp: number): {
     currentLevelXp,
   };
 }
+

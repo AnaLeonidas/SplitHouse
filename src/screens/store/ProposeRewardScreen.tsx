@@ -35,7 +35,7 @@ interface ProposeRewardScreenProps {
 /**
  * Categorias disponíveis para classificação de uma recompensa proposta.
  */
-type RewardCategory = 'Convivência' | 'Folga de tarefa' | 'Bônus coletivo' | 'Outros';
+type RewardCategory = 'Folga' | 'Convivência' | 'Bônus';
 
 /**
  * Tela de proposição de nova recompensa para a loja da república (Tela 28).
@@ -49,17 +49,16 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   onSubmit,
 }) => {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<RewardCategory>('Convivência');
+  const [category, setCategory] = useState<RewardCategory>('Folga');
   const [cost, setCost] = useState('');
   const [limit, setLimit] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories: RewardCategory[] = [
+    'Folga',
     'Convivência',
-    'Folga de tarefa',
-    'Bônus coletivo',
-    'Outros',
+    'Bônus',
   ];
 
   const handleSubmit = async () => {
@@ -73,16 +72,12 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
       return;
     }
 
-    let mappedCategory: 'Folga' | 'Convivência' | 'Bônus' = 'Convivência';
-    if (category === 'Folga de tarefa') mappedCategory = 'Folga';
-    else if (category === 'Bônus coletivo') mappedCategory = 'Bônus';
-
     try {
       setIsSubmitting(true);
       if (onSubmit) {
         await onSubmit({
           title: title.trim(),
-          category: mappedCategory,
+          category,
           cost: costNum,
           description: description.trim(),
           limit: limit.trim(),

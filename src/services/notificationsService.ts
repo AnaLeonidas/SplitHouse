@@ -35,13 +35,21 @@ export function formatTimeAgo(isoString?: string | null): string {
  * Converte registro de banco para a interface visual de notificações.
  */
 export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
+  const rawCat = (row as any).filtro_categoria || row.category_filter;
   let mappedCategory: 'Validações' | 'Finanças' | 'Cutucadas' = 'Cutucadas';
-  if (row.category_filter === 'Validações' || row.tipo === 'Validação') {
+
+  if (
+    rawCat === 'Validações' ||
+    rawCat === 'Validacoes' ||
+    row.tipo === 'Validação' ||
+    (row.tipo as string) === 'Validacao'
+  ) {
     mappedCategory = 'Validações';
   } else if (
-    (row as any).category_filter === 'Finanças' ||
-    (row as any).filtro_categoria === 'Finanças' ||
-    row.tipo === 'Recompensa'
+    rawCat === 'Finanças' ||
+    rawCat === 'Financas' ||
+    row.tipo === 'Recompensa' ||
+    row.tipo === 'Vencimento'
   ) {
     mappedCategory = 'Finanças';
   } else {
@@ -49,9 +57,13 @@ export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
   }
 
   let mappedType: 'Validação' | 'Cutucada' | 'Vencimento' | 'Concluída' = 'Cutucada';
-  if (row.tipo === 'Validação') mappedType = 'Validação';
-  else if (row.tipo === 'Vencimento') mappedType = 'Vencimento';
-  else if (row.tipo === 'Concluída') mappedType = 'Concluída';
+  if (row.tipo === 'Validação' || (row.tipo as string) === 'Validacao') {
+    mappedType = 'Validação';
+  } else if (row.tipo === 'Vencimento') {
+    mappedType = 'Vencimento';
+  } else if (row.tipo === 'Concluída' || (row.tipo as string) === 'Concluida') {
+    mappedType = 'Concluída';
+  }
 
   const actionText =
     (row as any).action_text ||

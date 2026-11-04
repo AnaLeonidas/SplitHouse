@@ -226,6 +226,7 @@ export const houseService = {
       endereco: m.endereco,
       tipo: m.tipo,
       codigo_convite: m.codigo_convite,
+      nome_ciclo_atual: m.nome_ciclo_atual,
       papel: vinculo.papel,
       status: vinculo.status,
     };

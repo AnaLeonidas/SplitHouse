@@ -171,7 +171,13 @@ export const storeService = {
 
     // Notifica os moradores sobre a nova recompensa disponível
     try {
-      await notificationsService.notifyUsers([userId], {
+      const { data: membros } = await supabase
+        .from('membros_moradia')
+        .select('usuario_id')
+        .eq('moradia_id', moradiaId);
+      const memberIds = (membros || []).map((m: any) => m.usuario_id);
+
+      await notificationsService.notifyUsers(memberIds, {
         moradiaId,
         senderId: userId,
         tipo: 'Recompensa',
