@@ -1,0 +1,2485 @@
+openapi: 3.0.3
+
+info:
+  title: SplitHouse API
+  version: 1.0.0
+  description: |
+    Documentação da API utilizada pelo aplicativo **SplitHouse** — gestão de moradias
+    compartilhadas (repúblicas e apartamentos) com divisão de despesas, tarefas domésticas
+    gamificadas, ranking, loja de recompensas e notificações.
+
+    ## Arquitetura
+
+    O SplitHouse é um app **React Native (Expo)** que não possui um servidor próprio: o backend
+    é o **Supabase**, que expõe automaticamente três APIs HTTP:
+
+    | Serviço | Prefixo | Responsabilidade |
+    |---|---|---|
+    | **Auth (GoTrue)** | `/auth/v1` | Cadastro, login, sessão e recuperação de senha |
+    | **REST (PostgREST)** | `/rest/v1` | CRUD sobre as tabelas do PostgreSQL |
+    | **Storage** | `/storage/v1` | Upload e leitura de fotos e comprovantes |
+
+    No código do app essas chamadas são feitas através do SDK `@supabase/supabase-js`.
+    Cada chamada do SDK corresponde a uma requisição HTTP documentada aqui. Exemplo:
+
+    ```ts
+    supabase.from('tarefas').select('*').eq('moradia_id', id).order('prazo_limite')
+    ```
+    equivale a:
+    ```
+    GET /rest/v1/tarefas?select=*&moradia_id=eq.{id}&order=prazo_limite.asc
+    ```
+
+    ## Autenticação
+
+    Todas as requisições precisam do header `apikey` com a **chave anon** do projeto.
+    As rotas de dados (`/rest/v1` e upload no `/storage/v1`) exigem também o header
+    `Authorization: Bearer <access_token>`, obtido no login (`POST /auth/v1/token`).
+    O acesso aos dados é controlado por **Row Level Security (RLS)** no PostgreSQL.
+
+    ## Filtros do PostgREST
+
+    Os filtros são passados na query string no formato `coluna=operador.valor`:
+
+    | Operador | Significado | Exemplo |
+    |---|---|---|
+    | `eq` | igual | `status=eq.pendente` |
+    | `neq` | diferente | `status=neq.saiu` |
+    | `in` | está na lista | `status=in.(aprovado,pendente)` |
+    | `gt` / `gte` / `lt` / `lte` | comparações | `xp=gte.100` |
+    | `is` | nulo / booleano | `foto_url=is.null` |
+
+    Outros parâmetros úteis: `select` (colunas e joins), `order` (ordenação),
+    `limit` e `offset` (paginação).
+
+    ## Organização do código
+
+    Os services do app que consomem esta API ficam em `src/services/`:
+    `houseService`, `tasksService`, `financeService`, `storeService`, `rankingService`,
+    `notificationsService`, `profileService`, `homeService` e `storageService`.
+  contact:
+    name: Equipe SplitHouse
+  license:
+    name: 0BSD
+
+servers:
+  - url: https://{projectRef}.supabase.co
+    description: Projeto Supabase do SplitHouse
+    variables:
+      projectRef:
+        default: seu-projeto
+        description: Identificador do projeto Supabase (subdomínio de EXPO_PUBLIC_SUPABASE_URL)
+
+security:
+  - apiKey: []
+    bearerAuth: []
+
+tags:
+  - name: Autenticação
+    description: Cadastro, login, logout, recuperação de senha e dados da conta (Supabase Auth).
+  - name: Perfis
+    description: Dados cadastrais dos moradores (tabela `perfis`, sincronizada com `auth.users`).
+  - name: Moradias
+    description: Cadastro de repúblicas e apartamentos e busca por código de convite.
+  - name: Membros
+    description: Vínculo morador ↔ moradia, solicitações de entrada, papéis, XP e moedas.
+  - name: Regras
+    description: Estatuto de convivência da moradia.
+  - name: Tarefas
+    description: Tarefas domésticas (fixas, rotativas e emergenciais).
+  - name: Validações
+    description: Validação de tarefas por pares com foto (regra anti-fraude RN-09).
+  - name: Despesas
+    description: Despesas coletivas da moradia.
+  - name: Rateios
+    description: Parte de cada morador em uma despesa.
+  - name: Acertos
+    description: Pagamentos bilaterais entre moradores (acerto de contas).
+  - name: Loja
+    description: Recompensas que podem ser trocadas por moedas.
+  - name: Resgates
+    description: Histórico de resgates de recompensas.
+  - name: Notificações
+    description: Central de avisos, cutucadas e alertas.
+  - name: Storage
+    description: Upload e leitura de imagens no bucket `comprovantes`.
+
+paths:
+  # ===========================================================================
+  # AUTENTICAÇÃO
+  # ===========================================================================
+  /auth/v1/signup:
+    post:
+      tags: [Autenticação]
+      summary: Cadastrar novo morador
+      description: |
+        Cria a conta no Supabase Auth. O nome completo é enviado em `data.full_name` e um
+        trigger no banco cria automaticamente o registro correspondente na tabela `perfis`.
+
+        **No app:** `AuthContext.signUp()` → `supabase.auth.signUp()` (tela `RegisterScreen`).
+      operationId: signUp
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '200':
+          description: Conta criada. Dependendo da configuração, pode exigir confirmação por e-mail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/AuthError'
+        '422':
+          description: E-mail já cadastrado ou senha fraca (mínimo de 6 caracteres).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorBody'
+
+  /auth/v1/token:
+    post:
+      tags: [Autenticação]
+      summary: Login com e-mail e senha
+      description: |
+        Autentica o morador e retorna o `access_token` (JWT) usado no header
+        `Authorization: Bearer` das demais rotas.
+
+        **No app:** `AuthContext.signIn()` → `supabase.auth.signInWithPassword()` (tela `LoginScreen`).
+        Também usado em `profileService` para reautenticar antes de trocar a senha.
+      operationId: signIn
+      security:
+        - apiKey: []
+      parameters:
+        - name: grant_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [password, refresh_token]
+            default: password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: Login realizado com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          description: Credenciais inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorBody'
+
+  /auth/v1/logout:
+    post:
+      tags: [Autenticação]
+      summary: Encerrar sessão
+      description: |
+        Revoga o token da sessão atual.
+
+        **No app:** `AuthContext.signOut()` → `supabase.auth.signOut()`.
+      operationId: signOut
+      responses:
+        '204':
+          description: Sessão encerrada.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/v1/recover:
+    post:
+      tags: [Autenticação]
+      summary: Solicitar redefinição de senha
+      description: |
+        Envia um e-mail com o link de redefinição de senha.
+
+        **No app:** `AuthContext.resetPassword()` → `supabase.auth.resetPasswordForEmail()`
+        (tela `ForgotPasswordScreen`).
+      operationId: resetPassword
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: morador@email.com
+      responses:
+        '200':
+          description: E-mail enviado (a resposta é a mesma mesmo que o e-mail não exista).
+        '429':
+          description: Muitas solicitações em pouco tempo.
+
+  /auth/v1/user:
+    get:
+      tags: [Autenticação]
+      summary: Obter usuário autenticado
+      description: |
+        Retorna os dados do usuário dono do token.
+
+        **No app:** `supabase.auth.getUser()` — usado em `houseService` e `profileService`
+        para descobrir o UUID do usuário logado.
+      operationId: getUser
+      responses:
+        '200':
+          description: Usuário autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [Autenticação]
+      summary: Atualizar e-mail, senha ou metadados
+      description: |
+        Atualiza dados da conta. Se o e-mail for alterado, o Supabase envia um e-mail de
+        confirmação antes de efetivar a troca.
+
+        **No app:** `profileService.updateProfile()` → `supabase.auth.updateUser()`
+        (tela `EditProfileScreen`).
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Conta atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/AuthError'
+
+  # PERFIS
+  /rest/v1/perfis:
+    get:
+      tags: [Perfis]
+      summary: Listar / buscar perfis
+      description: |
+        Consulta perfis de moradores. Usado para obter nome e e-mail dos membros de uma casa.
+
+        **No app:**
+        - `AuthContext.fetchProfile()` — `?id=eq.{userId}` (perfil do usuário logado)
+        - `houseService.listMembers()` — `?select=id,nome_completo,email&id=in.(...)`
+        - `financeService`, `rankingService` — nomes para exibição
+      operationId: listPerfis
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterId'
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/acceptObject'
+      responses:
+        '200':
+          description: Lista de perfis.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Perfil'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Perfis]
+      summary: Atualizar o próprio perfil
+      description: |
+        Atualiza nome, chave Pix, foto ou e-mail. A política RLS só permite alterar o
+        próprio perfil (`auth.uid() = id`).
+
+        **No app:** `profileService.updateProfile()` (tela `EditProfileScreen`).
+      operationId: updatePerfil
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PerfilUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedRepresentation'
+        '204':
+          description: Perfil atualizado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ===========================================================================
+  # MORADIAS
+  # ===========================================================================
+  /rest/v1/moradias:
+    get:
+      tags: [Moradias]
+      summary: Buscar moradias
+      description: |
+        Busca moradia pelo `id` ou pelo `codigo_convite`.
+
+        **No app:**
+        - `houseService.getMyHouse()` — `?id=eq.{moradiaId}`
+        - `houseService.joinByCode()` — `?select=id,nome&codigo_convite=eq.SPLIT-1234`
+        - `houseService.createHouse()` — verifica se o código gerado já existe
+      operationId: listMoradias
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterId'
+        - name: codigo_convite
+          in: query
+          description: Filtro pelo código de convite (formato `SPLIT-0000`).
+          schema:
+            type: string
+          example: eq.SPLIT-0427
+        - $ref: '#/components/parameters/acceptObject'
+      responses:
+        '200':
+          description: Moradias encontradas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Moradia'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Moradias]
+      summary: Cadastrar moradia
+      description: |
+        Cria uma nova moradia com código de convite único. Logo em seguida o app insere o
+        criador em `membros_moradia` como `admin` / `aprovado` e grava as regras iniciais.
+
+        **No app:** `houseService.createHouse()` (telas `CreateHouseScreen` → `SetupRulesScreen`).
+      operationId: createMoradia
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoradiaInsert'
+      responses:
+        '201':
+          description: Moradia criada.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Moradia'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Moradias]
+      summary: Excluir moradia
+      description: |
+        Remove a moradia (em cascata: membros, regras, tarefas, despesas etc.).
+
+        **No app:** usado como rollback em `houseService.createHouse()` quando falha o vínculo
+        do administrador.
+      operationId: deleteMoradia
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+      responses:
+        '204':
+          description: Moradia removida.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # MEMBROS DA MORADIA
+  /rest/v1/membros_moradia:
+    get:
+      tags: [Membros]
+      summary: Listar membros / vínculos
+      description: |
+        Lista vínculos entre usuários e moradias. É a base do ranking (XP), do saldo de
+        moedas e da gestão de moradores.
+
+        **No app:**
+        - `houseService.getMyHouse()` — `?usuario_id=eq.{uid}&status=in.(aprovado,pendente)`
+        - `houseService.listMembers()` — `?moradia_id=eq.{id}&status=in.(aprovado,pendente)&order=entrou_em.asc`
+        - `rankingService` — `?moradia_id=eq.{id}&status=eq.aprovado`
+        - `storeService.getUserCoins()` — `?select=moedas&moradia_id=eq.{id}&usuario_id=eq.{uid}`
+        - `financeService.fetchFinancialReport()` — contagem com `Prefer: count=exact`
+      operationId: listMembros
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterId'
+        - $ref: '#/components/parameters/filterMoradiaId'
+        - $ref: '#/components/parameters/filterUsuarioId'
+        - name: status
+          in: query
+          description: Filtro pelo status do vínculo.
+          schema:
+            type: string
+          examples:
+            aprovados:
+              value: eq.aprovado
+            ativosEPendentes:
+              value: in.(aprovado,pendente)
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/preferCount'
+        - $ref: '#/components/parameters/acceptObject'
+      responses:
+        '200':
+          description: Lista de vínculos.
+          headers:
+            Content-Range:
+              $ref: '#/components/headers/ContentRange'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MembroMoradia'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Membros]
+      summary: Criar vínculo (entrar na moradia)
+      description: |
+        Cria o vínculo do usuário com a moradia.
+        - Ao **criar** uma casa: `papel=admin`, `status=aprovado`.
+        - Ao **entrar por código**: `papel=morador`, `status=pendente` (aguarda aprovação do admin).
+
+        **No app:** `houseService.createHouse()` e `houseService.joinByCode()`
+        (telas `JoinHouseScreen` / `PendingRequestScreen`).
+      operationId: createMembro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembroMoradiaInsert'
+      responses:
+        '201':
+          description: Vínculo criado.
+        '409':
+          description: O usuário já possui vínculo com essa moradia (`UNIQUE (moradia_id, usuario_id)`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostgrestError'
+    patch:
+      tags: [Membros]
+      summary: Atualizar vínculo
+      description: |
+        Usado para várias operações de negócio:
+
+        | Operação | Filtro | Corpo | Service |
+        |---|---|---|---|
+        | Aprovar/recusar entrada | `id=eq.{id}&status=eq.pendente` | `{"status":"aprovado"}` ou `"recusado"` | `houseService.respondRequest()` |
+        | Sair da casa | `id=eq.{id}` | `{"status":"saiu","papel":"morador"}` | `houseService.leaveHouse()` |
+        | Remover morador | `id=eq.{id}&status=eq.aprovado` | `{"status":"saiu"}` | `houseService.removeMember()` |
+        | Promover a admin | `id=eq.{id}&status=eq.aprovado` | `{"papel":"admin"}` | `houseService.promoteToAdmin()` |
+        | Creditar XP/moedas | `id=eq.{id}` | `{"xp":..,"moedas":..}` | `tasksService.validateTask()` |
+        | Debitar moedas | `id=eq.{id}` | `{"moedas":..}` | `storeService.redeemReward()` |
+      operationId: updateMembro
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+        - name: status
+          in: query
+          description: Filtro adicional de segurança pelo status atual.
+          schema:
+            type: string
+          example: eq.pendente
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MembroMoradiaUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedRepresentation'
+        '204':
+          description: Vínculo atualizado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ===========================================================================
+  # REGRAS DA MORADIA
+  # ===========================================================================
+  /rest/v1/regras_moradia:
+    get:
+      tags: [Regras]
+      summary: Listar regras da moradia
+      description: |
+        Retorna o estatuto de convivência em ordem.
+
+        **No app:** `houseService.fetchRules()` — `?moradia_id=eq.{id}&order=numero_ordem.asc`
+        (telas `HouseRulesScreen` e `EditHouseRulesScreen`).
+      operationId: listRegras
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterMoradiaIdRequired'
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Regras da moradia.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RegraMoradia'
+    post:
+      tags: [Regras]
+      summary: Inserir regras (em lote)
+      description: |
+        Aceita um array de regras. O app substitui o conjunto inteiro: primeiro apaga todas as
+        regras da moradia (`DELETE`) e depois insere a nova lista com `numero_ordem` sequencial.
+
+        **No app:** `houseService.saveRules()`.
+      operationId: createRegras
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/RegraMoradiaInsert'
+      responses:
+        '201':
+          description: Regras inseridas.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      tags: [Regras]
+      summary: Apagar todas as regras da moradia
+      description: |
+        **No app:** primeira etapa de `houseService.saveRules()`.
+      operationId: deleteRegras
+      parameters:
+        - $ref: '#/components/parameters/filterMoradiaIdRequired'
+      responses:
+        '204':
+          description: Regras removidas.
+
+  # TAREFAS
+  /rest/v1/tarefas:
+    get:
+      tags: [Tarefas]
+      summary: Listar tarefas da moradia
+      description: |
+        Lista as tarefas com o perfil do responsável embutido (join via `responsavel_id`).
+
+        **No app:** `tasksService.fetchTasks()`
+        ```
+        ?select=*,responsavel:responsavel_id(id,nome_completo)
+        &moradia_id=eq.{id}&order=prazo_limite.asc
+        ```
+        Também usado por `rankingService` (`?select=id,responsavel_id,status`) e `homeService`.
+      operationId: listTarefas
+      parameters:
+        - name: select
+          in: query
+          description: Colunas e relacionamentos a retornar.
+          schema:
+            type: string
+            default: '*'
+          example: '*,responsavel:responsavel_id(id,nome_completo)'
+        - $ref: '#/components/parameters/filterId'
+        - $ref: '#/components/parameters/filterMoradiaId'
+        - name: status
+          in: query
+          schema:
+            type: string
+          example: eq.pendente
+        - name: responsavel_id
+          in: query
+          schema:
+            type: string
+          example: eq.3f9c1a2e-1111-4c2b-9d1e-000000000001
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Lista de tarefas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tarefa'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Tarefas]
+      summary: Criar tarefa
+      description: |
+        Cria uma tarefa atribuída a um morador. O prazo digitado pelo usuário
+        ("Hoje, 22:00", "Amanhã", "Em 2 dias") é convertido para ISO 8601 antes do envio.
+
+        **No app:** `tasksService.createTask()` (tela `NewTaskScreen`).
+      operationId: createTarefa
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TarefaInsert'
+      responses:
+        '201':
+          description: Tarefa criada.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tarefa'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags: [Tarefas]
+      summary: Atualizar status da tarefa
+      description: |
+        Fluxo de status de uma tarefa:
+
+        ```
+        pendente ──(envia foto)──► em_validacao ──(aprovada)──► concluida
+                                         └──────(recusada)──► pendente
+        ```
+
+        **No app:**
+        - `tasksService.submitTaskValidation()` → `{"status":"em_validacao"}`
+        - `tasksService.validateTask()` → `{"status":"concluida"}` ou `{"status":"pendente"}`
+      operationId: updateTarefa
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TarefaUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedRepresentation'
+        '204':
+          description: Tarefa atualizada.
+
+  # VALIDAÇÕES DE TAREFA
+  /rest/v1/validacoes_tarefa:
+    get:
+      tags: [Validações]
+      summary: Buscar validação pendente de uma tarefa
+      description: |
+        **No app:** `tasksService.getPendingValidation()` — `?tarefa_id=eq.{id}&status=eq.pendente`
+        (tela `ValidateTaskScreen`, para exibir a foto enviada pelo executor).
+      operationId: listValidacoes
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: tarefa_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: eq.7b1e2c3d-2222-4c2b-9d1e-000000000010
+        - name: status
+          in: query
+          schema:
+            type: string
+          example: eq.pendente
+      responses:
+        '200':
+          description: Validações encontradas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidacaoTarefa'
+    post:
+      tags: [Validações]
+      summary: Enviar tarefa para validação (com foto)
+      description: |
+        Registra a submissão do executor. A foto é enviada antes ao Storage
+        (`POST /storage/v1/object/comprovantes/tarefas/...`) e a URL pública é gravada aqui.
+
+        **No app:** `tasksService.submitTaskValidation()` (tela `TaskDetailsScreen`).
+      operationId: createValidacao
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidacaoTarefaInsert'
+      responses:
+        '201':
+          description: Validação registrada.
+    patch:
+      tags: [Validações]
+      summary: Aprovar ou recusar tarefa
+      description: |
+        Outro morador (validador) aprova ou recusa a tarefa. Em caso de recusa a
+        justificativa é obrigatória. Se aprovada, o app credita `recompensa_xp` e
+        `recompensa_moedas` ao executor em `membros_moradia`.
+
+        **No app:** `tasksService.validateTask()` (tela `ValidateTaskScreen`).
+      operationId: updateValidacao
+      parameters:
+        - name: tarefa_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: eq.7b1e2c3d-2222-4c2b-9d1e-000000000010
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+          example: eq.pendente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidacaoTarefaUpdate'
+      responses:
+        '204':
+          description: Validação registrada.
+
+  # ===========================================================================
+  # DESPESAS
+  # ===========================================================================
+  /rest/v1/despesas:
+    get:
+      tags: [Despesas]
+      summary: Listar despesas
+      description: |
+        **No app:**
+        - `financeService.fetchExpenses()` — `?moradia_id=eq.{id}&order=criado_em.desc`
+          e, conforme a aba, `&status=eq.pendente|pago|recorrente` (tela `ExpensesListScreen`)
+        - `financeService.getExpenseDetails()` — `?id=eq.{id}` (tela `ExpenseDetailsScreen`)
+        - `financeService.fetchSettleUpData()` / `fetchFinancialReport()` (telas `SettleUpScreen` e `ReportScreen`)
+      operationId: listDespesas
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterId'
+        - $ref: '#/components/parameters/filterMoradiaId'
+        - name: status
+          in: query
+          schema:
+            type: string
+          example: eq.pendente
+        - name: pagador_id
+          in: query
+          schema:
+            type: string
+          example: in.(uuid1,uuid2)
+        - $ref: '#/components/parameters/order'
+        - $ref: '#/components/parameters/acceptObject'
+      responses:
+        '200':
+          description: Lista de despesas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Despesa'
+    post:
+      tags: [Despesas]
+      summary: Cadastrar despesa
+      description: |
+        Cria a despesa. Em seguida o app gera os rateios (`POST /rest/v1/rateios_despesa`),
+        dividindo igualmente entre os moradores selecionados ou usando valores personalizados.
+        A parte do próprio pagador já nasce como `pago`.
+
+        **No app:** `financeService.createExpense()` (tela `NewExpenseScreen`).
+      operationId: createDespesa
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DespesaInsert'
+      responses:
+        '201':
+          description: Despesa criada.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Despesa'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags: [Despesas]
+      summary: Marcar despesas como pagas
+      description: |
+        **No app:** `financeService.confirmPayment()` — após confirmar um acerto, as despesas
+        que não têm mais rateios pendentes passam a `pago` (`?id=in.(...)`).
+      operationId: updateDespesas
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: in.(uuid1,uuid2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DespesaUpdate'
+      responses:
+        '204':
+          description: Despesas atualizadas.
+
+  # ===========================================================================
+  # RATEIOS
+  # ===========================================================================
+  /rest/v1/rateios_despesa:
+    get:
+      tags: [Rateios]
+      summary: Listar rateios
+      description: |
+        **No app:**
+        - `financeService.getExpenseDetails()` — `?despesa_id=eq.{id}`
+        - `financeService.fetchSettleUpData()` — `?despesa_id=in.(...)&status=eq.pendente`
+          (usado para calcular quanto cada morador deve ao outro)
+      operationId: listRateios
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: despesa_id
+          in: query
+          schema:
+            type: string
+          examples:
+            umaDespesa:
+              value: eq.5a6b7c8d-3333-4c2b-9d1e-000000000020
+            variasDespesas:
+              value: in.(uuid1,uuid2)
+        - name: status
+          in: query
+          schema:
+            type: string
+          example: eq.pendente
+      responses:
+        '200':
+          description: Lista de rateios.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RateioDespesa'
+    post:
+      tags: [Rateios]
+      summary: Criar rateios (em lote)
+      description: |
+        **No app:** `financeService.createExpense()` — um registro por morador participante.
+      operationId: createRateios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/RateioDespesaInsert'
+      responses:
+        '201':
+          description: Rateios criados.
+        '409':
+          description: Já existe rateio para o morador nesta despesa (`UNIQUE (despesa_id, usuario_id)`).
+    patch:
+      tags: [Rateios]
+      summary: Quitar rateios
+      description: |
+        **No app:** `financeService.confirmPayment()` — quando o credor confirma um acerto,
+        os rateios pendentes entre os dois moradores (nos dois sentidos) viram `pago`.
+      operationId: updateRateios
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: in.(uuid1,uuid2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateioDespesaUpdate'
+      responses:
+        '204':
+          description: Rateios quitados.
+
+  # ===========================================================================
+  # PAGAMENTOS / ACERTO DE CONTAS
+  # ===========================================================================
+  /rest/v1/pagamentos_acerto:
+    get:
+      tags: [Acertos]
+      summary: Listar pagamentos aguardando confirmação
+      description: |
+        **No app:** `financeService.fetchPendingPayments()`
+        — `?moradia_id=eq.{id}&credor_id=eq.{uid}&status=eq.aguardando_aprovacao&order=criado_em.desc`
+        (tela `ConfirmPaymentScreen`).
+      operationId: listPagamentos
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterMoradiaId'
+        - name: credor_id
+          in: query
+          schema:
+            type: string
+          example: eq.3f9c1a2e-1111-4c2b-9d1e-000000000001
+        - name: status
+          in: query
+          schema:
+            type: string
+          example: eq.aguardando_aprovacao
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Lista de pagamentos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PagamentoAcerto'
+    post:
+      tags: [Acertos]
+      summary: Informar pagamento
+      description: |
+        O devedor informa que transferiu o valor (normalmente via Pix) e anexa o comprovante.
+        O pagamento fica `aguardando_aprovacao` até o credor confirmar.
+
+        **No app:** `financeService.informPayment()` (tela `SettleUpScreen`).
+      operationId: createPagamento
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagamentoAcertoInsert'
+      responses:
+        '201':
+          description: Pagamento registrado.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PagamentoAcerto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      tags: [Acertos]
+      summary: Confirmar ou rejeitar pagamento
+      description: |
+        O credor confirma (`confirmado`) ou rejeita (`rejeitado`) o recebimento. Ao confirmar,
+        o app quita os rateios pendentes entre os dois moradores e atualiza as despesas.
+
+        **No app:** `financeService.confirmPayment()` (tela `ConfirmPaymentScreen`).
+      operationId: updatePagamento
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagamentoAcertoUpdate'
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdatedRepresentation'
+
+  # ===========================================================================
+  # LOJA DE RECOMPENSAS
+  # ===========================================================================
+  /rest/v1/recompensas_loja:
+    get:
+      tags: [Loja]
+      summary: Listar recompensas da moradia
+      description: |
+        Retorna os itens da loja ordenados pelo custo. O app descarta itens com
+        `ativo=false` ou `status_aprovacao=recusada`. Se a moradia ainda não tiver itens,
+        o app insere um catálogo padrão (isenção da louça, escolha do filme, rei do sofá,
+        pizza coletiva).
+
+        **No app:** `storeService.fetchStoreItems()` — `?moradia_id=eq.{id}&order=custo_moedas.asc`
+        (tela `StoreScreen`).
+      operationId: listRecompensas
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterMoradiaIdRequired'
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Lista de recompensas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecompensaLoja'
+    post:
+      tags: [Loja]
+      summary: Propor nova recompensa
+      description: |
+        Aceita um objeto ou um array (seed do catálogo padrão). Após criar, o app gera uma
+        notificação do tipo `Recompensa`.
+
+        **No app:** `storeService.proposeReward()` (tela `ProposeRewardScreen`).
+      operationId: createRecompensa
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/RecompensaLojaInsert'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/RecompensaLojaInsert'
+      responses:
+        '201':
+          description: Recompensa(s) criada(s).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecompensaLoja'
+        '400':
+          description: 'Dados inválidos (ex.: `custo_moedas` ≤ 0 ou categoria fora da lista).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostgrestError'
+
+  # ===========================================================================
+  # RESGATES
+  # ===========================================================================
+  /rest/v1/resgates_recompensa:
+    post:
+      tags: [Resgates]
+      summary: Registrar resgate de recompensa
+      description: |
+        Fluxo completo do resgate em `storeService.redeemReward()`:
+        1. Lê o saldo em `membros_moradia` e verifica se é suficiente;
+        2. Debita as moedas (`PATCH /rest/v1/membros_moradia`);
+        3. Registra o resgate **(esta rota)**;
+        4. Cria uma notificação de confirmação.
+      operationId: createResgate
+      parameters:
+        - $ref: '#/components/parameters/preferReturn'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResgateRecompensaInsert'
+      responses:
+        '201':
+          description: Resgate registrado.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResgateRecompensa'
+
+  # ===========================================================================
+  # NOTIFICAÇÕES
+  # ===========================================================================
+  /rest/v1/notificacoes:
+    get:
+      tags: [Notificações]
+      summary: Listar notificações do usuário
+      description: |
+        A política RLS garante que cada usuário só leia as próprias notificações.
+
+        **No app:** `notificationsService.fetchNotifications()` — `?usuario_id=eq.{uid}&order=criado_em.desc`
+        (tela `NotificationsScreen`).
+      operationId: listNotificacoes
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/filterUsuarioId'
+        - name: lida
+          in: query
+          schema:
+            type: string
+          example: eq.false
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Lista de notificações.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notificacao'
+    post:
+      tags: [Notificações]
+      summary: Enviar notificação(ões)
+      description: |
+        Aceita um objeto ou um array (um registro por destinatário). Qualquer usuário
+        autenticado pode notificar outro morador.
+
+        **No app:**
+        - `rankingService` — cutucada (`tipo=Cutucada`) enviada pela tela `RankingScreen`
+        - `notificationsService.notifyUsers()` — avisos de validação, finanças etc.
+        - `storeService` — nova recompensa / resgate
+      operationId: createNotificacao
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/NotificacaoInsert'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/NotificacaoInsert'
+      responses:
+        '201':
+          description: Notificação(ões) criada(s).
+    patch:
+      tags: [Notificações]
+      summary: Marcar notificação como lida
+      description: |
+        **No app:** `notificationsService.markAsRead()` — `?id=eq.{id}` com `{"lida": true}`.
+      operationId: updateNotificacao
+      parameters:
+        - $ref: '#/components/parameters/filterIdRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lida:
+                  type: boolean
+                  example: true
+      responses:
+        '204':
+          description: Notificação atualizada.
+    delete:
+      tags: [Notificações]
+      summary: Limpar notificações lidas
+      description: |
+        **No app:** `notificationsService.clearReadNotifications()` — `?usuario_id=eq.{uid}&lida=eq.true`.
+      operationId: deleteNotificacoes
+      parameters:
+        - $ref: '#/components/parameters/filterUsuarioId'
+        - name: lida
+          in: query
+          schema:
+            type: string
+          example: eq.true
+      responses:
+        '204':
+          description: Notificações removidas.
+
+  # ===========================================================================
+  # STORAGE
+  # ===========================================================================
+  /storage/v1/object/comprovantes/{path}:
+    post:
+      tags: [Storage]
+      summary: Enviar imagem (foto ou comprovante)
+      description: |
+        Faz upload de uma imagem para o bucket público `comprovantes`. O caminho segue o
+        padrão `{pasta}/{timestamp}-{aleatorio}.{ext}`, onde a pasta é `tarefas`,
+        `despesas` ou `pagamentos`.
+
+        **No app:** `storageService.uploadImage()` — usado ao concluir tarefa, anexar nota
+        fiscal da despesa e anexar comprovante de pagamento.
+      operationId: uploadImagem
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Caminho do arquivo dentro do bucket.
+          schema:
+            type: string
+          example: tarefas/1762300000000-a1b2c3.jpg
+        - name: x-upsert
+          in: header
+          description: Se `true`, sobrescreve um arquivo existente. O app usa `false`.
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Upload concluído.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Key:
+                    type: string
+                    example: comprovantes/tarefas/1762300000000-a1b2c3.jpg
+        '400':
+          description: Arquivo já existe ou requisição inválida.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /storage/v1/object/public/comprovantes/{path}:
+    get:
+      tags: [Storage]
+      summary: Obter imagem pública
+      description: |
+        Leitura pública (sem autenticação) das imagens do bucket. Esta é a URL gravada nas
+        colunas `foto_comprovante_url` e `comprovante_url`.
+
+        **No app:** `supabase.storage.from('comprovantes').getPublicUrl(path)`.
+      operationId: getImagemPublica
+      security: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          example: despesas/1762300000000-x9y8z7.png
+      responses:
+        '200':
+          description: Arquivo de imagem.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Arquivo não encontrado.
+
+# =============================================================================
+# COMPONENTES
+# =============================================================================
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Chave pública **anon** do projeto Supabase (`EXPO_PUBLIC_SUPABASE_ANON_KEY`).
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: '`access_token` retornado em `POST /auth/v1/token?grant_type=password`.'
+
+  headers:
+    ContentRange:
+      description: 'Intervalo retornado e total de registros (quando `Prefer: count=exact`). Ex. `0-4/5`.'
+      schema:
+        type: string
+
+  parameters:
+    select:
+      name: select
+      in: query
+      description: Colunas a retornar (separadas por vírgula). Suporta joins, ex. `*,responsavel:responsavel_id(nome_completo)`.
+      schema:
+        type: string
+        default: '*'
+    order:
+      name: order
+      in: query
+      description: Ordenação no formato `coluna.asc` ou `coluna.desc`.
+      schema:
+        type: string
+      example: criado_em.desc
+    limit:
+      name: limit
+      in: query
+      description: Quantidade máxima de registros.
+      schema:
+        type: integer
+        minimum: 1
+    filterId:
+      name: id
+      in: query
+      description: Filtro pelo identificador, ex. `eq.{uuid}` ou `in.(uuid1,uuid2)`.
+      schema:
+        type: string
+      example: eq.3f9c1a2e-1111-4c2b-9d1e-000000000001
+    filterIdRequired:
+      name: id
+      in: query
+      required: true
+      description: Registro(s) a alterar, ex. `eq.{uuid}`. **Obrigatório** para não afetar a tabela inteira.
+      schema:
+        type: string
+      example: eq.3f9c1a2e-1111-4c2b-9d1e-000000000001
+    filterMoradiaId:
+      name: moradia_id
+      in: query
+      description: Filtro pela moradia, ex. `eq.{uuid}`.
+      schema:
+        type: string
+      example: eq.9d8e7f6a-0000-4c2b-9d1e-00000000abcd
+    filterMoradiaIdRequired:
+      name: moradia_id
+      in: query
+      required: true
+      description: Filtro pela moradia, ex. `eq.{uuid}`.
+      schema:
+        type: string
+      example: eq.9d8e7f6a-0000-4c2b-9d1e-00000000abcd
+    filterUsuarioId:
+      name: usuario_id
+      in: query
+      description: Filtro pelo usuário, ex. `eq.{uuid}`.
+      schema:
+        type: string
+      example: eq.3f9c1a2e-1111-4c2b-9d1e-000000000001
+    preferReturn:
+      name: Prefer
+      in: header
+      description: Use `return=representation` para receber o registro criado/alterado na resposta (equivalente ao `.select()` do SDK).
+      schema:
+        type: string
+        enum: [return=representation, return=minimal]
+        default: return=minimal
+    preferCount:
+      name: Prefer
+      in: header
+      description: Use `count=exact` para receber o total no header `Content-Range`.
+      schema:
+        type: string
+        enum: [count=exact, count=planned, count=estimated]
+    acceptObject:
+      name: Accept
+      in: header
+      description: Use `application/vnd.pgrst.object+json` para receber um único objeto em vez de array (equivalente a `.single()` / `.maybeSingle()`).
+      schema:
+        type: string
+        enum: [application/json, application/vnd.pgrst.object+json]
+        default: application/json
+
+  responses:
+    Unauthorized:
+      description: Token ausente, inválido ou expirado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostgrestError'
+          example:
+            code: PGRST301
+            message: JWT expired
+    BadRequest:
+      description: Dados inválidos (viola alguma restrição `CHECK` ou `NOT NULL`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostgrestError'
+          example:
+            code: '23514'
+            message: new row for relation "despesas" violates check constraint "despesas_valor_total_check"
+    Conflict:
+      description: Violação de unicidade.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostgrestError'
+          example:
+            code: '23505'
+            message: duplicate key value violates unique constraint "moradias_codigo_convite_key"
+    UpdatedRepresentation:
+      description: Registro(s) atualizado(s) — retornado quando `Prefer=return=representation`.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+    AuthError:
+      description: Erro do serviço de autenticação.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthErrorBody'
+
+  schemas:
+    # ---------------------------------------------------------------- Erros
+    PostgrestError:
+      type: object
+      description: Formato padrão de erro da API REST (PostgREST).
+      properties:
+        code:
+          type: string
+          description: Código do PostgreSQL ou do PostgREST.
+          example: '23505'
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+        hint:
+          type: string
+          nullable: true
+    AuthErrorBody:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        error_code:
+          type: string
+          example: invalid_credentials
+        msg:
+          type: string
+          example: Invalid login credentials
+
+    # --------------------------------------------------------- Autenticação
+    SignUpRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ana@email.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: senha123
+        data:
+          type: object
+          description: Metadados do usuário. `full_name` é usado pelo trigger que cria o perfil.
+          properties:
+            full_name:
+              type: string
+              example: Ana Leonidas
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ana@email.com
+        password:
+          type: string
+          format: password
+          example: senha123
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 6
+        data:
+          type: object
+          properties:
+            full_name:
+              type: string
+    Session:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT usado no header `Authorization`.
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 3600
+        refresh_token:
+          type: string
+        user:
+          $ref: '#/components/schemas/AuthUser'
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        user_metadata:
+          type: object
+          properties:
+            full_name:
+              type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # --------------------------------------------------------------- Perfis
+    Perfil:
+      type: object
+      description: Tabela `public.perfis`.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Mesmo UUID de `auth.users.id`.
+        nome_completo:
+          type: string
+          example: Ana Leonidas
+        email:
+          type: string
+          format: email
+        foto_url:
+          type: string
+          format: uri
+          nullable: true
+        chave_pix:
+          type: string
+          nullable: true
+          description: Chave Pix para receber acertos.
+          example: ana@email.com
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
+    PerfilUpdate:
+      type: object
+      properties:
+        nome_completo:
+          type: string
+        chave_pix:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+        foto_url:
+          type: string
+          nullable: true
+
+    # ------------------------------------------------------------- Moradias
+    Moradia:
+      type: object
+      description: Tabela `public.moradias`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+          example: República Toca do Saber
+        endereco:
+          type: string
+          example: Rua das Flores, 123 - Centro
+        tipo:
+          type: string
+          enum: [casa, apartamento]
+        estimativa_moradores:
+          type: integer
+          nullable: true
+          example: 4
+        codigo_convite:
+          type: string
+          description: Código único no formato `SPLIT-0000`.
+          example: SPLIT-0427
+        nome_ciclo_atual:
+          type: string
+          nullable: true
+          default: Ciclo Atual
+        criado_por:
+          type: string
+          format: uuid
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
+    MoradiaInsert:
+      type: object
+      required: [nome, endereco, tipo, codigo_convite]
+      properties:
+        nome:
+          type: string
+          example: República Toca do Saber
+        endereco:
+          type: string
+          example: Rua das Flores, 123 - Centro
+        tipo:
+          type: string
+          enum: [casa, apartamento]
+        estimativa_moradores:
+          type: integer
+          nullable: true
+          example: 4
+        codigo_convite:
+          type: string
+          example: SPLIT-0427
+        criado_por:
+          type: string
+          format: uuid
+
+    # -------------------------------------------------------------- Membros
+    MembroMoradia:
+      type: object
+      description: Tabela `public.membros_moradia`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        papel:
+          type: string
+          enum: [admin, morador]
+          default: morador
+        status:
+          type: string
+          enum: [pendente, aprovado, recusado, saiu]
+          default: pendente
+          description: |
+            - `pendente`: pediu para entrar e aguarda o admin
+            - `aprovado`: morador ativo
+            - `recusado`: solicitação negada
+            - `saiu`: saiu ou foi removido da casa
+        nivel:
+          type: integer
+          default: 1
+        titulo_nivel:
+          type: string
+          default: Iniciante
+        xp:
+          type: integer
+          default: 0
+          description: Pontos de experiência (usados no ranking).
+        moedas:
+          type: integer
+          default: 0
+          description: Saldo de moedas para a loja.
+        entrou_em:
+          type: string
+          format: date-time
+    MembroMoradiaInsert:
+      type: object
+      required: [moradia_id, usuario_id]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        papel:
+          type: string
+          enum: [admin, morador]
+          default: morador
+        status:
+          type: string
+          enum: [pendente, aprovado]
+          default: pendente
+    MembroMoradiaUpdate:
+      type: object
+      properties:
+        papel:
+          type: string
+          enum: [admin, morador]
+        status:
+          type: string
+          enum: [pendente, aprovado, recusado, saiu]
+        xp:
+          type: integer
+        moedas:
+          type: integer
+          minimum: 0
+
+    # --------------------------------------------------------------- Regras
+    RegraMoradia:
+      type: object
+      description: Tabela `public.regras_moradia`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        numero_ordem:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          example: Silêncio após as 22h
+        destaque:
+          type: string
+          nullable: true
+          example: Seg a sex
+        descricao:
+          type: string
+          example: Evitar barulho nas áreas comuns após as 22h em dias úteis.
+        nome_icone:
+          type: string
+          nullable: true
+          default: file-text
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
+    RegraMoradiaInsert:
+      type: object
+      required: [moradia_id, titulo, descricao]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        numero_ordem:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          example: Silêncio após as 22h
+        destaque:
+          type: string
+          nullable: true
+        descricao:
+          type: string
+
+    # -------------------------------------------------------------- Tarefas
+    Tarefa:
+      type: object
+      description: Tabela `public.tarefas`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Lavar louça do almoço
+        descricao:
+          type: string
+          nullable: true
+        comodo:
+          type: string
+          example: Cozinha
+        tipo:
+          type: string
+          enum: [Fixa, Rotativa, Emergencial]
+        responsavel_id:
+          type: string
+          format: uuid
+        responsavel:
+          type: object
+          nullable: true
+          description: Perfil do responsável (retornado apenas quando solicitado no `select`).
+          properties:
+            id:
+              type: string
+              format: uuid
+            nome_completo:
+              type: string
+        prazo_limite:
+          type: string
+          format: date-time
+        recompensa_xp:
+          type: integer
+          default: 25
+        recompensa_moedas:
+          type: integer
+          default: 10
+        requer_validacao:
+          type: boolean
+          default: false
+        status:
+          type: string
+          enum: [pendente, em_validacao, concluida, expirada]
+          default: pendente
+        criado_por:
+          type: string
+          format: uuid
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+        concluido_em:
+          type: string
+          format: date-time
+          nullable: true
+        atualizado_em:
+          type: string
+          format: date-time
+    TarefaInsert:
+      type: object
+      required: [moradia_id, titulo, comodo, tipo, responsavel_id]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Tirar o lixo reciclável
+        descricao:
+          type: string
+          nullable: true
+          example: 'Cômodo: Área externa'
+        comodo:
+          type: string
+          example: Área externa
+        tipo:
+          type: string
+          enum: [Fixa, Rotativa, Emergencial]
+        responsavel_id:
+          type: string
+          format: uuid
+        prazo_limite:
+          type: string
+          format: date-time
+          example: '2026-11-05T19:00:00.000Z'
+        recompensa_xp:
+          type: integer
+          example: 25
+        recompensa_moedas:
+          type: integer
+          example: 10
+        requer_validacao:
+          type: boolean
+          example: true
+        status:
+          type: string
+          enum: [pendente]
+          default: pendente
+        criado_por:
+          type: string
+          format: uuid
+    TarefaUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pendente, em_validacao, concluida, expirada]
+        atualizado_em:
+          type: string
+          format: date-time
+
+    # ----------------------------------------------------------- Validações
+    ValidacaoTarefa:
+      type: object
+      description: Tabela `public.validacoes_tarefa`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        tarefa_id:
+          type: string
+          format: uuid
+        executor_id:
+          type: string
+          format: uuid
+          description: Morador que executou a tarefa.
+        validador_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Morador que avaliou (não pode ser o executor).
+        validador_nome:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pendente, aprovada, recusada]
+        justificativa:
+          type: string
+          nullable: true
+          description: Obrigatória em caso de recusa.
+        foto_comprovante_url:
+          type: string
+          format: uri
+        data_hora_foto:
+          type: string
+          format: date-time
+          nullable: true
+        validado_em:
+          type: string
+          format: date-time
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+    ValidacaoTarefaInsert:
+      type: object
+      required: [tarefa_id, executor_id, foto_comprovante_url, status]
+      properties:
+        tarefa_id:
+          type: string
+          format: uuid
+        executor_id:
+          type: string
+          format: uuid
+        foto_comprovante_url:
+          type: string
+          format: uri
+          example: https://seu-projeto.supabase.co/storage/v1/object/public/comprovantes/tarefas/1762300000000-a1b2c3.jpg
+        status:
+          type: string
+          enum: [pendente]
+    ValidacaoTarefaUpdate:
+      type: object
+      required: [validador_id, status]
+      properties:
+        validador_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [aprovada, recusada]
+        justificativa:
+          type: string
+          nullable: true
+          example: A pia ainda está com louça suja.
+        validado_em:
+          type: string
+          format: date-time
+
+    # ------------------------------------------------------------- Despesas
+    Despesa:
+      type: object
+      description: Tabela `public.despesas`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Conta de luz - Outubro
+        categoria:
+          type: string
+          default: Geral
+          example: Utilidades
+          description: Ex. Utilidades, Aluguel, Mercado, Limpeza, Outros.
+        valor_total:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+          example: 240.5
+        data_vencimento:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-10'
+        status:
+          type: string
+          enum: [pendente, pago, parcial, recorrente]
+          default: pendente
+        tipo_divisao:
+          type: string
+          enum: [igualitaria, porcentagem, fixo]
+          default: igualitaria
+        pagador_id:
+          type: string
+          format: uuid
+          description: Morador que pagou a conta inicialmente.
+        comprovante_url:
+          type: string
+          format: uri
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
+    DespesaInsert:
+      type: object
+      required: [moradia_id, titulo, valor_total, pagador_id]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Conta de luz - Outubro
+        categoria:
+          type: string
+          example: Utilidades
+        valor_total:
+          type: number
+          example: 240.5
+        data_vencimento:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-10'
+        tipo_divisao:
+          type: string
+          enum: [igualitaria, porcentagem, fixo]
+          default: igualitaria
+        pagador_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pendente]
+          default: pendente
+        comprovante_url:
+          type: string
+          format: uri
+          nullable: true
+    DespesaUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pendente, pago, parcial, recorrente]
+          example: pago
+        atualizado_em:
+          type: string
+          format: date-time
+
+    # -------------------------------------------------------------- Rateios
+    RateioDespesa:
+      type: object
+      description: Tabela `public.rateios_despesa`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        despesa_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        valor_parte:
+          type: number
+          format: double
+          minimum: 0
+          example: 60.13
+        status:
+          type: string
+          enum: [pendente, pago]
+          default: pendente
+        pago_em:
+          type: string
+          format: date-time
+          nullable: true
+    RateioDespesaInsert:
+      type: object
+      required: [despesa_id, usuario_id, valor_parte]
+      properties:
+        despesa_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        valor_parte:
+          type: number
+          example: 60.13
+        status:
+          type: string
+          enum: [pendente, pago]
+          description: A parte do próprio pagador já é criada como `pago`.
+        pago_em:
+          type: string
+          format: date-time
+          nullable: true
+    RateioDespesaUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pago]
+        pago_em:
+          type: string
+          format: date-time
+
+    # ------------------------------------------------------------- Acertos
+    PagamentoAcerto:
+      type: object
+      description: Tabela `public.pagamentos_acerto`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        devedor_id:
+          type: string
+          format: uuid
+          description: Quem está pagando.
+        credor_id:
+          type: string
+          format: uuid
+          description: Quem está recebendo (e precisa confirmar).
+        valor:
+          type: number
+          format: double
+          example: 60.13
+        status:
+          type: string
+          enum: [aguardando_aprovacao, confirmado, rejeitado]
+          default: aguardando_aprovacao
+        comprovante_url:
+          type: string
+          format: uri
+          nullable: true
+        metodo_pagamento:
+          type: string
+          default: pix
+        confirmado_em:
+          type: string
+          format: date-time
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+    PagamentoAcertoInsert:
+      type: object
+      required: [moradia_id, devedor_id, credor_id, valor]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        devedor_id:
+          type: string
+          format: uuid
+        credor_id:
+          type: string
+          format: uuid
+        valor:
+          type: number
+          example: 60.13
+        comprovante_url:
+          type: string
+          format: uri
+          nullable: true
+        metodo_pagamento:
+          type: string
+          default: pix
+        status:
+          type: string
+          enum: [aguardando_aprovacao]
+          default: aguardando_aprovacao
+    PagamentoAcertoUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [confirmado, rejeitado]
+        confirmado_em:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ----------------------------------------------------------------- Loja
+    RecompensaLoja:
+      type: object
+      description: Tabela `public.recompensas_loja`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Isenção da louça
+        subtitulo:
+          type: string
+          nullable: true
+          example: Fim de semana livre
+        categoria:
+          type: string
+          enum: [Folga, Convivência, Bônus]
+        custo_moedas:
+          type: integer
+          minimum: 1
+          example: 150
+        descricao:
+          type: string
+          nullable: true
+        disponibilidade:
+          type: string
+          nullable: true
+          default: Disponível
+          example: 2 vagas no mês
+        limite_por_ciclo:
+          type: integer
+          default: 1
+        tipo_icone:
+          type: string
+          enum: [minus-circle, tv, sofa, pizza]
+          default: minus-circle
+        ativo:
+          type: boolean
+          default: true
+        status_aprovacao:
+          type: string
+          enum: [pendente, aprovada, recusada]
+          default: aprovada
+        criado_por:
+          type: string
+          format: uuid
+          nullable: true
+        criado_em:
+          type: string
+          format: date-time
+        atualizado_em:
+          type: string
+          format: date-time
+    RecompensaLojaInsert:
+      type: object
+      required: [moradia_id, titulo, categoria, custo_moedas]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+          example: Escolha do filme
+        subtitulo:
+          type: string
+          example: Sessão de sexta-feira
+        categoria:
+          type: string
+          enum: [Folga, Convivência, Bônus]
+        custo_moedas:
+          type: integer
+          minimum: 1
+          example: 80
+        descricao:
+          type: string
+          nullable: true
+          example: Controle remoto exclusivo da TV da sala na sessão coletiva.
+        disponibilidade:
+          type: string
+          example: Disponível semanalmente
+        tipo_icone:
+          type: string
+          enum: [minus-circle, tv, sofa, pizza]
+        ativo:
+          type: boolean
+          default: true
+        status_aprovacao:
+          type: string
+          enum: [pendente, aprovada, recusada]
+          default: aprovada
+        criado_por:
+          type: string
+          format: uuid
+
+    # ------------------------------------------------------------- Resgates
+    ResgateRecompensa:
+      type: object
+      description: Tabela `public.resgates_recompensa`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        recompensa_id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        custo_moedas:
+          type: integer
+          minimum: 1
+          example: 150
+        status:
+          type: string
+          enum: [ativo, utilizado, cancelado]
+          default: ativo
+        resgatado_em:
+          type: string
+          format: date-time
+    ResgateRecompensaInsert:
+      type: object
+      required: [recompensa_id, moradia_id, usuario_id, custo_moedas]
+      properties:
+        recompensa_id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        custo_moedas:
+          type: integer
+          minimum: 1
+          example: 150
+        status:
+          type: string
+          enum: [ativo]
+          default: ativo
+
+    # --------------------------------------------------------- Notificações
+    Notificacao:
+      type: object
+      description: Tabela `public.notificacoes`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        moradia_id:
+          type: string
+          format: uuid
+          nullable: true
+        usuario_id:
+          type: string
+          format: uuid
+          description: Destinatário.
+        remetente_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Autor (ex. quem enviou a cutucada).
+        tipo:
+          type: string
+          enum: [Cutucada, Validação, Vencimento, Concluída, Recompensa]
+        category_filter:
+          type: string
+          enum: [Validações, Finanças, Cutucadas, Geral]
+          default: Cutucadas
+          description: Aba de filtro na tela de notificações.
+        titulo:
+          type: string
+          example: Você foi cutucado!
+        descricao:
+          type: string
+          example: Ana lembrou você de concluir "Lavar louça do almoço".
+        action_text:
+          type: string
+          nullable: true
+          example: Ver tarefa
+        extra_meta:
+          type: string
+          nullable: true
+        has_coin_icon:
+          type: boolean
+          default: false
+        lida:
+          type: boolean
+          default: false
+        criado_em:
+          type: string
+          format: date-time
+    NotificacaoInsert:
+      type: object
+      required: [usuario_id, tipo, titulo, descricao]
+      properties:
+        moradia_id:
+          type: string
+          format: uuid
+        usuario_id:
+          type: string
+          format: uuid
+        remetente_id:
+          type: string
+          format: uuid
+          nullable: true
+        tipo:
+          type: string
+          enum: [Cutucada, Validação, Vencimento, Concluída, Recompensa]
+        category_filter:
+          type: string
+          enum: [Validações, Finanças, Cutucadas, Geral]
+        titulo:
+          type: string
+          example: Você foi cutucado!
+        descricao:
+          type: string
+          example: Ana lembrou você de concluir suas tarefas.
+        action_text:
+          type: string
+          nullable: true
+        extra_meta:
+          type: string
+          nullable: true
+        has_coin_icon:
+          type: boolean
+          default: false
+        lida:
+          type: boolean
+          default: false

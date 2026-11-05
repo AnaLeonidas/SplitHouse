@@ -30,7 +30,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "npx tsc --noEmit && node --test tests/*.test.js"
+    "test": "npx tsc --noEmit && node --test tests/*.test.js",
+    "docs": "npx --yes serve docs"
   },
   "private": true
 }
