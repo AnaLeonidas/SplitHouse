@@ -18,11 +18,21 @@ interface AuthContextData {
   /** Realiza a autenticação por e-mail e senha */
   signIn: (email: string, password: string) => Promise<void>;
   /** Cadastra um novo morador e dispara a criação automática do perfil no banco */
-  signUp: (email: string, password: string, nomeCompleto: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    nomeCompleto: string
+  ) => Promise<{ user: User | null; session: Session | null; emailConfirmed: boolean }>;
   /** Encerra a sessão atual do morador no dispositivo */
   signOut: () => Promise<void>;
   /** Dispara e-mail com instruções para redefinição de senha */
   resetPassword: (email: string) => Promise<void>;
+  /** Reenvia o e-mail de confirmação de cadastro para a conta */
+  resendConfirmationEmail: (email: string) => Promise<void>;
+  /** Valida o código/token de recuperação recebido por e-mail */
+  verifyRecoveryOtp: (email: string, token: string) => Promise<void>;
+  /** Atualiza a senha do morador na sessão de recuperação */
+  updatePassword: (newPassword: string) => Promise<void>;
   /** Recarrega os dados do perfil do morador a partir do Supabase */
   refreshProfile: () => Promise<void>;
 }
@@ -121,16 +131,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * @throws {AuthError} Lança erro caso o e-mail já esteja cadastrado.
    */
   const signUp = async (email: string, password: string, nomeCompleto: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: nomeCompleto,
         },
+        emailRedirectTo: 'splithouse://confirm-email',
       },
     });
 
+    if (error) {
+      throw error;
+    }
+
+    const emailConfirmed = !!(
+      data.user &&
+      (data.user.confirmed_at || (data.user as any).email_confirmed_at || data.session)
+    );
+
+    return {
+      user: data.user,
+      session: data.session,
+      emailConfirmed,
+    };
+  };
+
+  /**
+   * Reenvia o e-mail de ativação e confirmação da conta.
+   */
+  const resendConfirmationEmail = async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: 'splithouse://confirm-email',
+      },
+    });
     if (error) {
       throw error;
     }
@@ -158,7 +196,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * @throws {AuthError} Lança erro caso o serviço de e-mail falhe.
    */
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'splithouse://reset-password',
+    });
+    if (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Valida o token / OTP recebido por e-mail para autorizar a recuperação de senha.
+   */
+  const verifyRecoveryOtp = async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    });
+    if (error) {
+      throw error;
+    }
+    if (data.session) {
+      setSession(data.session);
+      setUser(data.user);
+    }
+  };
+
+  /**
+   * Atualiza a senha da conta com a nova credencial informada.
+   */
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
     if (error) {
       throw error;
     }
@@ -184,6 +254,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         resetPassword,
+        resendConfirmationEmail,
+        verifyRecoveryOtp,
+        updatePassword,
         refreshProfile,
       }}
     >

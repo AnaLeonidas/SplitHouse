@@ -16,6 +16,7 @@ import { WelcomeScreen } from './src/screens/auth/WelcomeScreen';
 import { LoginScreen } from './src/screens/auth/LoginScreen';
 import { RegisterScreen } from './src/screens/auth/RegisterScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen } from './src/screens/auth/ResetPasswordScreen';
 import { HouseSelectionScreen } from './src/screens/house/HouseSelectionScreen';
 import { CreateHouseScreen } from './src/screens/house/CreateHouseScreen';
 import { SetupRulesScreen } from './src/screens/house/SetupRulesScreen';
@@ -88,6 +89,7 @@ type Screen =
   | 'login'
   | 'register'
   | 'forgot_password'
+  | 'reset_password'
   | 'house_selection'
   | 'create_house'
   | 'setup_rules'
@@ -153,6 +155,7 @@ function MainApp() {
     averagePerResident: '0,00',
     history: [],
   });
+  const [recoveryEmail, setRecoveryEmail] = useState<string>('');
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
@@ -281,6 +284,46 @@ function MainApp() {
     return () => clearInterval(timer);
   }, [user?.id, myHouse?.moradia_id, myHouse?.status]);
 
+  // Escuta links profundos do app (confirmação de e-mail e recuperação de senha)
+  useEffect(() => {
+    const handleDeepLink = (url?: string | null) => {
+      if (!url) return;
+      try {
+        if (url.includes('reset-password') || url.includes('type=recovery')) {
+          setCurrentScreen('reset_password');
+        } else if (
+          url.includes('confirm-email') ||
+          url.includes('type=signup') ||
+          url.includes('type=email')
+        ) {
+          Alert.alert(
+            'E-mail ativado!',
+            'Sua conta foi confirmada com sucesso. Faça login para continuar.'
+          );
+          setCurrentScreen('login');
+        }
+      } catch (err) {
+        console.warn('App: Erro ao processar deep link:', err);
+      }
+    };
+
+    Linking.getInitialURL().then(handleDeepLink);
+    const sub = Linking.addEventListener('url', (event) => handleDeepLink(event.url));
+    return () => sub.remove();
+  }, []);
+
+  // Escuta evento de recuperação de senha disparado nativamente pelo Supabase Auth
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setCurrentScreen('reset_password');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   /** Recarrega tarefas da moradia. */
   const reloadTasks = async () => {
     const fetched = await tasksService.fetchTasks(
@@ -318,7 +361,8 @@ function MainApp() {
       currentScreen !== 'welcome' &&
       currentScreen !== 'login' &&
       currentScreen !== 'register' &&
-      currentScreen !== 'forgot_password'
+      currentScreen !== 'forgot_password' &&
+      currentScreen !== 'reset_password'
     ) {
       setCurrentScreen('welcome');
     }
@@ -636,7 +680,20 @@ function MainApp() {
       {currentScreen === 'forgot_password' && (
         <ForgotPasswordScreen
           onBackPress={() => setCurrentScreen('login')}
-          onSubmit={(email) => { }}
+          onSubmit={(email) => setRecoveryEmail(email)}
+          onEnterCodePress={(email) => {
+            setRecoveryEmail(email);
+            setCurrentScreen('reset_password');
+          }}
+          onLoginPress={() => setCurrentScreen('login')}
+        />
+      )}
+
+      {currentScreen === 'reset_password' && (
+        <ResetPasswordScreen
+          initialEmail={recoveryEmail}
+          onBackPress={() => setCurrentScreen('forgot_password')}
+          onSuccess={() => setCurrentScreen('login')}
           onLoginPress={() => setCurrentScreen('login')}
         />
       )}

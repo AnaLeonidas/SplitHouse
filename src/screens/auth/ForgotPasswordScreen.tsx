@@ -25,6 +25,8 @@ interface ForgotPasswordScreenProps {
   onBackPress?: () => void;
   /** Callback de submissão do e-mail para envio do link de redefinição */
   onSubmit?: (email: string) => void;
+  /** Callback para ir à tela de digitação do código/token de recuperação */
+  onEnterCodePress?: (email: string) => void;
   /** Callback para retornar à tela de login */
   onLoginPress?: () => void;
 }
@@ -38,6 +40,7 @@ interface ForgotPasswordScreenProps {
 export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBackPress,
   onSubmit,
+  onEnterCodePress,
   onLoginPress,
 }) => {
   const { resetPassword } = useAuth();
@@ -59,8 +62,24 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       setLoading(true);
       await resetPassword(email.trim());
       Alert.alert(
-        'E-mail enviado',
-        'Se o e-mail estiver cadastrado, enviamos as instruções para redefinição de senha na sua caixa de entrada.'
+        'E-mail de recuperação enviado',
+        `Enviamos as instruções e o código de recuperação para ${email.trim()}.\n\nVocê pode clicar no link enviado por e-mail ou digitar o código de verificação recebido.`,
+        [
+          {
+            text: 'Voltar ao Login',
+            onPress: () => onLoginPress && onLoginPress(),
+          },
+          {
+            text: 'Digitar Código',
+            onPress: () => {
+              if (onEnterCodePress) {
+                onEnterCodePress(email.trim());
+              } else if (onSubmit) {
+                onSubmit(email.trim());
+              }
+            },
+          },
+        ]
       );
       if (onSubmit) {
         onSubmit(email.trim());
@@ -187,6 +206,16 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             </View>
 
             <View style={styles.footer}>
+              <TouchableOpacity
+                style={styles.enterCodeRow}
+                activeOpacity={0.75}
+                onPress={() => onEnterCodePress && onEnterCodePress(email.trim())}
+                disabled={loading}
+              >
+                <Feather name="key" size={14} color={Colors.primary} />
+                <Text style={styles.enterCodeText}>Já tem um código? Redefinir senha</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.backToLoginRow}
                 activeOpacity={0.75}
@@ -355,6 +384,18 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     paddingTop: 24,
+    gap: 12,
+  },
+  enterCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 6,
+  },
+  enterCodeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
   },
   backToLoginRow: {
     flexDirection: 'row',

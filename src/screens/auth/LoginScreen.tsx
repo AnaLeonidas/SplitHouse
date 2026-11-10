@@ -46,7 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onRegisterPress,
   onGooglePress,
 }) => {
-  const { signIn } = useAuth();
+  const { signIn, resendConfirmationEmail } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -79,8 +79,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       const msg = error?.message || '';
       if (msg.includes('Invalid login credentials')) {
         Alert.alert('Erro no login', 'E-mail ou senha incorretos.');
-      } else if (msg.includes('Email not confirmed')) {
-        Alert.alert('Atenção', 'Por favor, confirme seu e-mail antes de acessar.');
+      } else if (msg.includes('Email not confirmed') || error?.code === 'email_not_confirmed') {
+        Alert.alert(
+          'E-mail não confirmado',
+          'Você precisa confirmar seu e-mail antes de acessar o aplicativo. Deseja que enviemos novamente o e-mail de ativação?',
+          [
+            { text: 'Agora não', style: 'cancel' },
+            {
+              text: 'Reenviar e-mail',
+              onPress: async () => {
+                try {
+                  await resendConfirmationEmail(email.trim());
+                  Alert.alert(
+                    'E-mail enviado',
+                    'Novo link de confirmação enviado para o seu e-mail. Verifique também a pasta de spam.'
+                  );
+                } catch (resendErr: any) {
+                  Alert.alert(
+                    'Erro ao reenviar',
+                    resendErr?.message || 'Aguarde alguns instantes antes de solicitar novamente.'
+                  );
+                }
+              },
+            },
+          ]
+        );
       } else {
         Alert.alert('Erro no login', msg || 'Não foi possível entrar. Verifique seus dados.');
       }
