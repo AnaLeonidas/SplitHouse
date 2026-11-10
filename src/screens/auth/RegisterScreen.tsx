@@ -89,10 +89,23 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
 
     try {
       setLoading(true);
-      await signUp(email.trim(), password, name.trim());
-      Alert.alert('Sucesso', 'Conta criada com sucesso!');
-      if (onRegisterSubmit) {
-        onRegisterSubmit(name.trim(), email.trim(), password);
+      const result = await signUp(email.trim(), password, name.trim());
+      if (!result.emailConfirmed && !result.session) {
+        Alert.alert(
+          'Confirmação necessária',
+          `Sua conta foi criada! Enviamos um e-mail de ativação para ${email.trim()}.\n\nPor favor, confirme seu e-mail antes de fazer login.`,
+          [
+            {
+              text: 'Ir para o Login',
+              onPress: () => onLoginPress && onLoginPress(),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Sucesso', 'Conta criada com sucesso!');
+        if (onRegisterSubmit) {
+          onRegisterSubmit(name.trim(), email.trim(), password);
+        }
       }
     } catch (error: any) {
       const msg = error?.message || '';

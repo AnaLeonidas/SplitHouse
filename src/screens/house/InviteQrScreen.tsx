@@ -10,8 +10,9 @@ import {
   Share,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { QRCode } from '../../components/QRCode';
 
 /**
  * Propriedades e callbacks da tela de compartilhamento de convite e QR Code.
@@ -109,46 +110,12 @@ export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
           </View>
 
           <View style={styles.qrContainer}>
-            <Svg width="160" height="160" viewBox="0 0 160 160">
-              <Rect x="10" y="10" width="40" height="40" rx="6" fill="#2D2D2A" />
-              <Rect x="18" y="18" width="24" height="24" rx="3" fill="#FCFCFC" />
-              <Rect x="24" y="24" width="12" height="12" rx="2" fill="#5E2B97" />
-
-              <Rect x="110" y="10" width="40" height="40" rx="6" fill="#2D2D2A" />
-              <Rect x="118" y="18" width="24" height="24" rx="3" fill="#FCFCFC" />
-              <Rect x="124" y="24" width="12" height="12" rx="2" fill="#5E2B97" />
-
-              <Rect x="10" y="110" width="40" height="40" rx="6" fill="#2D2D2A" />
-              <Rect x="18" y="118" width="24" height="24" rx="3" fill="#FCFCFC" />
-              <Rect x="24" y="124" width="12" height="12" rx="2" fill="#5E2B97" />
-
-              <Rect x="60" y="15" width="10" height="10" rx="2" fill="#2D2D2A" />
-              <Rect x="75" y="15" width="10" height="20" rx="2" fill="#2D2D2A" />
-              <Rect x="90" y="25" width="10" height="10" rx="2" fill="#2D2D2A" />
-
-              <Rect x="15" y="60" width="20" height="10" rx="2" fill="#2D2D2A" />
-              <Rect x="25" y="75" width="10" height="20" rx="2" fill="#2D2D2A" />
-              <Rect x="15" y="90" width="10" height="10" rx="2" fill="#2D2D2A" />
-
-              <Rect x="115" y="60" width="10" height="15" rx="2" fill="#2D2D2A" />
-              <Rect x="135" y="70" width="15" height="10" rx="2" fill="#2D2D2A" />
-              <Rect x="125" y="90" width="10" height="15" rx="2" fill="#2D2D2A" />
-
-              <Rect x="60" y="120" width="15" height="10" rx="2" fill="#2D2D2A" />
-              <Rect x="85" y="130" width="10" height="15" rx="2" fill="#2D2D2A" />
-              <Rect x="105" y="120" width="20" height="10" rx="2" fill="#2D2D2A" />
-              <Rect x="135" y="135" width="15" height="15" rx="2" fill="#2D2D2A" />
-
-              <Rect x="60" y="60" width="40" height="40" rx="10" fill="#5E2B97" />
-              <Path
-                d="M68 76 L80 69 L92 76 V87 A2 2 0 0 1 90 89 H70 A2 2 0 0 1 68 87 Z"
-                fill="none"
-                stroke="#FCFCFC"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
+            <QRCode
+              value={houseCode || 'SPLIT-0000'}
+              size={168}
+              color="#2D2D2A"
+              backgroundColor="#FFFFFF"
+            />
           </View>
 
           <Text style={styles.qrHelperText}>
