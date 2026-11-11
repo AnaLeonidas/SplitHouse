@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 /**
  * Propriedades e callbacks de autenticação da tela de login.
  */
-interface LoginScreenProps {
+export interface LoginScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão das credenciais de e-mail e senha */

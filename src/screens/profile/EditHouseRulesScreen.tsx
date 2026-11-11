@@ -29,7 +29,7 @@ export interface EditableRule {
 /**
  * Propriedades e callbacks da tela de edição do estatuto da república.
  */
-interface EditHouseRulesScreenProps {
+export interface EditHouseRulesScreenProps {
   /** Nome da república */
   republicName?: string;
   /** Callback para voltar à visualização de regras */

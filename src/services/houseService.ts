@@ -13,9 +13,13 @@ import {
  * Dados do formulário de cadastro de moradia (CreateHouseScreen).
  */
 export interface CreateHouseInput {
+  /** Nome de exibição da república ou apartamento */
   name: string;
+  /** Endereço completo da moradia */
   address: string;
+  /** Tipologia do imóvel ('apartment' ou 'house') */
   type: 'apartment' | 'house';
+  /** Estimativa textual de quantidade de moradores */
   residentsCount: string;
 }
 
@@ -23,12 +27,18 @@ export interface CreateHouseInput {
  * Resultado da solicitação de entrada em uma moradia por código.
  */
 export interface JoinHouseResult {
+  /** UUID da moradia localizada pelo código de convite */
   moradiaId: string;
+  /** Nome da moradia localizada */
   moradiaNome: string;
 }
 
 /**
- * Converte erros do Supabase em Error com mensagem amigável.
+ * Converte erros do Supabase em `Error` com mensagem amigável.
+ *
+ * @param error Objeto de erro vindo do Supabase.
+ * @param fallback Mensagem padrão caso o erro não tenha descrição.
+ * @returns Instância de erro formatada.
  */
 function toError(error: { message?: string } | null, fallback: string): Error {
   return new Error(error?.message || fallback);
@@ -65,8 +75,8 @@ export const houseService = {
    *
    * @param input Dados do formulário de cadastro.
    * @param rules Regras de convivência definidas no passo seguinte.
-   * @returns {Promise<MoradiaDB>} Moradia criada, incluindo o código de convite.
-   * @throws {Error} Se o usuário não estiver autenticado ou já pertencer a uma casa.
+   * @returns Moradia criada, incluindo o código de convite.
+   * @throws Se o usuário não estiver autenticado ou já pertencer a uma casa.
    */
   async createHouse(input: CreateHouseInput, rules: RegraInput[] = []): Promise<MoradiaDB> {
     const userId = await currentUserId();
@@ -199,7 +209,7 @@ export const houseService = {
   /**
    * Obtém o vínculo atual do usuário logado (casa aprovada ou solicitação pendente).
    *
-   * @returns {Promise<MinhaMoradia | null>} Vínculo atual, ou null se não houver.
+   * @returns Vínculo atual, ou null se não houver.
    */
   async getMyHouse(): Promise<MinhaMoradia | null> {
     const userId = await currentUserId();

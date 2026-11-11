@@ -8,6 +8,9 @@ export const STORAGE_BUCKET = 'comprovantes';
 /**
  * Abre a câmera (ou galeria) e retorna a URI local da imagem escolhida.
  * Retorna null se o usuário cancelar ou negar a permissão.
+ *
+ * @param source Origem de captura desejada ('camera' ou 'library').
+ * @returns URI local do arquivo de imagem ou null em caso de cancelamento/erro.
  */
 export async function pickImage(source: 'camera' | 'library'): Promise<string | null> {
   try {
@@ -45,6 +48,9 @@ export async function pickImage(source: 'camera' | 'library'): Promise<string | 
 
 /**
  * Pergunta ao usuário se deseja usar a câmera ou a galeria e retorna a URI escolhida.
+ *
+ * @param title Título exibido no alerta de seleção de origem (padrão: 'Anexar imagem').
+ * @returns URI local da imagem selecionada ou null se cancelado.
  */
 export function pickImageWithPrompt(title = 'Anexar imagem'): Promise<string | null> {
   if (Platform.OS === 'web') {
@@ -70,6 +76,7 @@ export function pickImageWithPrompt(title = 'Anexar imagem'): Promise<string | n
  *
  * @param uri URI local da imagem.
  * @param folder Pasta lógica (ex.: 'tarefas', 'despesas', 'pagamentos').
+ * @returns URL pública permanente do arquivo enviado ao Supabase Storage.
  */
 export async function uploadImage(uri: string, folder: string): Promise<string> {
   const response = await fetch(uri);

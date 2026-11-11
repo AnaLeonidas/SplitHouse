@@ -5,10 +5,15 @@ import { Perfil } from '../types/database';
  * Dados do formulário de edição de perfil (EditProfileScreen).
  */
 export interface UpdateProfileInput {
+  /** Nome completo atualizado do morador */
   nomeCompleto: string;
+  /** Novo endereço de e-mail do morador */
   email: string;
+  /** Chave Pix atualizada para recebimento de rateios */
   chavePix: string;
+  /** Senha atual exigida para validar troca de senha (opcional) */
   senhaAtual?: string;
+  /** Nova senha desejada para a conta (opcional) */
   novaSenha?: string;
 }
 
@@ -24,6 +29,13 @@ export interface UpdateProfileResult {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Converte erros retornados pelo Supabase em instâncias de `Error` com mensagem amigável.
+ *
+ * @param error Objeto de erro retornado pelo cliente Supabase.
+ * @param fallback Mensagem padrão caso `error.message` esteja ausente.
+ * @returns Instância de erro padronizada.
+ */
 function toError(error: { message?: string } | null, fallback: string): Error {
   return new Error(error?.message || fallback);
 }

@@ -5,6 +5,9 @@ import { calculateLevel } from '../utils/gamification';
 
 /**
  * Extrai as duas primeiras letras iniciais de um nome para exibição em avatares.
+ *
+ * @param name Nome completo ou apelido do morador.
+ * @returns Sigla de duas letras em maiúsculas (ou 'MO' se o nome estiver vazio).
  */
 export function getInitials(name?: string | null): string {
   if (!name || !name.trim()) return 'MO';

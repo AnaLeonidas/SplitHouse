@@ -15,7 +15,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks da tela de solicitação de entrada pendente.
  */
-interface PendingRequestScreenProps {
+export interface PendingRequestScreenProps {
   /** Nome da república à qual a entrada foi solicitada */
   houseName?: string;
   /** Callback para voltar à tela anterior */

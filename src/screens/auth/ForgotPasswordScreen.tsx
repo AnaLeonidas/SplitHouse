@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 /**
  * Propriedades e callbacks do fluxo de recuperação de senha.
  */
-interface ForgotPasswordScreenProps {
+export interface ForgotPasswordScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão do e-mail para envio do link de redefinição */

@@ -43,7 +43,7 @@ export interface TaskDetailsData {
 /**
  * Propriedades e callbacks da tela de detalhes de tarefa.
  */
-interface TaskDetailsScreenProps {
+export interface TaskDetailsScreenProps {
   /** Objeto com os detalhes da tarefa selecionada */
   task?: TaskDetailsData;
   /** Callback para voltar ao quadro de tarefas */

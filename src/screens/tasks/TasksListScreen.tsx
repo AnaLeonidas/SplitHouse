@@ -14,7 +14,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks da tela de listagem de tarefas da república.
  */
-interface TasksListScreenProps {
+export interface TasksListScreenProps {
   /** Nome da república */
   houseName?: string;
   /** Lista opcional de tarefas customizadas para exibição */

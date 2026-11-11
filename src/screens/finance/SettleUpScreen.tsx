@@ -5,9 +5,43 @@ import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
+ * Item de saldo bilateral entre moradores exibido na tela de acerto de contas.
+ */
+export interface SettleUpDebtItem {
+    /** Identificador único da pendência bilateral */
+    id: string;
+    /** Nome da contraparte envolvida no saldo */
+    debtorName: string;
+    /** Iniciais da contraparte para renderização do avatar */
+    debtorInitials: string;
+    /** Relação direcional do saldo (ex.: 'Deve a você' ou 'Você deve a ele(a)') */
+    debtorStatus: string;
+    /** Valor líquido da dívida formatado em reais */
+    debtAmount: string;
+    /** Texto auxiliar com contexto da pendência (opcional) */
+    refText?: string;
+    /** Indica se o saldo já foi quitado (opcional) */
+    isSettled?: boolean;
+}
+
+/**
+ * Resumo de um pagamento informado por outro morador aguardando validação do credor.
+ */
+export interface SettleUpPendingPaymentItem {
+    /** Identificador único do pagamento submetido */
+    id: string;
+    /** Nome do morador que efetuou o pagamento */
+    payerName: string;
+    /** Iniciais do morador pagador */
+    payerInitials: string;
+    /** Valor pago formatado em reais */
+    amount: string;
+}
+
+/**
  * Propriedades e callbacks da tela de acerto de contas.
  */
-interface SettleUpScreenProps {
+export interface SettleUpScreenProps {
     /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
     /** Callback para iniciar fluxo de liquidação ou pagamento de dívida */
@@ -15,21 +49,13 @@ interface SettleUpScreenProps {
     /** Callback para disparar cutucada/lembrete de cobrança amigável */
     onNudgePress?: (debt: any) => void;
     /** Lista de pendências bilaterais calculadas */
-    debts?: {
-        id: string;
-        debtorName: string;
-        debtorInitials: string;
-        debtorStatus: string;
-        debtAmount: string;
-        refText?: string;
-        isSettled?: boolean;
-    }[];
+    debts?: SettleUpDebtItem[];
     /** Saldo líquido formatado */
     netBalance?: string;
     /** Indica se a situação do usuário é credora (positiva) */
     isPositive?: boolean;
     /** Pagamentos informados por outros moradores aguardando sua confirmação */
-    pendingPayments?: { id: string; payerName: string; payerInitials: string; amount: string }[];
+    pendingPayments?: SettleUpPendingPaymentItem[];
     /** Abre a tela de validação de um pagamento pendente */
     onValidatePayment?: (paymentId: string) => void;
 }

@@ -17,7 +17,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks do formulário de proposição de nova recompensa.
  */
-interface ProposeRewardScreenProps {
+export interface ProposeRewardScreenProps {
   /** Callback para voltar à loja de recompensas */
   onBackPress?: () => void;
   /** Callback executado após submissão bem-sucedida da proposta */

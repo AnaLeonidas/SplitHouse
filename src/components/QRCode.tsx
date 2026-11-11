@@ -6,6 +6,7 @@ import { toQR } from 'toqr';
 /** Níveis de correção de erro do QR Code (Error Correction Level). */
 export type QRErrorCorrectionLevel = 'M' | 'L' | 'H' | 'Q';
 
+/** Mapeamento dos níveis textuais de correção de erro para códigos numéricos da biblioteca `toqr`. */
 const EC_MAP: Record<QRErrorCorrectionLevel, number> = {
   M: 0,
   L: 1,

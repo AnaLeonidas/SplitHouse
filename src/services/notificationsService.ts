@@ -3,7 +3,34 @@ import { NotificacaoDB } from '../types/database';
 import { NotificationItem } from '../screens/notifications/NotificationsScreen';
 
 /**
+ * Carga de dados para criação e disparo de notificações em lote.
+ */
+export interface NotifyUsersPayload {
+  /** UUID da moradia vinculada à notificação */
+  moradiaId: string;
+  /** UUID do usuário remetente (evita auto-notificação quando informado) */
+  senderId?: string;
+  /** Tipo visual da notificação */
+  tipo: NotificacaoDB['tipo'];
+  /** Categoria utilizada nos filtros da central de notificações */
+  categoryFilter: NotificacaoDB['category_filter'];
+  /** Título principal do aviso */
+  titulo: string;
+  /** Descrição detalhada do evento notificado */
+  descricao: string;
+  /** Texto opcional do botão de ação rápida */
+  actionText?: string;
+  /** Metadados extras serializados (opcional) */
+  extraMeta?: string;
+  /** Indica se deve exibir o ícone de moedas SplitHouse */
+  hasCoinIcon?: boolean;
+}
+
+/**
  * Converte timestamp ISO para tempo transcorrido legível (ex.: "Há 5 min", "Há 2 horas", "Hoje às 14:00").
+ *
+ * @param isoString Timestamp em formato ISO 8601 (opcional).
+ * @returns Rótulo amigável de tempo decorrido.
  */
 export function formatTimeAgo(isoString?: string | null): string {
   if (!isoString) return 'Agora';
@@ -33,6 +60,9 @@ export function formatTimeAgo(isoString?: string | null): string {
 
 /**
  * Converte registro de banco para a interface visual de notificações.
+ *
+ * @param row Registro bruto vindo da tabela 'notificacoes' do Supabase.
+ * @returns Objeto formatado para renderização na lista de notificações.
  */
 export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
   const rawCat = (row as any).filtro_categoria || row.category_filter;
@@ -87,6 +117,9 @@ export function mapRowToNotificationItem(row: NotificacaoDB): NotificationItem {
 
 /**
  * Normaliza o filtro de categoria para satisfazer a restrição CHECK do banco.
+ *
+ * @param cat Categoria visual informada pela interface.
+ * @returns Identificador normalizado sem acentuação compatível com o banco.
  */
 function normalizeFiltroCategoria(cat?: string): 'Cutucadas' | 'Validacoes' | 'Financas' {
   if (cat === 'Validações' || cat === 'Validacoes') return 'Validacoes';
@@ -96,6 +129,9 @@ function normalizeFiltroCategoria(cat?: string): 'Cutucadas' | 'Validacoes' | 'F
 
 /**
  * Normaliza o tipo de notificação para satisfazer a restrição CHECK do banco.
+ *
+ * @param tipo Tipo textual da notificação.
+ * @returns Tipo normalizado sem acentuação compatível com o banco.
  */
 function normalizeTipoNotificacao(tipo?: string): 'Cutucada' | 'Vencimento' | 'Validacao' | 'Concluida' {
   if (tipo === 'Validação' || tipo === 'Validacao') return 'Validacao';
@@ -110,6 +146,10 @@ function normalizeTipoNotificacao(tipo?: string): 'Cutucada' | 'Vencimento' | 'V
 export const notificationsService = {
   /**
    * Busca notificações do usuário logado ordenadas cronologicamente.
+   *
+   * @param userId UUID do usuário destinatário.
+   * @param moradiaId UUID opcional da moradia para filtrar avisos da república ativa.
+   * @returns Lista de notificações formatadas da mais recente para a mais antiga.
    */
   async fetchNotifications(userId: string, moradiaId?: string): Promise<NotificationItem[]> {
     try {
@@ -154,6 +194,9 @@ export const notificationsService = {
 
   /**
    * Marca uma notificação como lida.
+   *
+   * @param notificationId UUID da notificação a marcar como visualizada.
+   * @returns Verdadeiro se a atualização foi persistida com sucesso.
    */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
@@ -169,6 +212,9 @@ export const notificationsService = {
 
   /**
    * Remove todas as notificações já lidas do usuário.
+   *
+   * @param userId UUID do morador dono das notificações.
+   * @returns Verdadeiro se a limpeza foi concluída sem erros.
    */
   async clearReadNotifications(userId: string): Promise<boolean> {
     try {
@@ -194,20 +240,14 @@ export const notificationsService = {
 
   /**
    * Cria notificações para um ou mais destinatários (cada morador recebe a sua).
+   *
+   * @param recipientIds Lista de UUIDs dos moradores destinatários.
+   * @param payload Conteúdo e metadados do aviso a ser enviado.
+   * @returns Verdadeiro se o envio em lote foi concluído sem erros.
    */
   async notifyUsers(
     recipientIds: string[],
-    payload: {
-      moradiaId: string;
-      senderId?: string;
-      tipo: NotificacaoDB['tipo'];
-      categoryFilter: NotificacaoDB['category_filter'];
-      titulo: string;
-      descricao: string;
-      actionText?: string;
-      extraMeta?: string;
-      hasCoinIcon?: boolean;
-    }
+    payload: NotifyUsersPayload
   ): Promise<boolean> {
     try {
       const uniqueRecipients = Array.from(new Set(recipientIds)).filter(

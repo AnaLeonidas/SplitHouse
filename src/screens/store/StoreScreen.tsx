@@ -40,7 +40,7 @@ export interface StoreItem {
 /**
  * Propriedades e callbacks da tela da loja da moradia.
  */
-interface StoreScreenProps {
+export interface StoreScreenProps {
   /** Nome da república */
   houseName?: string;
   /** Saldo inicial de moedas do morador */
@@ -57,6 +57,9 @@ interface StoreScreenProps {
   onProposeSubmit?: (item: Omit<StoreItem, 'id'>) => Promise<void> | void;
 }
 
+/**
+ * Categorias selecionáveis na barra de filtro da loja de recompensas.
+ */
 type CategoryFilter = 'all' | 'Folga' | 'Convivência' | 'Bônus';
 
 /**
@@ -518,6 +521,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
   );
 };
 
+/** Alias de compatibilidade para {@link StoreScreen}. */
 export const ShopScreen = StoreScreen;
 
 const styles = StyleSheet.create({

@@ -5,7 +5,7 @@ import { Colors } from '../constants/theme';
 /**
  * Propriedades de customização visual do logotipo vetorial SplitHouse.
  */
-interface SplitHouseLogoProps {
+export interface SplitHouseLogoProps {
   /** Dimensão em pixels (largura e altura) do ícone */
   size?: number;
   /** Espessura do traço vetorial */

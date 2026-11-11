@@ -4,9 +4,43 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
 /**
+ * Dados resumidos de uma despesa exibidos na tela de detalhamento.
+ */
+export interface ExpenseDetailsSummary {
+    /** Título ou nome descritivo da despesa */
+    title: string;
+    /** Valor total formatado em reais */
+    amount: string;
+    /** Data de vencimento formatada para exibição */
+    dueDate: string;
+    /** Categoria financeira da despesa */
+    category: string;
+    /** Nome completo do morador responsável pelo pagamento inicial */
+    payerName: string;
+    /** Nome amigável do arquivo de comprovante anexado (opcional) */
+    receiptName?: string;
+}
+
+/**
+ * Resumo da cota individual de um morador na tela de detalhes da despesa.
+ */
+export interface ExpenseDetailsMemberItem {
+    /** Identificador único do registro de rateio */
+    id: string;
+    /** Nome completo do morador participante */
+    name: string;
+    /** Iniciais do morador para exibição no avatar */
+    initials: string;
+    /** Papel ou descrição complementar no rateio (opcional) */
+    role?: string;
+    /** Indica se a parte deste morador já foi quitada (opcional) */
+    isPaid?: boolean;
+}
+
+/**
  * Propriedades e callbacks da tela de detalhes de despesa.
  */
-interface ExpenseDetailsScreenProps {
+export interface ExpenseDetailsScreenProps {
     /** Callback para voltar à listagem de despesas */
     onBackPress?: () => void;
     /** Callback para enviar lembrete amigável (cutucada) aos membros pendentes */
@@ -14,22 +48,9 @@ interface ExpenseDetailsScreenProps {
     /** Callback para abrir o comprovante anexado */
     onReceiptPress?: () => void;
     /** Detalhes da despesa */
-    expense?: {
-        title: string;
-        amount: string;
-        dueDate: string;
-        category: string;
-        payerName: string;
-        receiptName?: string;
-    };
+    expense?: ExpenseDetailsSummary;
     /** Lista de membros para divisão */
-    members?: {
-        id: string;
-        name: string;
-        initials: string;
-        role?: string;
-        isPaid?: boolean;
-    }[];
+    members?: ExpenseDetailsMemberItem[];
 }
 
 /**

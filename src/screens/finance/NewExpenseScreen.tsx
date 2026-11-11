@@ -22,8 +22,11 @@ import { pickImageWithPrompt } from '../../services/storageService';
  * Representação da fração de rateio individual de um morador na despesa.
  */
 export interface MemberSplitItem {
+    /** UUID do morador participante da divisão */
     userId: string;
+    /** Valor monetário em reais atribuído a este morador */
     amount: number;
+    /** Percentual correspondente da despesa quando o rateio é por porcentagem (opcional) */
     percentage?: number;
 }
 
@@ -31,11 +34,17 @@ export interface MemberSplitItem {
  * Dados coletados e validados pelo formulário de criação de nova despesa coletiva.
  */
 export interface ExpenseFormData {
+    /** Título ou descrição resumida da despesa */
     title: string;
+    /** Valor total da despesa em reais */
     amount: number;
+    /** Categoria financeira selecionada */
     category: string;
+    /** Data de vencimento escolhida no formato YYYY-MM-DD (opcional) */
     dueDate?: string | null;
+    /** Modalidade de rateio adotada entre os participantes */
     divisionType: 'igualitaria' | 'porcentagem' | 'fixo';
+    /** UUID do morador que realizou o pagamento inicial */
     payerId: string;
     /** URI local do comprovante anexado (enviado ao Storage pelo App) */
     receiptUri?: string | null;
@@ -47,14 +56,16 @@ export interface ExpenseFormData {
  * Opção de morador para atribuição de pagador e participante do rateio.
  */
 export interface MemberOption {
+    /** UUID do usuário morador */
     id: string;
+    /** Nome completo de exibição do morador */
     name: string;
 }
 
 /**
  * Propriedades e callbacks do formulário de cadastro de nova despesa.
  */
-interface NewExpenseScreenProps {
+export interface NewExpenseScreenProps {
     /** Callback para voltar à listagem de despesas */
     onBackPress?: () => void;
     /** Callback para submeter os dados e salvar a nova despesa */
@@ -66,7 +77,9 @@ interface NewExpenseScreenProps {
 const CATEGORIAS_DISPONIVEIS = ['Utilidades', 'Aluguel', 'Mercado', 'Limpeza', 'Outros'];
 
 /**
- * Retorna a data atual no formato YYYY-MM-DD para compatibilidade com o banco.
+ * Retorna a data atual acrescentada de 7 dias no formato YYYY-MM-DD para compatibilidade com o banco.
+ *
+ * @returns Data padrão de vencimento no formato YYYY-MM-DD.
  */
 const getDefaultDueDate = (): string => {
     const today = new Date();
@@ -76,6 +89,9 @@ const getDefaultDueDate = (): string => {
 
 /**
  * Formata número no padrão monetário brasileiro.
+ *
+ * @param val Valor numérico a ser convertido em texto monetário.
+ * @returns Valor formatado com duas casas decimais no padrão pt-BR.
  */
 const formatBRL = (val: number): string => {
     return Number(val || 0).toLocaleString('pt-BR', {
@@ -89,6 +105,8 @@ const formatBRL = (val: number): string => {
  * Permite definir valor, descrição, pagador responsável, data de vencimento e
  * modalidade de divisão totalmente interativa (igualitária com seleção de moradores,
  * por porcentagem customizada ou por valor fixo em R$).
+ *
+ * @param props Handlers de navegação, envio de despesa e lista de moradores disponíveis.
  */
 export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     onBackPress,

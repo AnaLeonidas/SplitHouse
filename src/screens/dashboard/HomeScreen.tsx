@@ -16,7 +16,7 @@ import { TaskItem } from '../tasks/TasksListScreen';
 /**
  * Propriedades e callbacks do painel principal (Dashboard) da moradia.
  */
-interface HomeScreenProps {
+export interface HomeScreenProps {
     /** Callback para cadastrar nova despesa */
     onNewExpensePress?: () => void;
     /** Callback para navegar para a aba de despesas */

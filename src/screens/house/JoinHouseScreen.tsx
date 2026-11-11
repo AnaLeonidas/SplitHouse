@@ -17,7 +17,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks da tela de ingresso em moradia por código ou QR Code.
  */
-interface JoinHouseScreenProps {
+export interface JoinHouseScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão do código alfanumérico digitado ou lido via scanner */

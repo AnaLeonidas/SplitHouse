@@ -78,7 +78,7 @@ npm install
 ### 2. Configurar as variáveis de ambiente
 Crie um arquivo `.env` na raiz do projeto com as chaves do seu projeto no Supabase:
 
-```env
+```dotenv
 EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-publica
 ```
@@ -97,6 +97,26 @@ npx expo start --lan -c
 
 ### 4. Abrir no dispositivo móvel
 - Escaneie o QR Code gerado no terminal usando o aplicativo **Expo Go** no Android ou a câmera nativa no iOS.
+
+## Documentação Técnica (Swagger e TypeDoc)
+O repositório disponibiliza dois portais estáticos de documentação em `docs/`:
+- **Documentação da API (Swagger / OpenAPI):** `docs/index.html` e `docs/openapi.yaml`.
+- **Documentação do Código / Docstrings (TypeDoc):** `docs/code/` (gerada a partir das docstrings TSDoc/JSDoc de `App.tsx` e `src/`).
+
+Comandos disponíveis:
+```bash
+# Servir toda a documentação (Swagger em / e TypeDoc em /code/)
+npm run docs
+
+# Servir apenas o portal TypeDoc das docstrings
+npm run docs:code
+
+# Regerar os arquivos HTML/CSS/JS em docs/code/ a partir das docstrings
+npm run docs:build
+
+# Validar estritamente se há erros ou docstrings ausentes/quebradas
+npm run docs:check
+```
 
 ## Equipe Desenvolvedora
 - Ana Paula Pereira Leonidas

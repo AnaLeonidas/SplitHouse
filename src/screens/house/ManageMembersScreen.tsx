@@ -50,7 +50,7 @@ export interface ActiveMember {
 /**
  * Propriedades e callbacks da tela de gerenciamento de moradores da república.
  */
-interface ManageMembersScreenProps {
+export interface ManageMembersScreenProps {
   /** Nome da república */
   houseName?: string;
   /** Moradores aprovados da casa */

@@ -15,7 +15,7 @@ import { SplitHouseLogo } from '../../components/SplitHouseLogo';
 /**
  * Propriedades do componente SplashScreen.
  */
-interface SplashScreenProps {
+export interface SplashScreenProps {
   /** Callback disparado automaticamente após timeout ou toque na tela para avançar */
   onFinish?: () => void;
 }

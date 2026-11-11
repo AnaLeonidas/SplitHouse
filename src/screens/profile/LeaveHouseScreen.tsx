@@ -17,7 +17,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Modelo de dados de um morador elegível para assumir a administração da moradia.
  */
-interface CandidateMember {
+export interface CandidateMember {
   /** Identificador único do morador */
   id: string;
   /** Nome de exibição */
@@ -35,7 +35,7 @@ interface CandidateMember {
 /**
  * Propriedades e callbacks do fluxo de desvinculação da república.
  */
-interface LeaveHouseScreenProps {
+export interface LeaveHouseScreenProps {
   /** Nome da república */
   republicName?: string;
   /** Saldo financeiro do morador a ser liquidado */

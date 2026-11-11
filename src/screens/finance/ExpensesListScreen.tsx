@@ -14,7 +14,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks da tela de listagem de despesas da moradia.
  */
-interface ExpensesListScreenProps {
+export interface ExpensesListScreenProps {
     /** Callback para abertura do formulário de criação de nova despesa */
     onAddPress?: () => void;
     /** Callback para visualização dos detalhes e comprovantes de uma despesa */

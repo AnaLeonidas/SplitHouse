@@ -10,7 +10,80 @@ import {
 } from '../types/database';
 
 /**
+ * Fração customizada informada manualmente no rateio de uma despesa.
+ */
+export interface CustomSplitInput {
+  /** UUID do morador participante da divisão */
+  userId: string;
+  /** Valor monetário atribuído a esse morador */
+  amount: number;
+}
+
+/**
+ * Item resumido de despesa coletiva formatado para listagem.
+ */
+export interface ExpenseSummaryItem {
+  /** Identificador único da despesa (UUID) */
+  id: string;
+  /** Título descritivo da despesa */
+  titulo: string;
+  /** Categoria da despesa */
+  categoria: string;
+  /** Valor total formatado em reais (ex.: "120,00") */
+  valor: string;
+  /** Valor numérico bruto da despesa */
+  rawValor: number;
+  /** Data de vencimento formatada (DD/MM/YYYY) */
+  vencimento: string;
+  /** Situação atual de quitação da despesa */
+  status: string;
+  /** UUID do morador que realizou o pagamento inicial */
+  pagadorId: string;
+  /** URL pública do comprovante anexado, quando houver */
+  comprovanteUrl?: string | null;
+}
+
+/**
+ * Balanço consolidado de acertos bilaterais para exibição na tela de Acerto de Contas.
+ */
+export interface SettleUpData {
+  /** Saldo líquido formatado em reais para o usuário logado */
+  netBalance: string;
+  /** Indica se o saldo líquido é positivo ou zerado */
+  isPositive: boolean;
+  /** Lista de pendências bilaterais em relação aos demais moradores */
+  debts: DebtBalanceItem[];
+}
+
+/**
+ * Registro de pagamento informado por morador aguardando validação do credor.
+ */
+export interface PendingPaymentItem {
+  /** Identificador único da transferência informada (UUID) */
+  id: string;
+  /** UUID do morador devedor que realizou o pagamento */
+  payerId: string;
+  /** Nome completo do morador pagador */
+  payerName: string;
+  /** Iniciais do morador pagador para avatar */
+  payerInitials: string;
+  /** Método de pagamento informado (ex.: 'Transferência via Pix') */
+  paymentMethod: string;
+  /** Valor pago formatado em reais */
+  amount: string;
+  /** Descrição ou referência da transferência */
+  reference: string;
+  /** Data e hora de registro do pagamento formatadas */
+  dateTime: string;
+  /** URL pública do comprovante de transferência anexado, se existir */
+  receiptUrl: string | null;
+}
+
+/**
  * Utilitário para formatar números no padrão monetário brasileiro (ex.: "1.250,50").
+ *
+ * @param val Valor numérico a ser formatado.
+ * @returns Texto formatado com duas casas decimais no padrão pt-BR.
  */
 const formatMoney = (val: number): string => {
   return Number(val || 0).toLocaleString('pt-BR', {
@@ -21,6 +94,9 @@ const formatMoney = (val: number): string => {
 
 /**
  * Utilitário para formatar data ISO (YYYY-MM-DD ou timestamptz) para o formato brasileiro DD/MM/YYYY.
+ *
+ * @param dateString Data no formato ISO 8601 ou null/undefined.
+ * @returns Data formatada em DD/MM/YYYY ou "A definir" se ausente.
  */
 const formatDate = (dateString?: string | null): string => {
   if (!dateString) return 'A definir';
@@ -40,8 +116,9 @@ export const financeService = {
    *
    * @param moradiaId Identificador único da moradia.
    * @param statusFilter Filtro opcional por aba ('Todos', 'Pendentes', 'Pagas', 'Recorrentes').
+   * @returns Lista formatada de despesas da moradia.
    */
-  async fetchExpenses(moradiaId: string, statusFilter: string = 'Todos') {
+  async fetchExpenses(moradiaId: string, statusFilter: string = 'Todos'): Promise<ExpenseSummaryItem[]> {
     if (!moradiaId) return [];
 
     let query = supabase
@@ -82,11 +159,13 @@ export const financeService = {
    *
    * @param input Dados cadastrais da nova despesa.
    * @param memberUserIds Lista de UUIDs dos moradores ativos que participarão do rateio.
+   * @param customSplits Frações customizadas por usuário para rateios fixos ou percentuais.
+   * @returns Registro recém-criado da despesa no banco.
    */
   async createExpense(
     input: CreateExpenseInput,
     memberUserIds: string[],
-    customSplits?: { userId: string; amount: number }[]
+    customSplits?: CustomSplitInput[]
   ) {
     if (!input.moradiaId || !input.pagadorId) {
       throw new Error('Moradia e pagador são obrigatórios para registrar uma despesa.');
@@ -257,12 +336,9 @@ export const financeService = {
    *
    * @param moradiaId Identificador da moradia.
    * @param currentUserId Identificador do usuário logado.
+   * @returns Balanço consolidado e lista de dívidas bilaterais entre moradores.
    */
-  async fetchSettleUpData(moradiaId: string, currentUserId: string): Promise<{
-    netBalance: string;
-    isPositive: boolean;
-    debts: DebtBalanceItem[];
-  }> {
+  async fetchSettleUpData(moradiaId: string, currentUserId: string): Promise<SettleUpData> {
     if (!moradiaId || !currentUserId) {
       return { netBalance: 'R$ 0,00', isPositive: true, debts: [] };
     }
@@ -518,8 +594,12 @@ export const financeService = {
 
   /**
    * Lista os pagamentos informados por outros moradores aguardando a confirmação do usuário (credor).
+   *
+   * @param moradiaId UUID da moradia.
+   * @param creditorId UUID do morador credor que deve aprovar ou recusar os pagamentos.
+   * @returns Lista de comprovantes pendentes de validação pelo credor.
    */
-  async fetchPendingPayments(moradiaId: string, creditorId: string) {
+  async fetchPendingPayments(moradiaId: string, creditorId: string): Promise<PendingPaymentItem[]> {
     if (!moradiaId || !creditorId) return [];
     const { data, error } = await supabase
       .from('pagamentos_acerto')

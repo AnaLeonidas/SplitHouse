@@ -17,7 +17,7 @@ import { SplitHouseLogo } from '../../components/SplitHouseLogo';
 /**
  * Propriedades e eventos de navegação da tela de boas-vindas.
  */
-interface WelcomeScreenProps {
+export interface WelcomeScreenProps {
   /** Callback para redirecionar o usuário à tela de login */
   onLoginPress: () => void;
   /** Callback para redirecionar o usuário à tela de criação de conta */

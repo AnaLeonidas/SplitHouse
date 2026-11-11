@@ -15,7 +15,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks da tela de seleção ou vínculo à moradia.
  */
-interface HouseSelectionScreenProps {
+export interface HouseSelectionScreenProps {
   /** Nome de exibição do usuário logado */
   userName?: string;
   /** Iniciais do usuário para exibição no avatar */

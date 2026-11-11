@@ -46,7 +46,7 @@ export interface ResidentRankingItem {
 /**
  * Propriedades e callbacks da tela de ranking e gamificação.
  */
-interface RankingScreenProps {
+export interface RankingScreenProps {
   /** Nome da república */
   houseName?: string;
   /** Identificação do ciclo corrente de pontuação */

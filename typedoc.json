@@ -1,0 +1,33 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "SplitHouse - Documentação do Código",
+  "entryPoints": ["App.tsx", "src"],
+  "entryPointStrategy": "expand",
+  "out": "docs/code",
+  "readme": "README.md",
+  "includeVersion": true,
+  "cleanOutputDir": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true,
+    "includeFolders": true
+  },
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "highlightLanguages": [
+    "bash",
+    "dotenv",
+    "ini",
+    "javascript",
+    "json",
+    "sql",
+    "tsx",
+    "typescript",
+    "yaml"
+  ]
+}

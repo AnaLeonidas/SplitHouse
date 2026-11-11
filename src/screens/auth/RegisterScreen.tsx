@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 /**
  * Propriedades e eventos da tela de cadastro de novo morador.
  */
-interface RegisterScreenProps {
+export interface RegisterScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback para submeter os dados de registro (nome, e-mail e senha) */

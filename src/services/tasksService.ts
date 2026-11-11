@@ -8,8 +8,23 @@ import { uploadImage } from './storageService';
 import { calculateLevelAndTitle } from '../utils/gamification';
 
 /**
+ * Dados do envio pendente de validação por pares de uma tarefa concluída.
+ */
+export interface PendingTaskValidation {
+  /** URL pública da foto comprobatória enviada pelo executor */
+  photoUrl: string | null;
+  /** UUID do morador que executou e enviou a comprovação */
+  executorId: string | null;
+  /** Timestamp de envio do comprovante pelo executor */
+  sentAt: string | null;
+}
+
+/**
  * Converte strings amigáveis de prazo (ex.: "Hoje, 22:00", "Amanhã, 10:00", "Em 2 dias")
  * em uma string ISO 8601 compatível com colunas TIMESTAMPTZ do PostgreSQL.
+ *
+ * @param deadlineStr Texto descritivo ou ISO do prazo desejado.
+ * @returns Timestamp UTC formatado em ISO 8601.
  */
 function parseDeadlineToISO(deadlineStr: string): string {
   if (!deadlineStr || !deadlineStr.trim()) {
@@ -61,6 +76,9 @@ function parseDeadlineToISO(deadlineStr: string): string {
 
 /**
  * Converte timestamp ISO do banco para rótulo legível em português.
+ *
+ * @param isoString Data e hora em formato ISO 8601 vinda do banco (opcional).
+ * @returns Rótulo amigável (ex.: "Hoje, 22:00", "Amanhã, 10:00" ou "DD/MM, HH:mm").
  */
 function formatPrazoLimite(isoString?: string | null): string {
   if (!isoString) return 'Hoje, 22:00';
@@ -99,7 +117,7 @@ function formatPrazoLimite(isoString?: string | null): string {
  *
  * @param row Registro vindo do Supabase.
  * @param currentUserId UUID do usuário logado para rotular 'Você'.
- * @returns {TaskItem} Objeto formatado com ícones e estilos visuais.
+ * @returns Objeto formatado com ícones e estilos visuais.
  */
 function mapRowToTaskItem(row: TarefaDB, currentUserId?: string): TaskItem {
   let icon: keyof typeof Feather.glyphMap = 'check-circle';
@@ -171,7 +189,7 @@ export const tasksService = {
    *
    * @param moradiaId Identificador da moradia.
    * @param currentUserId UUID do usuário logado.
-   * @returns {Promise<TaskItem[]>} Lista de tarefas para exibição.
+   * @returns Lista de tarefas para exibição.
    */
   async fetchTasks(moradiaId?: string, currentUserId?: string): Promise<TaskItem[]> {
     try {
@@ -209,7 +227,7 @@ export const tasksService = {
    * @param formData Dados preenchidos no formulário de criação.
    * @param userId UUID do usuário criador.
    * @param moradiaId UUID da moradia vinculada.
-   * @returns {Promise<TaskItem>} Tarefa criada e formatada.
+   * @returns Tarefa criada e formatada.
    */
   async createTask(
     formData: TaskFormData,
@@ -302,10 +320,13 @@ export const tasksService = {
 
   /**
    * Busca a foto e os dados do envio pendente de validação de uma tarefa.
+   *
+   * @param taskId UUID da tarefa consultada.
+   * @returns Dados da comprovação pendente de análise ou null se não houver envio aberto.
    */
   async getPendingValidation(
     taskId: string
-  ): Promise<{ photoUrl: string | null; executorId: string | null; sentAt: string | null } | null> {
+  ): Promise<PendingTaskValidation | null> {
     try {
       const { data, error } = await supabase
         .from('validacoes_tarefa')
@@ -336,7 +357,7 @@ export const tasksService = {
    * @param validatorId UUID do morador avaliador.
    * @param approved Se a tarefa foi aprovada ou recusada.
    * @param justification Justificativa (obrigatória em recusas).
-   * @returns {Promise<boolean>} Sucesso da validação.
+   * @returns Sucesso da validação.
    */
   async validateTask(
     taskId: string,

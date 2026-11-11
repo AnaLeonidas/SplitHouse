@@ -17,7 +17,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Propriedades e callbacks do fluxo de criação de moradia.
  */
-interface CreateHouseScreenProps {
+export interface CreateHouseScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão com os dados cadastrais da república */

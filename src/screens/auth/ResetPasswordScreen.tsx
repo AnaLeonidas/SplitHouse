@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 /**
  * Propriedades da tela de redefinição de senha.
  */
-interface ResetPasswordScreenProps {
+export interface ResetPasswordScreenProps {
   /** E-mail inicial pré-preenchido vindo do fluxo anterior */
   initialEmail?: string;
   /** Token pré-carregado vindo de deep link (se houver) */

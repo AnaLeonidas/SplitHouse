@@ -17,7 +17,7 @@ import { Colors } from '../../constants/theme';
 /**
  * Estrutura de dados que descreve uma regra ou combinados de convivência.
  */
-interface RuleItem {
+export interface RuleItem {
   /** Identificador único da regra */
   id: string;
   /** Título temático da regra (ex.: Horário de Silêncio, Limpeza) */
@@ -29,7 +29,7 @@ interface RuleItem {
 /**
  * Propriedades e callbacks da tela de configuração inicial das regras da casa.
  */
-interface SetupRulesScreenProps {
+export interface SetupRulesScreenProps {
   /** Nome da república onde as regras estão sendo estabelecidas */
   houseName?: string;
   /** Callback para voltar à tela anterior */

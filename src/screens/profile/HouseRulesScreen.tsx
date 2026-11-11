@@ -37,7 +37,7 @@ export interface HouseRule {
 /**
  * Propriedades e callbacks da tela de estatuto e regras da casa.
  */
-interface HouseRulesScreenProps {
+export interface HouseRulesScreenProps {
   /** Nome da república */
   republicName?: string;
   /** Data da última revisão das regras */

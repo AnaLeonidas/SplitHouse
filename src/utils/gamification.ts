@@ -36,16 +36,26 @@ export function calculateTitle(level: number): string {
 }
 
 /**
+ * Estrutura consolidada do progresso de nível e XP de um morador.
+ */
+export interface LevelProgressInfo {
+  /** Nível atual calculado a partir do XP total */
+  level: number;
+  /** Título honorífico associado ao nível atual */
+  title: string;
+  /** Meta de XP acumulado necessária para atingir o próximo nível */
+  nextLevelXp: number;
+  /** Progresso parcial de XP dentro do nível atual (0 a 99) */
+  currentLevelXp: number;
+}
+
+/**
  * Retorna os detalhes consolidados de nível, título e próximo marco de XP.
  *
  * @param xp Pontuação de experiência.
+ * @returns Objeto contendo nível, título e progresso até o próximo marco.
  */
-export function calculateLevelAndTitle(xp: number): {
-  level: number;
-  title: string;
-  nextLevelXp: number;
-  currentLevelXp: number;
-} {
+export function calculateLevelAndTitle(xp: number): LevelProgressInfo {
   const safeXp = Math.max(0, xp || 0);
   const level = calculateLevel(safeXp);
   const title = calculateTitle(level);

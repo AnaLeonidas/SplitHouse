@@ -4,9 +4,21 @@ import { supabase } from '../services/supabase';
 import { Perfil } from '../types/database';
 
 /**
+ * Retorno estruturado da operação de cadastro de novo usuário.
+ */
+export interface SignUpResult {
+  /** Usuário criado no Supabase Auth (null se o cadastro falhar) */
+  user: User | null;
+  /** Sessão autenticada imediata (null quando aguarda confirmação de e-mail) */
+  session: Session | null;
+  /** Indica se o e-mail já está confirmado ou se aguarda verificação pelo usuário */
+  emailConfirmed: boolean;
+}
+
+/**
  * Propriedades e métodos disponibilizados pelo contexto global de autenticação.
  */
-interface AuthContextData {
+export interface AuthContextData {
   /** Objeto de usuário autenticado do Supabase Auth */
   user: User | null;
   /** Sessão ativa contendo token JWT e tempo de expiração */
@@ -22,7 +34,7 @@ interface AuthContextData {
     email: string,
     password: string,
     nomeCompleto: string
-  ) => Promise<{ user: User | null; session: Session | null; emailConfirmed: boolean }>;
+  ) => Promise<SignUpResult>;
   /** Encerra a sessão atual do morador no dispositivo */
   signOut: () => Promise<void>;
   /** Dispara e-mail com instruções para redefinição de senha */
@@ -40,13 +52,21 @@ interface AuthContextData {
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 /**
+ * Propriedades do componente provedor de autenticação.
+ */
+export interface AuthProviderProps {
+  /** Árvore de componentes filhos que terão acesso ao contexto de autenticação */
+  children: React.ReactNode;
+}
+
+/**
  * Provedor de contexto responsável pelo ciclo de vida da autenticação no SplitHouse.
  * Gerencia a escuta de alterações de sessão em tempo real, persistência segura no SecureStore
  * e sincronização automática com a tabela de perfis.
  *
  * @param props Componentes filhos que terão acesso ao contexto de autenticação.
  */
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Perfil | null>(null);
@@ -268,8 +288,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 /**
  * Hook customizado para consumir o contexto de autenticação em qualquer tela ou componente.
  *
- * @returns {AuthContextData} Dados da sessão ativa, perfil do morador e métodos de autenticação.
- * @throws {Error} Lança erro se for utilizado fora de um AuthProvider.
+ * @returns Dados da sessão ativa, perfil do morador e métodos de autenticação.
+ * @throws Lança erro se for utilizado fora de um AuthProvider.
  */
 export function useAuth(): AuthContextData {
   const context = useContext(AuthContext);

@@ -14,7 +14,22 @@ import { StoreItem } from '../screens/store/StoreScreen';
 export const DEFAULT_STORE_ITEMS: Omit<StoreItem, 'id'>[] = [];
 
 /**
+ * Resultado da transação de resgate de uma recompensa na loja.
+ */
+export interface RedeemRewardResult {
+  /** Indica se o resgate e o débito de moedas foram concluídos com êxito */
+  success: boolean;
+  /** Novo saldo de moedas do morador após o débito */
+  newBalance: number;
+  /** Identificador opcional do registro gerado em 'resgates_recompensa' */
+  redemptionId?: string;
+}
+
+/**
  * Normaliza a categoria para inserção em conformidade com a constraint do banco (sem acentos).
+ *
+ * @param cat Nome da categoria informada na interface.
+ * @returns Categoria normalizada sem acentos para persistência no PostgreSQL.
  */
 export function normalizeCategoryForDb(cat?: string): string {
   if (!cat) return 'Folga';
@@ -27,6 +42,9 @@ export function normalizeCategoryForDb(cat?: string): string {
 
 /**
  * Converte a categoria vinda do banco para exibição visual com acentuação correta.
+ *
+ * @param cat Categoria bruta armazenada no banco de dados.
+ * @returns Categoria padronizada e acentuada para exibição na loja.
  */
 export function mapDbCategoryToVisual(cat?: string): 'Folga' | 'Convivência' | 'Bônus' {
   if (cat === 'Convivencia' || cat === 'Convivência') return 'Convivência';
@@ -36,6 +54,9 @@ export function mapDbCategoryToVisual(cat?: string): 'Folga' | 'Convivência' | 
 
 /**
  * Converte um registro bruto da tabela 'recompensas_loja' para a interface visual StoreItem.
+ *
+ * @param row Registro bruto retornado da tabela 'recompensas_loja'.
+ * @returns Item formatado com ícone, categoria acentuada e metadados visuais.
  */
 export function mapRowToStoreItem(row: RecompensaLojaDB): StoreItem {
   let icon: 'minus-circle' | 'tv' | 'sofa' | 'pizza' = 'minus-circle';
@@ -206,7 +227,7 @@ export const storeService = {
    */
   async redeemReward(
     input: RedeemRewardInput
-  ): Promise<{ success: boolean; newBalance: number; redemptionId?: string }> {
+  ): Promise<RedeemRewardResult> {
     const { rewardId, userId, moradiaId, cost, rewardTitle } = input;
 
     // 1. Busca vínculo do membro e saldo atual de moedas
@@ -314,6 +335,10 @@ export const storeService = {
 
   /**
    * Obtém o saldo em tempo real de moedas de um morador na moradia.
+   *
+   * @param moradiaId UUID da moradia.
+   * @param userId UUID do morador consultado.
+   * @returns Quantidade atual de moedas disponíveis para resgate.
    */
   async getUserCoins(moradiaId: string, userId: string): Promise<number> {
     try {

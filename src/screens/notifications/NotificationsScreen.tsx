@@ -44,7 +44,7 @@ export interface NotificationItem {
 /**
  * Propriedades e callbacks da central de notificações do morador.
  */
-interface NotificationsScreenProps {
+export interface NotificationsScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Lista dinâmica de notificações do Supabase */
@@ -55,13 +55,16 @@ interface NotificationsScreenProps {
   onClearReadPress?: () => void;
 }
 
+/**
+ * Categorias de filtro disponíveis na barra superior da central de notificações.
+ */
 type FilterCategory = 'Todas' | 'Validações' | 'Finanças' | 'Cutucadas';
 
 /**
- * Tela da central de notificações e avisos da república (Tela 26).
- * Exibe convites para validação de tarefas, alertas financeiros de vencimento, cutucadas de moradores e avisos de gamificação.
+ * Extrai o rótulo legível dos metadados extras de uma notificação, suportando JSON serializado ou texto simples.
  *
- * @param props Callbacks de navegação de retorno, execução de ações da notificação e limpeza de lidas.
+ * @param meta Metadado opcional associado à notificação.
+ * @returns Texto formatado para exibição no cartão de notificação.
  */
 function formatDisplayMeta(meta?: string): string {
   if (!meta) return '';
@@ -76,6 +79,12 @@ function formatDisplayMeta(meta?: string): string {
   return meta;
 }
 
+/**
+ * Tela da central de notificações e avisos da república (Tela 26).
+ * Exibe convites para validação de tarefas, alertas financeiros de vencimento, cutucadas de moradores e avisos de gamificação.
+ *
+ * @param props Callbacks de navegação de retorno, execução de ações da notificação e limpeza de lidas.
+ */
 export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onBackPress,
   notifications: initialNotifications,

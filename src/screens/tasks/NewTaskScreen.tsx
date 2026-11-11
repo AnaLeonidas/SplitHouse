@@ -42,7 +42,7 @@ export interface TaskFormData {
 /**
  * Propriedades e callbacks da tela de criação de tarefa.
  */
-interface NewTaskScreenProps {
+export interface NewTaskScreenProps {
   /** Callback para voltar ao quadro de tarefas */
   onBackPress?: () => void;
   /** Callback de submissão dos dados da nova tarefa */

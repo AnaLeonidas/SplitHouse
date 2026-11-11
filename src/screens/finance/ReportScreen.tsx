@@ -12,9 +12,25 @@ import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 
 /**
+ * Item individual do histórico financeiro exibido no relatório mensal.
+ */
+export interface ReportHistoryItem {
+    /** Identificador único da movimentação */
+    id: string;
+    /** Título ou descrição resumida do lançamento */
+    title: string;
+    /** Subtítulo informativo (data, categoria ou morador) */
+    subtitle: string;
+    /** Valor monetário formatado para exibição */
+    value: string;
+    /** Indica se representa uma entrada positiva de crédito/acerto (opcional) */
+    isIncome?: boolean;
+}
+
+/**
  * Propriedades e callbacks da tela de relatórios financeiros.
  */
-interface ReportScreenProps {
+export interface ReportScreenProps {
     /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
     /** Total de despesas */
@@ -22,13 +38,7 @@ interface ReportScreenProps {
     /** Média por morador */
     averagePerResident?: string;
     /** Histórico de movimentações */
-    history?: {
-        id: string;
-        title: string;
-        subtitle: string;
-        value: string;
-        isIncome?: boolean;
-    }[];
+    history?: ReportHistoryItem[];
 }
 
 /**

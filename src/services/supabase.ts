@@ -9,6 +9,12 @@ import { createClient } from '@supabase/supabase-js';
  * localStorage no ambiente Web para persistência de sessão.
  */
 const ExpoSecureStoreAdapter = {
+  /**
+   * Recupera um valor persistido pela chave no armazenamento seguro ou localStorage.
+   *
+   * @param key Chave do item armazenado.
+   * @returns Valor salvo ou null se ausente.
+   */
   getItem: (key: string) => {
     if (Platform.OS === 'web') {
       if (typeof localStorage !== 'undefined') {
@@ -18,6 +24,12 @@ const ExpoSecureStoreAdapter = {
     }
     return SecureStore.getItemAsync(key);
   },
+  /**
+   * Grava um par chave/valor no armazenamento seguro (mobile) ou localStorage (web).
+   *
+   * @param key Chave de identificação do dado.
+   * @param value Conteúdo serializado a persistir.
+   */
   setItem: (key: string, value: string) => {
     if (Platform.OS === 'web') {
       if (typeof localStorage !== 'undefined') {
@@ -27,6 +39,11 @@ const ExpoSecureStoreAdapter = {
     }
     SecureStore.setItemAsync(key, value);
   },
+  /**
+   * Remove um item armazenado pela sua chave.
+   *
+   * @param key Chave do item a excluir.
+   */
   removeItem: (key: string) => {
     if (Platform.OS === 'web') {
       if (typeof localStorage !== 'undefined') {

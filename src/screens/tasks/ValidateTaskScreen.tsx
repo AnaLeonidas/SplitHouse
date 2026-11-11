@@ -43,7 +43,7 @@ export interface TaskValidationData {
 /**
  * Propriedades e callbacks da tela de validação de tarefa.
  */
-interface ValidateTaskScreenProps {
+export interface ValidateTaskScreenProps {
   /** Dados da tarefa a ser inspecionada */
   task?: TaskValidationData;
   /** Callback para voltar à lista de tarefas */
@@ -250,6 +250,7 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   );
 };
 
+/** Alias de compatibilidade para {@link ValidateTaskScreen}. */
 export const TaskValidationScreen = ValidateTaskScreen;
 
 const styles = StyleSheet.create({

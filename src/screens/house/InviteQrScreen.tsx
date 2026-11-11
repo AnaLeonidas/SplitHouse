@@ -17,7 +17,7 @@ import { QRCode } from '../../components/QRCode';
 /**
  * Propriedades e callbacks da tela de compartilhamento de convite e QR Code.
  */
-interface InviteQrScreenProps {
+export interface InviteQrScreenProps {
   /** Nome da república */
   houseName?: string;
   /** Código alfanumérico exclusivo para adesão à moradia */

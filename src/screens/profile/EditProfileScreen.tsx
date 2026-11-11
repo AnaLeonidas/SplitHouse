@@ -19,7 +19,7 @@ import { UpdateProfileInput, UpdateProfileResult } from '../../services/profileS
 /**
  * Propriedades e callbacks do formulário de edição de perfil do usuário.
  */
-interface EditProfileScreenProps {
+export interface EditProfileScreenProps {
   /** Callback para voltar à visualização do perfil */
   onBackPress?: () => void;
   /** Persiste os dados editados; deve lançar erro em caso de falha */

@@ -5,6 +5,16 @@ import { financeService } from './financeService';
 import { TaskItem } from '../screens/tasks/TasksListScreen';
 
 /**
+ * Dados consolidados retornados pelo serviço da tela inicial (Home).
+ */
+export interface HomeDashboardResult {
+  /** Resumo financeiro, métricas e destaques do morador na casa */
+  dashboardData: HomeDashboardData;
+  /** Lista priorizada das próximas tarefas pendentes para hoje */
+  todayTasks: TaskItem[];
+}
+
+/**
  * Serviço responsável por agregar e carregar os dados consolidados do painel principal (Home Dashboard).
  */
 export const homeService = {
@@ -14,13 +24,13 @@ export const homeService = {
    * @param currentProfile Perfil do morador logado atualmente (opcional).
    * @param houseId Identificador da moradia vinculada (opcional).
    * @param houseName Nome da república vinculada (opcional).
-   * @returns {Promise<{ dashboardData: HomeDashboardData; todayTasks: TaskItem[] }>}
+   * @returns Resumo consolidado do painel e tarefas pendentes prioritárias.
    */
   async getDashboardData(
     currentProfile?: Perfil | null,
     houseId?: string,
     houseName?: string
-  ): Promise<{ dashboardData: HomeDashboardData; todayTasks: TaskItem[] }> {
+  ): Promise<HomeDashboardResult> {
     const nome = currentProfile?.nome_completo || 'Morador';
     const initials = currentProfile?.nome_completo
       ? currentProfile.nome_completo

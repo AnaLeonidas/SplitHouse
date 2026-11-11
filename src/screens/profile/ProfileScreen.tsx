@@ -45,7 +45,7 @@ export interface UserProfileData {
 /**
  * Propriedades e callbacks da tela de perfil do morador.
  */
-interface ProfileScreenProps {
+export interface ProfileScreenProps {
   /** Dados opcionais do usuário para exibição */
   user?: UserProfileData;
   /** Callback para editar dados pessoais do perfil */
@@ -66,6 +66,7 @@ interface ProfileScreenProps {
   onLogoutPress?: () => void;
 }
 
+/** Dados padrão de fallback exibidos enquanto o perfil do morador ainda está sendo carregado. */
 const defaultUserData: UserProfileData = {
   name: 'Morador',
   role: 'Morador',

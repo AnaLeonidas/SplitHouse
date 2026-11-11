@@ -16,12 +16,19 @@ import { Colors } from '../../constants/theme';
  * Dados de detalhamento do pagamento sob validação do credor.
  */
 export interface PaymentValidationData {
+    /** Nome completo do morador que efetuou o pagamento */
     payerName: string;
+    /** Iniciais do morador pagador para exibição no avatar */
     payerInitials: string;
+    /** Descrição do meio de pagamento utilizado (ex.: 'Transferência via Pix') */
     paymentMethod: string;
+    /** Valor transferido formatado em moeda brasileira */
     amount: string;
+    /** Referência ou descrição associada ao acerto */
     reference: string;
+    /** Data e hora de realização do pagamento formatadas */
     dateTime: string;
+    /** Nome amigável do arquivo de comprovante anexado (opcional) */
     receiptName?: string;
     /** URL pública do comprovante anexado */
     receiptUrl?: string | null;
@@ -30,7 +37,7 @@ export interface PaymentValidationData {
 /**
  * Propriedades e callbacks da tela de validação e confirmação de pagamento.
  */
-interface ConfirmPaymentScreenProps {
+export interface ConfirmPaymentScreenProps {
     /** Callback para voltar à tela anterior */
     onBackPress?: () => void;
     /** Callback para aprovar e dar baixa no comprovante de pagamento */

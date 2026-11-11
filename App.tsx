@@ -67,6 +67,9 @@ const RULE_COLORS: Pick<HouseRule, 'iconBgColor' | 'iconColor'>[] = [
 
 /**
  * Gera as iniciais (até 2 letras) de um nome para uso em avatares.
+ *
+ * @param name Nome completo do morador (opcional).
+ * @returns Iniciais em maiúsculas ou '??' caso o nome não esteja definido.
  */
 function getInitials(name?: string | null): string {
   if (!name) return '??';
@@ -81,7 +84,7 @@ function getInitials(name?: string | null): string {
 
 /**
  * União de todos os identificadores de rotas e telas do SplitHouse.
- * Permite navegação declarativa entre os 32 fluxos da aplicação.
+ * Permite navegação declarativa entre os 33 fluxos da aplicação.
  */
 type Screen =
   | 'splash'
@@ -119,9 +122,9 @@ type Screen =
   | 'leave_house';
 
 /**
- * Componente raiz do aplicativo SplitHouse.
- * Responsável por gerenciar o estado global de navegação, barra inferior com 5 abas,
- * controle por gestos de arraste lateral (swipe) e renderização condicional das 32 telas.
+ * Gerenciador principal de navegação e estado global do SplitHouse.
+ * Controla roteamento declarativo entre as 33 telas, deep links, barra inferior com 5 abas
+ * e navegação por gestos de arraste lateral (swipe).
  */
 function MainApp() {
   const { user, profile, loading, signOut, refreshProfile } = useAuth();
