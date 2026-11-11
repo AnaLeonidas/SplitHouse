@@ -1,0 +1,161 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>SplitHouse - Documentação do Código - v1.0.0</title><meta name="description" content="Documentation for SplitHouse - Documentação do Código"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script><script async src="assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container"><a href="index.html" class="title">SplitHouse - Documentação do Código - v1.0.0</a>
+<div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
+<ul role="listbox" id="tsd-search-results"></ul>
+<div id="tsd-search-status" aria-live="polite" aria-atomic="true">
+<div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header>
+<div class="container container-main">
+<div class="col-content">
+<div class="tsd-page-title">
+<h1>SplitHouse - Documentação do Código - v1.0.0</h1></div>
+<div class="tsd-panel tsd-typography"><h1 id="splithouse" class="tsd-anchor-link">SplitHouse<a href="#splithouse" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<h2 id="projeto" class="tsd-anchor-link">Projeto<a href="#projeto" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>O SplitHouse é uma aplicação mobile estruturada para centralizar a gestão de despesas e tarefas domésticas em moradias compartilhadas (repúblicas). O foco principal do sistema é substituir o gerenciamento manual por processos automatizados, promovendo transparência, organização financeira, divisão de responsabilidades e convivência harmoniosa entre os moradores de um imóvel.</p>
+<h2 id="status-do-projeto" class="tsd-anchor-link">Status do Projeto<a href="#status-do-projeto" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>O projeto está em fase ativa de desenvolvimento.</p>
+<ul>
+<li><strong>Autenticação e Perfis (#60):</strong> Integrado ao Supabase Auth com persistência de credenciais em armazenamento seguro nativo (SecureStore), criação automática de perfil em PostgreSQL via triggers e recuperação de senha.</li>
+<li><strong>Home e Tarefas Domésticas (#61):</strong> Integrado ao Supabase com tabelas relacionais (<code>tarefas</code> e <code>validacoes_tarefa</code>), políticas de segurança por linha (RLS), serviços dedicados (<code>tasksService</code> e <code>homeService</code>), ciclo de vida de tarefas, auditoria por pares com envio de foto comprobatória e fallback transparente para execução offline.</li>
+<li><strong>Moradia, Membros e Regras:</strong> Conectado ao Supabase com fluxo completo de cadastro da residência, código de convite dinâmico <code>SPLIT-XXXX</code>, fila de espera, aprovação de novos membros e persistência de estatuto com regras de convivência (<code>houseService</code> e <code>profileService</code>).</li>
+<li><strong>Ranking e Loja de Recompensas (#64):</strong> Integrado ao Supabase com tabelas <code>recompensas_loja</code>, <code>resgates_recompensa</code> e <code>notificacoes</code>, serviços dedicados (<code>storeService</code>, <code>rankingService</code> e <code>notificationsService</code>), ordenação de ranking dinâmico por XP com contadores reais de tarefas cumpridas, débito transacional de moedas em resgates, catálogo de recompensas da república e envio de cutucadas interativas.</li>
+<li><strong>Próximas Etapas:</strong> Divisão automatizada de despesas financeiras e liquidação de rateios via Pix.</li>
+</ul>
+<h2 id="funcionalidades-e-módulos-do-sistema" class="tsd-anchor-link">Funcionalidades e Módulos do Sistema<a href="#funcionalidades-e-módulos-do-sistema" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>A interface do sistema está estruturada e modularizada em diretórios:</p>
+<ul>
+<li><strong>Autenticação e Acesso (<code>src/screens/auth</code>):</strong> Telas de apresentação (Splash, Welcome), login, cadastro de usuário sincronizado com Supabase, recuperação de senha e gestão de sessão com <code>AuthContext</code>.</li>
+<li><strong>Painel Principal (<code>src/screens/dashboard</code>):</strong> Tela inicial com resumo dinâmico do morador, saldo financeiro da casa, próximas tarefas a vencer, atalhos rápidos e métricas da moradia.</li>
+<li><strong>Tarefas Domésticas (<code>src/screens/tasks</code>):</strong> Listagem de afazeres filtrados por status, criação de nova atividade (fixa, rotativa ou emergencial), detalhamento da execução, submissão de foto comprobatória e auditoria/validação por pares (RN-09).</li>
+<li><strong>Gestão Financeira (<code>src/screens/finance</code>):</strong> Lista de contas e despesas coletivas, lançamento de novos gastos com anexo de comprovante, detalhes do rateio, confirmação de liquidações e relatório financeiro mensal consolidado.</li>
+<li><strong>Gestão da Moradia (<code>src/screens/house</code>):</strong> Seleção de imóvel, criação de república, convite via QR Code, administração de moradores, regras de convivência e aprovação de novas solicitações de entrada.</li>
+<li><strong>Perfil e Convivência (<code>src/screens/profile</code>):</strong> Informações do morador, edição cadastral, visualização das regras da casa e fluxo formal de desvinculação/saída do imóvel.</li>
+<li><strong>Classificação e Gamificação (<code>src/screens/ranking</code>):</strong> Acompanhamento de pontuação de experiência (XP), moedas acumuladas por tarefas concluídas e posição no ranking da república.</li>
+<li><strong>Loja e Recompensas (<code>src/screens/store</code>):</strong> Catálogo de recompensas e folgas de tarefas disponíveis para troca por moedas acumuladas, além de proposta de novos benefícios pelos moradores.</li>
+<li><strong>Notificações (<code>src/screens/notifications</code>):</strong> Central de avisos sobre pendências financeiras, tarefas a vencer e solicitações de validação pendentes.</li>
+</ul>
+<h2 id="tecnologias-e-arquitetura" class="tsd-anchor-link">Tecnologias e Arquitetura<a href="#tecnologias-e-arquitetura" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>A arquitetura do projeto adota o padrão Cliente-Servidor com separação clara de responsabilidades:</p>
+<ul>
+<li><strong>Front-end:</strong> React Native, Expo (SDK 57), TypeScript.</li>
+<li><strong>Estilização e Ícones:</strong> StyleSheet nativo, React Native SVG e <code>@expo/vector-icons</code> (Feather).</li>
+<li><strong>Armazenamento Seguro:</strong> <code>expo-secure-store</code> para persistência local criptografada de tokens de sessão.</li>
+<li><strong>Back-end e Banco de Dados:</strong> Supabase (PostgreSQL 15), Supabase Auth, Row Level Security (RLS) e Supabase Storage.</li>
+<li><strong>Padrão de Documentação:</strong> Tipagem estrita com TypeScript e documentação formal TSDoc/JSDoc em 100% dos componentes, serviços e esquemas de dados.</li>
+</ul>
+<h2 id="modelagem-do-banco-de-dados-supabase" class="tsd-anchor-link">Modelagem do Banco de Dados (Supabase)<a href="#modelagem-do-banco-de-dados-supabase" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>O banco de dados relacional foi estruturado em tabelas modulares com Row Level Security (RLS) habilitado:</p>
+<ul>
+<li><code>perfis</code>: Dados cadastrais do morador vinculados ao <code>auth.users.id</code>, nome completo, foto de perfil e chave Pix.</li>
+<li><code>moradias</code>: Informações do imóvel compartilhado, endereço e código de convite.</li>
+<li><code>membros_moradia</code>: Relação morador-república, papel de acesso (admin/morador), status de aprovação, nível, XP e saldo de moedas.</li>
+<li><code>tarefas</code>: Afazeres domésticos da moradia (fixa, rotativa ou emergencial), atribuição de responsáveis, prazo, pontos de XP, moedas e status de ciclo de vida.</li>
+<li><code>validacoes_tarefa</code>: Auditoria por pares para tarefas que requerem validação com foto comprobatória, impedindo autovalidação pelo executor (RN-09).</li>
+<li><code>despesas</code>: Registro de contas e despesas coletivas, data de vencimento, pagador e anexos.</li>
+<li><code>rateios_despesa</code>: Divisão da cota-parte de cada morador em cada despesa da moradia.</li>
+<li><code>recompensas_loja</code>: Catálogo de benefícios e vantagens resgatáveis por moedas no imóvel.</li>
+<li><code>resgates_recompensa</code>: Registro transacional de trocas de moedas por benefícios na loja da moradia.</li>
+<li><code>notificacoes</code>: Central de alertas de tarefas a vencer, pedidos de validação, avisos de resgate e cutucadas do ranking.</li>
+</ul>
+<h3 id="scripts-de-provisionamento-sql" class="tsd-anchor-link">Scripts de Provisionamento SQL<a href="#scripts-de-provisionamento-sql" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li><strong>Tarefas e Dashboard:</strong> <code>supabase/schema_tarefas_home.sql</code></li>
+<li><strong>Finanças e Despesas:</strong> <code>supabase/schema_despesas.sql</code></li>
+<li><strong>Ranking, Loja, Recompensas e Notificações (#64):</strong> <code>supabase/schema_ranking_loja.sql</code></li>
+<li><strong>Esquema Relacional Unificado Completo:</strong> <code>supabase/schema_completo.sql</code></li>
+</ul>
+<p>Para provisionar, basta executar o conteúdo dos arquivos no <strong>SQL Editor</strong> do dashboard do Supabase.</p>
+<h2 id="testes-automatizados-e-qualidade-de-código" class="tsd-anchor-link">Testes Automatizados e Qualidade de Código<a href="#testes-automatizados-e-qualidade-de-código" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>O projeto conta com suíte abrangente de <strong>29 testes automatizados</strong> e verificação estática de tipos:</p>
+<pre><code class="bash"><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">test</span>
+</code><button type="button">Copy</button></pre>
+
+<p>O comando executa:</p>
+<ol>
+<li><strong>Verificação de Tipos:</strong> <code>npx tsc --noEmit</code> garantindo tipagem estrita e ausência de inconsistências em tempo de compilação.</li>
+<li><strong>Suíte de Esquema SQL (<code>tests/schemaValidation.test.js</code>):</strong> Valida a integridade do arquivo DDL <code>schema_tarefas_home.sql</code>, conferindo tabelas, constraints de integridade e políticas RLS.</li>
+<li><strong>Suíte de Ranking e Loja (<code>tests/rankingStoreLogic.test.js</code>):</strong> Valida DDL de recompensas, resgates e notificações (<code>schema_ranking_loja.sql</code>), ordenação de ranking por XP, desempate por tarefas concluídas, highlight de cutucadas, débito transacional de moedas e validação de propostas.</li>
+<li><strong>Suíte de Tarefas (<code>tests/tasksBusinessLogic.test.js</code>):</strong> Testa mapeamento de registros, ciclo de vida de validação, aprovação, recusa justificada e bloqueio de autofraude (regra RN-09).</li>
+<li><strong>Suíte do Painel Home (<code>tests/homeDashboardLogic.test.js</code>):</strong> Testa extração de iniciais de perfis, cálculo de pendências e filtragem prioritária de tarefas para a tela inicial.</li>
+</ol>
+<h2 id="como-executar-a-aplicação" class="tsd-anchor-link">Como Executar a Aplicação<a href="#como-executar-a-aplicação" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="1-clonar-o-repositório-e-instalar-dependências" class="tsd-anchor-link">1. Clonar o repositório e instalar dependências<a href="#1-clonar-o-repositório-e-instalar-dependências" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<pre><code class="bash"><span class="hl-0">git</span><span class="hl-1"> </span><span class="hl-2">clone</span><span class="hl-1"> </span><span class="hl-2">https://github.com/AnaLeonidas/SplitHouse.git</span><br/><span class="hl-0">cd</span><span class="hl-1"> </span><span class="hl-2">SplitHouse</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">install</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="2-configurar-as-variáveis-de-ambiente" class="tsd-anchor-link">2. Configurar as variáveis de ambiente<a href="#2-configurar-as-variáveis-de-ambiente" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Crie um arquivo <code>.env</code> na raiz do projeto com as chaves do seu projeto no Supabase:</p>
+<pre><code class="dotenv"><span class="hl-3">EXPO_PUBLIC_SUPABASE_URL</span><span class="hl-1">=https://seu-projeto.supabase.co</span><br/><span class="hl-3">EXPO_PUBLIC_SUPABASE_ANON_KEY</span><span class="hl-1">=sua-chave-anon-publica</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="3-iniciar-o-servidor-de-desenvolvimento-expo" class="tsd-anchor-link">3. Iniciar o servidor de desenvolvimento Expo<a href="#3-iniciar-o-servidor-de-desenvolvimento-expo" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>No Linux ou ambientes gerais, execute:</p>
+<pre><code class="bash"><span class="hl-3">ELECTRON_DISABLE_SANDBOX</span><span class="hl-1">=</span><span class="hl-2">1</span><span class="hl-1"> </span><span class="hl-0">npx</span><span class="hl-1"> </span><span class="hl-2">expo</span><span class="hl-1"> </span><span class="hl-2">start</span><span class="hl-1"> </span><span class="hl-4">--tunnel</span><span class="hl-1"> </span><span class="hl-4">-c</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Para conexão em rede local direta (mesmo Wi-Fi):</p>
+<pre><code class="bash"><span class="hl-0">npx</span><span class="hl-1"> </span><span class="hl-2">expo</span><span class="hl-1"> </span><span class="hl-2">start</span><span class="hl-1"> </span><span class="hl-4">--lan</span><span class="hl-1"> </span><span class="hl-4">-c</span>
+</code><button type="button">Copy</button></pre>
+
+<h3 id="4-abrir-no-dispositivo-móvel" class="tsd-anchor-link">4. Abrir no dispositivo móvel<a href="#4-abrir-no-dispositivo-móvel" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<ul>
+<li>Escaneie o QR Code gerado no terminal usando o aplicativo <strong>Expo Go</strong> no Android ou a câmera nativa no iOS.</li>
+</ul>
+<h2 id="documentação-técnica-swagger-e-typedoc" class="tsd-anchor-link">Documentação Técnica (Swagger e TypeDoc)<a href="#documentação-técnica-swagger-e-typedoc" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>O repositório disponibiliza dois portais estáticos de documentação em <code>docs/</code>:</p>
+<ul>
+<li><strong>Documentação da API (Swagger / OpenAPI):</strong> <code>docs/index.html</code> e <code>docs/openapi.yaml</code>.</li>
+<li><strong>Documentação do Código / Docstrings (TypeDoc):</strong> <code>docs/code/</code> (gerada a partir das docstrings TSDoc/JSDoc de <code>App.tsx</code> e <code>src/</code>).</li>
+</ul>
+<p>Comandos disponíveis:</p>
+<pre><code class="bash"><span class="hl-5"># Servir toda a documentação (Swagger em / e TypeDoc em /code/)</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">docs</span><br/><br/><span class="hl-5"># Servir apenas o portal TypeDoc das docstrings</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">docs:code</span><br/><br/><span class="hl-5"># Regerar os arquivos HTML/CSS/JS em docs/code/ a partir das docstrings</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">docs:build</span><br/><br/><span class="hl-5"># Validar estritamente se há erros ou docstrings ausentes/quebradas</span><br/><span class="hl-0">npm</span><span class="hl-1"> </span><span class="hl-2">run</span><span class="hl-1"> </span><span class="hl-2">docs:check</span>
+</code><button type="button">Copy</button></pre>
+
+<h2 id="equipe-desenvolvedora" class="tsd-anchor-link">Equipe Desenvolvedora<a href="#equipe-desenvolvedora" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ul>
+<li>Ana Paula Pereira Leonidas</li>
+<li>Camila Moura</li>
+<li>Elder Matheus Maia de Oliveira</li>
+<li>Emanuelly de Almeida e Silva</li>
+<li>Gabriel Lima Pereira</li>
+</ul>
+</div></div>
+<div class="col-sidebar">
+<div class="page-menu">
+<div class="tsd-navigation settings">
+<details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg>
+<h3>Settings</h3></summary>
+<div class="tsd-accordion-details">
+<div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span>
+<ul id="tsd-filter-options">
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li>
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div>
+<div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div>
+<details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg>
+<h3>On This Page</h3></summary>
+<div class="tsd-accordion-details"><a href="#splithouse"><span>Split<wbr/>House</span></a>
+<ul>
+<li><a href="#projeto"><span>Projeto</span></a></li>
+<li><a href="#status-do-projeto"><span>Status do <wbr/>Projeto</span></a></li>
+<li><a href="#funcionalidades-e-módulos-do-sistema"><span>Funcionalidades e <wbr/>Módulos do <wbr/>Sistema</span></a></li>
+<li><a href="#tecnologias-e-arquitetura"><span>Tecnologias e <wbr/>Arquitetura</span></a></li>
+<li><a href="#modelagem-do-banco-de-dados-supabase"><span>Modelagem do <wbr/>Banco de <wbr/>Dados (<wbr/>Supabase)</span></a></li>
+<li>
+<ul>
+<li><a href="#scripts-de-provisionamento-sql"><span>Scripts de <wbr/>Provisionamento <wbr/>SQL</span></a></li></ul></li>
+<li><a href="#testes-automatizados-e-qualidade-de-código"><span>Testes <wbr/>Automatizados e <wbr/>Qualidade de <wbr/>Código</span></a></li>
+<li><a href="#como-executar-a-aplicação"><span>Como <wbr/>Executar a <wbr/>Aplicação</span></a></li>
+<li>
+<ul>
+<li><a href="#1-clonar-o-repositório-e-instalar-dependências"><span>1. <wbr/>Clonar o repositório e instalar dependências</span></a></li>
+<li><a href="#2-configurar-as-variáveis-de-ambiente"><span>2. <wbr/>Configurar as variáveis de ambiente</span></a></li>
+<li><a href="#3-iniciar-o-servidor-de-desenvolvimento-expo"><span>3. <wbr/>Iniciar o servidor de desenvolvimento <wbr/>Expo</span></a></li>
+<li><a href="#4-abrir-no-dispositivo-móvel"><span>4. <wbr/>Abrir no dispositivo móvel</span></a></li></ul></li>
+<li><a href="#documentação-técnica-swagger-e-typedoc"><span>Documentação <wbr/>Técnica (<wbr/>Swagger e <wbr/>Type<wbr/>Doc)</span></a></li>
+<li><a href="#equipe-desenvolvedora"><span>Equipe <wbr/>Desenvolvedora</span></a></li></ul></div></details></div>
+<div class="site-menu">
+<nav class="tsd-navigation"><a href="modules.html">SplitHouse - Documentação do Código - v1.0.0</a>
+<ul class="tsd-small-nested-navigation" id="tsd-nav-container">
+<li>Loading...</li></ul></nav></div></div></div><footer>
+<p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer>
+<div class="overlay"></div></body></html>
