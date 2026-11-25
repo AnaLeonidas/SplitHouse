@@ -42,7 +42,7 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
 
     const filteredExpenses = expenses.filter((e) => {
         if (activeTab === 'Todos') return true;
-        if (activeTab === 'Pendentes') return e.status === 'pendente';
+        if (activeTab === 'Pendentes') return e.status === 'pendente' || e.status === 'parcial';
         if (activeTab === 'Pagas') return e.status === 'pago';
         if (activeTab === 'Recorrentes') return e.status === 'recorrente';
         return true;

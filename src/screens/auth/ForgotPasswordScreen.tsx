@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks do fluxo de recuperação de senha.
@@ -54,14 +55,14 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
    */
   const handleResetPassword = async () => {
     if (!email.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe seu e-mail cadastrado.');
+      showAlert('Atenção', 'Por favor, informe seu e-mail cadastrado.');
       return;
     }
 
     try {
       setLoading(true);
       await resetPassword(email.trim());
-      Alert.alert(
+      showAlert(
         'E-mail de recuperação enviado',
         `Enviamos as instruções e o código de recuperação para ${email.trim()}.\n\nVocê pode clicar no link enviado por e-mail ou digitar o código de verificação recebido.`,
         [
@@ -79,11 +80,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               }
             },
           },
-        ],
-        { cancelable: false }
+        ]
       );
     } catch (error: any) {
-      Alert.alert(
+      showAlert(
         'Erro ao recuperar senha',
         error?.message || 'Não foi possível enviar o e-mail de recuperação. Tente novamente.'
       );
@@ -235,6 +235,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

@@ -3,6 +3,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createClient } = require('@supabase/supabase-js');
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class {};
+}
 
 const envPath = path.resolve(__dirname, '../.env');
 let supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;

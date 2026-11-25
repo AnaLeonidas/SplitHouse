@@ -17,6 +17,7 @@ import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../services/supabase';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e eventos da tela de cadastro de novo morador.
@@ -50,7 +51,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onPrivacyPress,
   onGooglePress,
 }) => {
-  const { signUp } = useAuth();
+  const { signUp, refreshProfile } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -68,27 +69,27 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
    */
   const handleRegister = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe seu nome completo.');
+      showAlert('Atenção', 'Por favor, informe seu nome completo.');
       return;
     }
 
     if (!email.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe seu e-mail.');
+      showAlert('Atenção', 'Por favor, informe seu e-mail.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
+      showAlert('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Atenção', 'A confirmação de senha não coincide com a senha informada.');
+      showAlert('Atenção', 'A confirmação de senha não coincide com a senha informada.');
       return;
     }
 
     if (!agreeTerms) {
-      Alert.alert('Atenção', 'Você precisa concordar com os Termos de Uso e Política de Privacidade.');
+      showAlert('Atenção', 'Você precisa concordar com os Termos de Uso e Política de Privacidade.');
       return;
     }
 
@@ -100,6 +101,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           data: {
             full_name: name.trim(),
             cadastro_concluido: true,
+            google_signup_incomplete: false,
           },
         });
         if (
@@ -110,6 +112,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             data: {
               full_name: name.trim(),
               cadastro_concluido: true,
+              google_signup_incomplete: false,
             },
           });
           updated = retry.data;
@@ -119,21 +122,27 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           throw updateError;
         }
         if (updated?.user?.id) {
-          await supabase
+          const { error: perfilErr } = await supabase
             .from('perfis')
             .update({ nome_completo: name.trim() })
             .eq('id', updated.user.id);
+          if (perfilErr) {
+            console.warn('RegisterScreen: aviso ao atualizar perfil Google:', perfilErr.message);
+          }
+          await refreshProfile();
         }
-        Alert.alert('Sucesso', 'Cadastro com Google finalizado com sucesso!');
-        if (onRegisterSubmit) {
-          onRegisterSubmit(name.trim(), email.trim(), password);
-        }
+        showAlert('Sucesso', 'Cadastro com Google finalizado com sucesso!', [
+          {
+            text: 'Continuar',
+            onPress: () => onRegisterSubmit && onRegisterSubmit(name.trim(), email.trim(), password),
+          },
+        ]);
         return;
       }
 
       const result = await signUp(email.trim(), password, name.trim());
       if (!result.emailConfirmed && !result.session) {
-        Alert.alert(
+        showAlert(
           'Confirmação necessária',
           `Sua conta foi criada! Enviamos um e-mail de ativação para ${email.trim()}.\n\nPor favor, confirme seu e-mail antes de fazer login.`,
           [
@@ -144,17 +153,19 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           ]
         );
       } else {
-        Alert.alert('Sucesso', 'Conta criada com sucesso!');
-        if (onRegisterSubmit) {
-          onRegisterSubmit(name.trim(), email.trim(), password);
-        }
+        showAlert('Sucesso', 'Conta criada com sucesso!', [
+          {
+            text: 'Continuar',
+            onPress: () => onRegisterSubmit && onRegisterSubmit(name.trim(), email.trim(), password),
+          },
+        ]);
       }
     } catch (error: any) {
       const msg = error?.message || '';
       if (msg.includes('already registered') || msg.includes('unique')) {
-        Alert.alert('Erro no cadastro', 'Este e-mail já está cadastrado no sistema.');
+        showAlert('Erro no cadastro', 'Este e-mail já está cadastrado no sistema.');
       } else {
-        Alert.alert('Erro no cadastro', msg || 'Não foi possível criar sua conta. Tente novamente.');
+        showAlert('Erro no cadastro', msg || 'Não foi possível criar sua conta. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -236,7 +247,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, googleLinked && { color: Colors.textSecondary }]}
                     placeholder="seuemail@exemplo.com"
                     placeholderTextColor={Colors.textSecondary}
                     value={email}
@@ -244,7 +255,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoCorrect={false}
-                    editable={!loading}
+                    editable={!loading && !googleLinked}
                   />
                 </View>
               </View>
@@ -369,7 +380,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                           if (googleData.name) setName(googleData.name);
                           if (googleData.email) setEmail(googleData.email);
                           setGoogleLinked(true);
-                          Alert.alert(
+                          showAlert(
                             'Google conectado!',
                             'Revise seu nome se desejar e defina uma senha para concluir seu cadastro no SplitHouse.'
                           );
@@ -425,6 +436,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

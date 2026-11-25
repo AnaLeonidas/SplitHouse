@@ -122,9 +122,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <View style={styles.avatar}>
                             <Text style={styles.avatarText}>{initials}</Text>
                         </View>
-                        <View>
+                        <View style={{ flex: 1, flexShrink: 1 }}>
                             <View style={styles.nameRow}>
-                                <Text style={styles.userName}>{userName}</Text>
+                                <Text style={styles.userName} numberOfLines={1}>{userName}</Text>
                                 <View style={styles.levelBadge}>
                                     <Text style={styles.levelText}>Nv. {userLevel}</Text>
                                 </View>
@@ -135,7 +135,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                 onPress={onManageMembersPress}
                             >
                                 <Feather name="home" size={12} color={Colors.primary} />
-                                <Text style={styles.houseName}>{houseName}</Text>
+                                <Text style={styles.houseName} numberOfLines={1}>{houseName}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -184,7 +184,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <View style={styles.balanceFooter}>
                         <View style={styles.debtorInfo}>
                             <View style={styles.bulletPoint} />
-                            <Text style={styles.debtorText}>
+                            <Text style={styles.debtorText} numberOfLines={1}>
                                 {debtorText || 'Nenhum acerto pendente no momento'}
                             </Text>
                         </View>
@@ -314,6 +314,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        flex: 1,
+        marginRight: 8,
     },
     avatar: {
         width: 48,
@@ -337,6 +339,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         color: Colors.text,
+        flexShrink: 1,
     },
     levelBadge: {
         backgroundColor: 'rgba(94, 43, 151, 0.1)',
@@ -359,6 +362,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.primary,
         fontWeight: '600',
+        flexShrink: 1,
     },
     headerActions: {
         flexDirection: 'row',
@@ -435,6 +439,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        flex: 1,
+        marginRight: 8,
     },
     bulletPoint: {
         width: 6,
@@ -445,6 +451,7 @@ const styles = StyleSheet.create({
     debtorText: {
         color: 'rgba(255, 255, 255, 0.8)',
         fontSize: 12,
+        flexShrink: 1,
     },
     debtorAmount: {
         color: Colors.white,

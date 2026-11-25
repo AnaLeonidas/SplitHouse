@@ -12,9 +12,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { pickImageWithPrompt } from '../../services/storageService';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Estrutura de dados detalhada de uma tarefa para visualização completa.
@@ -71,6 +73,7 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 }) => {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const insets = useSafeAreaInsets();
   const hasPhoto = !!photoUri;
 
   React.useEffect(() => {
@@ -89,8 +92,9 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const points = task?.points ?? 10;
 
   const handlePhotoPress = async () => {
+    if (submitting) return;
     if (!canSubmit) {
-      Alert.alert('Apenas o responsável', 'Somente o morador responsável pode enviar a foto desta tarefa.');
+      showAlert('Apenas o responsável', 'Somente o morador responsável pode enviar a foto desta tarefa.');
       return;
     }
     const uri = await pickImageWithPrompt('Foto da tarefa');
@@ -98,12 +102,13 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const handleSendValidation = async () => {
+    if (submitting) return;
     if (!canSubmit) {
-      Alert.alert('Apenas o responsável', 'Somente o morador responsável pode enviar esta tarefa para validação.');
+      showAlert('Apenas o responsável', 'Somente o morador responsável pode enviar esta tarefa para validação.');
       return;
     }
     if (!photoUri) {
-      Alert.alert(
+      showAlert(
         'Foto necessária',
         'Tire uma foto como comprovante antes de enviar a tarefa para validação.',
         [
@@ -141,6 +146,7 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         <TouchableOpacity
           style={styles.headerButton}
           activeOpacity={0.8}
+          disabled={submitting}
           onPress={onBackPress}
         >
           <Feather name="chevron-left" size={22} color={Colors.text} />
@@ -213,6 +219,7 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         <TouchableOpacity
           style={[styles.evidenceCard, hasPhoto && styles.evidenceCardAttached]}
           activeOpacity={0.8}
+          disabled={submitting}
           onPress={handlePhotoPress}
         >
           {hasPhoto ? (
@@ -243,7 +250,7 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'android' ? 28 : 20) }]}>
         <TouchableOpacity
           style={[styles.submitButton, submitting && { opacity: 0.7 }]}
           activeOpacity={0.88}
@@ -270,6 +277,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',
@@ -384,6 +392,7 @@ const styles = StyleSheet.create({
   rewardRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 4,
     marginTop: 2,
   },

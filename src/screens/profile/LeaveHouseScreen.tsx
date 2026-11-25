@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Modelo de dados de um morador elegível para assumir a administração da moradia.
@@ -100,7 +101,7 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
     if (submitting) return;
 
     if (isDebtor) {
-      Alert.alert(
+      showAlert(
         'Saldo pendente',
         'Quite suas dívidas em aberto antes de sair da moradia.'
       );
@@ -108,7 +109,7 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
     }
 
     if (isAdmin && candidates.length > 0 && !selectedCandidateId) {
-      Alert.alert(
+      showAlert(
         'Seleção obrigatória',
         'Escolha qual morador assumirá a administração da república.'
       );
@@ -116,7 +117,7 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
     }
 
     if (!password.trim()) {
-      Alert.alert(
+      showAlert(
         'Senha obrigatória',
         'Digite sua senha atual para confirmar sua desvinculação.'
       );
@@ -124,7 +125,7 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
     }
 
     const selected = candidates.find((c) => c.id === selectedCandidateId);
-    Alert.alert(
+    showAlert(
       'Confirmar desvinculação',
       isAdmin && candidates.length > 0
         ? `A administração será transferida para ${selected?.name || 'o morador indicado'} e você sairá de "${republicName}". Deseja continuar?`
@@ -387,6 +388,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCFC',
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    overflow: 'hidden',
   },
   glowTop: {
     position: 'absolute',

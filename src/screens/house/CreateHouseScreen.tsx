@@ -18,6 +18,13 @@ import { Colors } from '../../constants/theme';
  * Propriedades e callbacks do fluxo de criação de moradia.
  */
 export interface CreateHouseScreenProps {
+  /** Dados iniciais opcionais para preservar o formulário ao voltar da etapa de regras */
+  initialData?: {
+    name: string;
+    address: string;
+    type: 'apartment' | 'house';
+    residentsCount: string;
+  } | null;
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão com os dados cadastrais da república */
@@ -36,13 +43,14 @@ export interface CreateHouseScreenProps {
  * @param props Callbacks de submissão do formulário e retorno.
  */
 export const CreateHouseScreen: React.FC<CreateHouseScreenProps> = ({
+  initialData,
   onBackPress,
   onSubmit,
 }) => {
-  const [houseName, setHouseName] = useState('');
-  const [address, setAddress] = useState('');
-  const [houseType, setHouseType] = useState<'apartment' | 'house'>('apartment');
-  const [residentsCount, setResidentsCount] = useState('');
+  const [houseName, setHouseName] = useState(initialData?.name || '');
+  const [address, setAddress] = useState(initialData?.address || '');
+  const [houseType, setHouseType] = useState<'apartment' | 'house'>(initialData?.type || 'apartment');
+  const [residentsCount, setResidentsCount] = useState(initialData?.residentsCount || '');
 
   return (
     <KeyboardAvoidingView
@@ -215,6 +223,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

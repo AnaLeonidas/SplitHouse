@@ -98,7 +98,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (activeUserIdRef.current !== userId) return;
 
-      if (!error && data) {
+      if (error) {
+        console.warn('Erro ao consultar perfil do morador:', error.message);
+        return;
+      }
+
+      if (data) {
         setProfile(data as Perfil);
         return;
       }
@@ -132,6 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
+    let initCompleted = false;
 
     const initSession = async () => {
       try {
@@ -148,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (err) {
         console.warn('Erro ao restaurar sessão inicial:', err);
       } finally {
+        initCompleted = true;
         if (mounted) {
           setLoading(false);
         }
@@ -170,7 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(null);
       }
 
-      if (mounted) {
+      if (mounted && initCompleted) {
         setLoading(false);
       }
     });
@@ -261,6 +268,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const signOut = async () => {
     try {
+      if (Platform.OS !== 'web') {
+        try {
+          const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+          await GoogleSignin.signOut();
+        } catch {
+          // Ignora caso não esteja logado via Google
+        }
+      }
       const { error } = await supabase.auth.signOut();
       if (error) {
         await supabase.auth.signOut({ scope: 'local' });
@@ -307,6 +322,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw error;
     }
     if (data.session) {
+      activeUserIdRef.current = data.user?.id ?? null;
       setSession(data.session);
       setUser(data.user);
     }
@@ -328,8 +344,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Atualiza os dados locais do perfil buscando as informações mais recentes na tabela 'perfis'.
    */
   const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id, user);
+    const targetUser = user || (await supabase.auth.getUser()).data.user;
+    if (targetUser) {
+      activeUserIdRef.current = targetUser.id;
+      await fetchProfile(targetUser.id, targetUser);
     }
   };
 

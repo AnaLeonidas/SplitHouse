@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks de autenticação da tela de login.
@@ -53,19 +54,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const isBusy = loading || googleLoading;
 
   /**
    * Valida as credenciais preenchidas e despacha a requisição de autenticação
    * para o Supabase Auth via contexto, tratando mensagens de erro amigáveis.
    */
   const handleLogin = async () => {
+    if (isBusy) return;
     if (!email.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe seu e-mail.');
+      showAlert('Atenção', 'Por favor, informe seu e-mail.');
       return;
     }
 
     if (!password) {
-      Alert.alert('Atenção', 'Por favor, informe sua senha.');
+      showAlert('Atenção', 'Por favor, informe sua senha.');
       return;
     }
 
@@ -78,9 +82,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     } catch (error: any) {
       const msg = error?.message || '';
       if (msg.includes('Invalid login credentials')) {
-        Alert.alert('Erro no login', 'E-mail ou senha incorretos.');
+        showAlert('Erro no login', 'E-mail ou senha incorretos.');
       } else if (msg.includes('Email not confirmed') || error?.code === 'email_not_confirmed') {
-        Alert.alert(
+        showAlert(
           'E-mail não confirmado',
           'Você precisa confirmar seu e-mail antes de acessar o aplicativo. Deseja que enviemos novamente o e-mail de ativação?',
           [
@@ -90,12 +94,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               onPress: async () => {
                 try {
                   await resendConfirmationEmail(email.trim());
-                  Alert.alert(
+                  showAlert(
                     'E-mail enviado',
                     'Novo link de confirmação enviado para o seu e-mail. Verifique também a pasta de spam.'
                   );
                 } catch (resendErr: any) {
-                  Alert.alert(
+                  showAlert(
                     'Erro ao reenviar',
                     resendErr?.message || 'Aguarde alguns instantes antes de solicitar novamente.'
                   );
@@ -105,7 +109,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           ]
         );
       } else {
-        Alert.alert('Erro no login', msg || 'Não foi possível entrar. Verifique seus dados.');
+        showAlert('Erro no login', msg || 'Não foi possível entrar. Verifique seus dados.');
       }
     } finally {
       setLoading(false);
@@ -258,9 +262,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </View>
 
             <TouchableOpacity
-              style={styles.googleButton}
+              style={[styles.googleButton, isBusy && { opacity: 0.65 }]}
               activeOpacity={0.85}
-              onPress={onGooglePress}
+              disabled={isBusy}
+              onPress={async () => {
+                if (!onGooglePress || isBusy) return;
+                try {
+                  setGoogleLoading(true);
+                  await onGooglePress();
+                } finally {
+                  setGoogleLoading(false);
+                }
+              }}
             >
               <Svg width={18} height={18} viewBox="0 0 24 24">
                 <Path
@@ -305,6 +318,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

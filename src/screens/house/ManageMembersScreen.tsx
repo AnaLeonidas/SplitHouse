@@ -12,6 +12,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Modelo de dados de um usuário aguardando aprovação para ingressar na república.
@@ -115,7 +116,7 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
 
   const handleMemberOptions = (member: ActiveMember) => {
     if (!canManage) {
-      Alert.alert('Acesso restrito', 'Apenas administradores podem gerenciar moradores.');
+      showAlert('Acesso restrito', 'Apenas administradores podem gerenciar moradores.');
       return;
     }
 
@@ -123,14 +124,14 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
       return;
     }
 
-    Alert.alert(
+    showAlert(
       member.name,
       'Selecione uma ação para este morador:',
       [
         {
           text: 'Promover a Administrador',
           onPress: () => {
-            Alert.alert(
+            showAlert(
               'Confirmar promoção',
               `Deseja tornar ${member.name} um administrador da moradia?`,
               [
@@ -147,7 +148,7 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
           text: 'Remover da Moradia',
           style: 'destructive',
           onPress: () => {
-            Alert.alert(
+            showAlert(
               'Remover morador',
               `Tem certeza que deseja remover ${member.name} da moradia?`,
               [
@@ -350,6 +351,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

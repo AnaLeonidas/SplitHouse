@@ -10,12 +10,14 @@ import {
   StatusBar as RNStatusBar,
   KeyboardAvoidingView,
   Modal,
+  Pressable,
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Dados coletados pelo formulário de criação de nova tarefa.
@@ -116,10 +118,19 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    if (membersList.length > 0 && selectedMember.id === 'unassigned') {
+    if (membersList.length === 0) {
+      setSelectedMember({
+        id: 'unassigned',
+        name: 'Geral (Todos)',
+        initials: 'GD',
+      });
+      return;
+    }
+    const stillExists = membersList.find((m) => m.id === selectedMember.id);
+    if (!stillExists) {
       setSelectedMember(membersList[0]);
     }
-  }, [membersList]);
+  }, [membersList, selectedMember.id]);
   const [deadline, setDeadline] = useState('Hoje, 22:00');
   const [xp, setXp] = useState(30);
   const [coins, setCoins] = useState(10);
@@ -155,7 +166,7 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   const handleSubmit = async () => {
     if (submitting) return;
     if (!title.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe o título da tarefa.');
+      showAlert('Atenção', 'Por favor, informe o título da tarefa.');
       return;
     }
 
@@ -415,12 +426,9 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setActiveModal('none')}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal('none')}
-        >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setActiveModal('none')} />
+          <View style={[styles.modalCard, { maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Responsável</Text>
               <TouchableOpacity
@@ -431,48 +439,50 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
               </TouchableOpacity>
             </View>
 
-            {availableMembers.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
-                  Nenhum morador disponível para atribuição.
-                </Text>
-              </View>
-            ) : (
-              availableMembers.map((member) => {
-                const isSelected = selectedMember.id === member.id;
-                return (
-                  <TouchableOpacity
-                    key={member.id}
-                    style={[
-                      styles.modalOptionItem,
-                      isSelected && styles.modalOptionItemSelected,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setSelectedMember(member);
-                      setActiveModal('none');
-                    }}
-                  >
-                    <View style={styles.modalMemberAvatar}>
-                      <Text style={styles.modalMemberAvatarText}>{member.initials}</Text>
-                    </View>
-                    <Text
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {availableMembers.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
+                    Nenhum morador disponível para atribuição.
+                  </Text>
+                </View>
+              ) : (
+                availableMembers.map((member) => {
+                  const isSelected = selectedMember.id === member.id;
+                  return (
+                    <TouchableOpacity
+                      key={member.id}
                       style={[
-                        styles.modalOptionText,
-                        isSelected && styles.modalOptionTextSelected,
+                        styles.modalOptionItem,
+                        isSelected && styles.modalOptionItemSelected,
                       ]}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedMember(member);
+                        setActiveModal('none');
+                      }}
                     >
-                      {member.name}
-                    </Text>
-                    {isSelected && (
-                      <Feather name="check" size={18} color={Colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            )}
+                      <View style={styles.modalMemberAvatar}>
+                        <Text style={styles.modalMemberAvatarText}>{member.initials}</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.modalOptionText,
+                          isSelected && styles.modalOptionTextSelected,
+                        ]}
+                      >
+                        {member.name}
+                      </Text>
+                      {isSelected && (
+                        <Feather name="check" size={18} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       <Modal
@@ -481,81 +491,85 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setActiveModal('none')}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal('none')}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Definir Prazo Limite</Text>
-              <TouchableOpacity
-                onPress={() => setActiveModal('none')}
-                style={styles.modalCloseButton}
-              >
-                <Feather name="x" size={18} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {DEADLINE_OPTIONS.map((item) => {
-              const isSelected = deadline === item;
-              return (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.modalOptionItem,
-                    isSelected && styles.modalOptionItemSelected,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    setDeadline(item);
-                    setActiveModal('none');
-                  }}
-                >
-                  <Feather
-                    name="clock"
-                    size={16}
-                    color={isSelected ? Colors.primary : Colors.textSecondary}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      isSelected && styles.modalOptionTextSelected,
-                    ]}
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setActiveModal('none')} />
+            <View style={[styles.modalCard, { maxHeight: '85%' }]}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Definir Prazo Limite</Text>
+                  <TouchableOpacity
+                    onPress={() => setActiveModal('none')}
+                    style={styles.modalCloseButton}
                   >
-                    {item}
-                  </Text>
-                  {isSelected && (
-                    <Feather name="check" size={18} color={Colors.primary} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+                    <Feather name="x" size={18} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.customDeadlineSection}>
-              <TextInput
-                style={styles.customDeadlineInput}
-                placeholder="Ou digite outro prazo..."
-                placeholderTextColor="rgba(132, 130, 143, 0.5)"
-                value={customDeadline}
-                onChangeText={setCustomDeadline}
-              />
-              <TouchableOpacity
-                style={styles.customDeadlineButton}
-                onPress={() => {
-                  if (customDeadline.trim()) {
-                    setDeadline(customDeadline.trim());
-                    setCustomDeadline('');
-                    setActiveModal('none');
-                  }
-                }}
-              >
-                <Text style={styles.customDeadlineButtonText}>Aplicar</Text>
-              </TouchableOpacity>
+                {DEADLINE_OPTIONS.map((item) => {
+                  const isSelected = deadline === item;
+                  return (
+                    <TouchableOpacity
+                      key={item}
+                      style={[
+                        styles.modalOptionItem,
+                        isSelected && styles.modalOptionItemSelected,
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setDeadline(item);
+                        setActiveModal('none');
+                      }}
+                    >
+                      <Feather
+                        name="clock"
+                        size={16}
+                        color={isSelected ? Colors.primary : Colors.textSecondary}
+                        style={{ marginRight: 10 }}
+                      />
+                      <Text
+                        style={[
+                          styles.modalOptionText,
+                          isSelected && styles.modalOptionTextSelected,
+                        ]}
+                      >
+                        {item}
+                      </Text>
+                      {isSelected && (
+                        <Feather name="check" size={18} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <View style={styles.customDeadlineSection}>
+                  <TextInput
+                    style={styles.customDeadlineInput}
+                    placeholder="Ou digite outro prazo..."
+                    placeholderTextColor="rgba(132, 130, 143, 0.5)"
+                    value={customDeadline}
+                    onChangeText={setCustomDeadline}
+                  />
+                  <TouchableOpacity
+                    style={styles.customDeadlineButton}
+                    onPress={() => {
+                      if (customDeadline.trim()) {
+                        setDeadline(customDeadline.trim());
+                        setCustomDeadline('');
+                        setActiveModal('none');
+                      }
+                    }}
+                  >
+                    <Text style={styles.customDeadlineButtonText}>Aplicar</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -564,12 +578,9 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setActiveModal('none')}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setActiveModal('none')}
-        >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setActiveModal('none')} />
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Recompensas da Tarefa</Text>
               <TouchableOpacity
@@ -625,7 +636,7 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
               <Text style={styles.modalConfirmButtonText}>Confirmar Recompensas</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -635,6 +646,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks do formulário de proposição de nova recompensa.
@@ -67,13 +68,13 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   const handleSubmit = async () => {
     if (isSubmitting) return;
     if (!title.trim()) {
-      Alert.alert('Atenção', 'Informe o título da recompensa.');
+      showAlert('Atenção', 'Informe o título da recompensa.');
       return;
     }
     const normalizedCost = cost.trim().replace(',', '.');
     const costNum = Number(normalizedCost);
     if (!normalizedCost || !Number.isInteger(costNum) || costNum <= 0) {
-      Alert.alert('Atenção', 'Informe um número inteiro válido e positivo em moedas.');
+      showAlert('Atenção', 'Informe um número inteiro válido e positivo em moedas.');
       return;
     }
 
@@ -89,7 +90,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
         });
       }
 
-      Alert.alert(
+      showAlert(
         'Recompensa Proposta!',
         `A recompensa "${title.trim()}" foi adicionada à loja da república.`,
         [
@@ -101,11 +102,10 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
               }
             },
           },
-        ],
-        { cancelable: false }
+        ]
       );
     } catch (err) {
-      Alert.alert(
+      showAlert(
         'Erro ao cadastrar recompensa',
         err instanceof Error ? err.message : 'Tente novamente.'
       );
@@ -274,6 +274,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {

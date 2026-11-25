@@ -127,6 +127,7 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
           <TouchableOpacity
             style={styles.backButton}
             activeOpacity={0.8}
+            disabled={isSubmitting}
             onPress={onBackPress}
           >
             <Feather name="chevron-left" size={22} color={Colors.text} />
@@ -171,12 +172,14 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
                     onChangeText={(text) => updateRuleTitle(rule.id, text)}
                     placeholder={`Título da regra ${index + 1}`}
                     placeholderTextColor={Colors.textSecondary}
+                    editable={!isSubmitting}
                   />
                 </View>
 
                 <TouchableOpacity
                   style={styles.deleteButton}
                   activeOpacity={0.7}
+                  disabled={isSubmitting}
                   onPress={() => handleDeleteRule(rule.id)}
                 >
                   <Feather name="trash-2" size={16} color="#DC2626" />
@@ -190,13 +193,15 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
                 placeholder="Descreva o conteúdo da regra"
                 placeholderTextColor={Colors.textSecondary}
                 multiline
+                editable={!isSubmitting}
               />
             </View>
           ))}
 
           <TouchableOpacity
-            style={styles.addRuleButton}
+            style={[styles.addRuleButton, isSubmitting && { opacity: 0.6 }]}
             activeOpacity={0.8}
+            disabled={isSubmitting}
             onPress={handleAddRule}
           >
             <View style={styles.addRuleIconContainer}>
@@ -253,6 +258,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

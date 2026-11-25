@@ -619,6 +619,16 @@ export const financeService = {
             .eq('id', partialUpdate.id);
 
           if (partialError) {
+            if (toSettle.length > 0) {
+              await supabase
+                .from('rateios_despesa')
+                .update({ status: 'pendente', pago_em: null })
+                .in('id', toSettle);
+            }
+            await supabase
+              .from('pagamentos_acerto')
+              .update({ status: 'aguardando_aprovacao', confirmado_em: null })
+              .eq('id', pagamentoId);
             throw new Error(`Falha ao abater pagamento parcial no rateio: ${partialError.message}`);
           }
         }

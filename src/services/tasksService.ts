@@ -348,18 +348,35 @@ export const tasksService = {
       throw new Error(`Falha ao registrar a validação: ${valError?.message || 'Erro desconhecido.'}`);
     }
 
-    const { data: updatedTask, error } = await supabase
+    const nowIso = new Date().toISOString();
+    let { data: updatedTask, error } = await supabase
       .from('tarefas')
       .update({
         status: 'em_validacao',
         requer_validacao: true,
         foto_comprovante_url: photoUrl,
-        atualizado_em: new Date().toISOString(),
+        atualizado_em: nowIso,
       })
       .eq('id', taskId)
       .in('status', ['pendente', 'Pendente'])
       .select('id')
       .maybeSingle();
+
+    if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+      const retry = await supabase
+        .from('tarefas')
+        .update({
+          status: 'em_validacao',
+          requer_validacao: true,
+          atualizado_em: nowIso,
+        })
+        .eq('id', taskId)
+        .in('status', ['pendente', 'Pendente'])
+        .select('id')
+        .maybeSingle();
+      updatedTask = retry.data;
+      error = retry.error;
+    }
 
     if (error || !updatedTask) {
       await supabase.from('validacoes_tarefa').delete().eq('id', valInserted.id);
@@ -443,7 +460,7 @@ export const tasksService = {
     // 1. Atualiza estado em tarefas atomicamente somente se ainda estiver aguardando validação
     const newStatus = approved ? 'concluida' : 'pendente';
     const nowIso = new Date().toISOString();
-    const { data: updatedTask, error } = await supabase
+    let { data: updatedTask, error } = await supabase
       .from('tarefas')
       .update({
         status: newStatus,
@@ -454,15 +471,44 @@ export const tasksService = {
       .eq('id', taskId)
       .in('status', ['em_validacao', 'Aguardando validação'])
       .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas')
-      .single();
+      .maybeSingle();
+
+    if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+      const retry = await supabase
+        .from('tarefas')
+        .update({
+          status: newStatus,
+          requer_validacao: false,
+          atualizado_em: nowIso,
+        })
+        .eq('id', taskId)
+        .in('status', ['em_validacao', 'Aguardando validação'])
+        .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas')
+        .maybeSingle();
+      updatedTask = retry.data;
+      error = retry.error;
+    }
 
     if (error || !updatedTask) {
       console.error('Supabase: Tarefa não encontrada ou não está aguardando validação:', error?.message);
       return false;
     }
 
+    const rollbackTaskToWaitingValidation = async () => {
+      const rb = await supabase
+        .from('tarefas')
+        .update({ status: 'em_validacao', requer_validacao: true, concluido_em: null, atualizado_em: nowIso })
+        .eq('id', taskId);
+      if (rb.error && (rb.error.code === '42703' || rb.error.code === 'PGRST204')) {
+        await supabase
+          .from('tarefas')
+          .update({ status: 'em_validacao', requer_validacao: true, atualizado_em: nowIso })
+          .eq('id', taskId);
+      }
+    };
+
     // 2. Atualiza o envio pendente na tabela validacoes_tarefa
-    const { error: valError } = await supabase
+    const { data: valUpdatedRows, error: valError } = await supabase
       .from('validacoes_tarefa')
       .update({
         validador_id: validatorId,
@@ -471,14 +517,12 @@ export const tasksService = {
         validado_em: nowIso,
       })
       .eq('tarefa_id', taskId)
-      .eq('status', 'pendente');
+      .eq('status', 'pendente')
+      .select('id');
 
     if (valError) {
       console.error('Supabase: Erro ao atualizar validacao:', valError.message);
-      await supabase
-        .from('tarefas')
-        .update({ status: 'em_validacao', requer_validacao: true, concluido_em: null, atualizado_em: nowIso })
-        .eq('id', taskId);
+      await rollbackTaskToWaitingValidation();
       return false;
     }
 
@@ -498,6 +542,13 @@ export const tasksService = {
 
       if (membFetchError || !membro) {
         console.error('Supabase: Erro ao buscar membro para creditar recompensa:', membFetchError?.message);
+        if (valUpdatedRows && valUpdatedRows.length > 0) {
+          await supabase
+            .from('validacoes_tarefa')
+            .update({ validador_id: null, status: 'pendente', justificativa: null, validado_em: null })
+            .in('id', valUpdatedRows.map((v: any) => v.id));
+        }
+        await rollbackTaskToWaitingValidation();
         return false;
       }
 
@@ -532,6 +583,13 @@ export const tasksService = {
 
       if (updateMembError) {
         console.error('Supabase: Erro ao creditar saldo do membro:', updateMembError.message);
+        if (valUpdatedRows && valUpdatedRows.length > 0) {
+          await supabase
+            .from('validacoes_tarefa')
+            .update({ validador_id: null, status: 'pendente', justificativa: null, validado_em: null })
+            .in('id', valUpdatedRows.map((v: any) => v.id));
+        }
+        await rollbackTaskToWaitingValidation();
         return false;
       }
     }

@@ -322,6 +322,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',
@@ -495,6 +496,9 @@ const styles = StyleSheet.create({
   rewardNoticeText: {
     fontSize: 12,
     color: Colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
   },
   rewardValuesRow: {
     flexDirection: 'row',

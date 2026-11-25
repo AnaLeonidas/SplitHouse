@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { pickImageWithPrompt } from '../../services/storageService';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Representação da fração de rateio individual de um morador na despesa.
@@ -528,8 +529,14 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                         <TouchableOpacity
                             style={[styles.payerBtn, payer === 'outro' && styles.payerBtnActive]}
                             onPress={() => {
+                                const others = effectiveMembers.filter((m) => m.id !== user?.id);
+                                if (others.length === 0) {
+                                    setPayer('voce');
+                                    showAlert('Sem outros moradores', 'Não há outros moradores cadastrados na república além de você.');
+                                    return;
+                                }
                                 setPayer('outro');
-                                if (effectiveMembers.length > 0) setModalPayerVisible(true);
+                                setModalPayerVisible(true);
                             }}
                         >
                             <Text style={[styles.payerBtnText, payer === 'outro' && styles.payerBtnTextActive]} numberOfLines={1}>
@@ -865,8 +872,9 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                 onRequestClose={() => setModalPayerVisible(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, { maxHeight: '75%' }]}>
                         <Text style={styles.modalTitle}>Quem realizou o pagamento?</Text>
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
                         {effectiveMembers.filter((m) => m.id !== user?.id).length === 0 ? (
                             <Text style={{ color: Colors.textSecondary, marginVertical: 12, textAlign: 'center' }}>
                                 Nenhum outro morador encontrado na moradia.
@@ -892,6 +900,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                                     </TouchableOpacity>
                                 ))
                         )}
+                        </ScrollView>
                         <TouchableOpacity
                             style={styles.modalCloseBtn}
                             onPress={() => setModalPayerVisible(false)}
@@ -1094,7 +1103,7 @@ const styles = StyleSheet.create({
     },
     validationBadgeSuccess: { backgroundColor: 'rgba(34, 197, 94, 0.1)' },
     validationBadgeWarning: { backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-    validationBadgeText: { fontSize: 11, fontWeight: '700' },
+    validationBadgeText: { fontSize: 11, fontWeight: '700', flex: 1, flexShrink: 1 },
     attachCard: {
         flexDirection: 'row',
         alignItems: 'center',

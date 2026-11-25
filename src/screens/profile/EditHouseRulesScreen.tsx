@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Regra editável do estatuto da república.
@@ -64,6 +65,10 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
   const [saving, setSaving] = useState(false);
   const insets = useSafeAreaInsets();
 
+  useEffect(() => {
+    setRules(initialRules.map((r) => ({ ...r, _key: `r-${nextIdRef.current++}` })));
+  }, [initialRules]);
+
   const updateRule = (index: number, patch: Partial<EditableRule>) => {
     setRules((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   };
@@ -75,14 +80,13 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
       if (onSave) {
         await onSave(rules.map(({ _key, ...rest }) => rest));
       }
-      Alert.alert(
+      showAlert(
         'Regras Atualizadas',
         'O estatuto da casa foi atualizado com sucesso.',
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }],
-        { cancelable: false }
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
       );
     } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar as regras.');
+      showAlert('Erro', err instanceof Error ? err.message : 'Falha ao salvar as regras.');
     } finally {
       setSaving(false);
     }
@@ -224,6 +228,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCFC',
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
+    overflow: 'hidden',
   },
   glowTop: {
     position: 'absolute',

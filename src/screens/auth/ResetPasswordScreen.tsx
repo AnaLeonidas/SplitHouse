@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades da tela de redefinição de senha.
@@ -68,22 +69,22 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
 
   const handleReset = async () => {
     if (!hasActiveRecoverySession && !email.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe seu e-mail cadastrado.');
+      showAlert('Atenção', 'Por favor, informe seu e-mail cadastrado.');
       return;
     }
 
     if (!hasActiveRecoverySession && !token.trim()) {
-      Alert.alert('Atenção', 'Por favor, informe o código de verificação recebido por e-mail.');
+      showAlert('Atenção', 'Por favor, informe o código de verificação recebido por e-mail.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Atenção', 'A nova senha deve ter no mínimo 6 caracteres.');
+      showAlert('Atenção', 'A nova senha deve ter no mínimo 6 caracteres.');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Atenção', 'A confirmação de senha não confere com a nova senha digitada.');
+      showAlert('Atenção', 'A confirmação de senha não confere com a nova senha digitada.');
       return;
     }
 
@@ -98,7 +99,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
       // 2. Atualiza para a nova senha
       await updatePassword(password);
 
-      Alert.alert(
+      showAlert(
         'Senha alterada!',
         'Sua nova senha foi cadastrada com sucesso. Acesse sua conta agora.',
         [
@@ -114,12 +115,12 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('Token has expired') || msg.includes('invalid')) {
-        Alert.alert(
+        showAlert(
           'Código inválido ou expirado',
           'O código de recuperação informado não é válido ou já expirou. Solicite um novo na tela anterior.'
         );
       } else {
-        Alert.alert('Erro ao alterar senha', msg || 'Não foi possível redefinir sua senha.');
+        showAlert('Erro ao alterar senha', msg || 'Não foi possível redefinir sua senha.');
       }
     } finally {
       setLoading(false);
@@ -319,6 +320,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

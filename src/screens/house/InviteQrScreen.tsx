@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { QRCode } from '../../components/QRCode';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks da tela de compartilhamento de convite e QR Code.
@@ -73,11 +74,16 @@ export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
       onSharePress();
       return;
     }
+    const shareText = `Entre na minha república no SplitHouse usando o código: ${houseCode}`;
     try {
       await Share.share({
-        message: `Entre na minha república no SplitHouse usando o código: ${houseCode}`,
+        message: shareText,
       });
-    } catch {}
+    } catch {
+      await Clipboard.setStringAsync(shareText).catch(() => {});
+      setCopied(true);
+      showAlert('Convite copiado!', `O texto de convite foi copiado para a área de transferência:\n\n${houseCode}`);
+    }
   };
 
   return (
@@ -209,6 +215,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

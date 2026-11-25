@@ -165,14 +165,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <View>
+            <View style={{ flex: 1, flexShrink: 1 }}>
               <View style={styles.nameRow}>
-                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
                 <View style={styles.roleTag}>
                   <Text style={styles.roleTagText}>{user.role}</Text>
                 </View>
               </View>
-              <Text style={styles.userEmail}>{user.email}</Text>
+              <Text style={styles.userEmail} numberOfLines={1}>{user.email}</Text>
             </View>
           </View>
 
@@ -324,6 +324,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCFC',
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
+    overflow: 'hidden',
   },
   glowTop: {
     position: 'absolute',
@@ -438,6 +439,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#2D2D2A',
+    flexShrink: 1,
   },
   roleTag: {
     backgroundColor: 'rgba(204, 146, 194, 0.3)',
@@ -454,6 +456,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#84828F',
     marginTop: 2,
+    flexShrink: 1,
   },
   editButton: {
     flexDirection: 'row',

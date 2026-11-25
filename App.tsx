@@ -63,9 +63,13 @@ import { supabase } from './src/services/supabase';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 import { calculateLevelAndTitle } from './src/utils/gamification';
+import { showAlert } from './src/utils/alert';
 
 WebBrowser.maybeCompleteAuthSession();
 SplashScreenNative.preventAutoHideAsync().catch(() => {});
+if (Platform.OS === 'web') {
+  (Alert as any).alert = showAlert;
+}
 if (Platform.OS !== 'web') {
   GoogleSignin.configure({
     webClientId: '218838549404-7v52lhu60s63f629b4ovr6endbjvnhn8.apps.googleusercontent.com',
@@ -177,6 +181,16 @@ function MainApp() {
   const [recoveryEmail, setRecoveryEmail] = useState<string>('');
   const openTaskRequestRef = useRef(0);
   const openExpenseRequestRef = useRef(0);
+  const activeUidRef = useRef<string | null>(user?.id ?? null);
+  const storeSourceRef = useRef<Screen>('ranking');
+  const membersSourceRef = useRef<Screen>('home');
+  const notificationsSourceRef = useRef<Screen>('home');
+  const taskReturnRef = useRef<Screen>('tasks_list');
+  const expenseReturnRef = useRef<Screen>('expenses_list');
+
+  useEffect(() => {
+    activeUidRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
@@ -200,7 +214,10 @@ function MainApp() {
    * Consulta a moradia do usuário logado e atualiza o estado local.
    */
   const loadMyHouse = useCallback(async (): Promise<MinhaMoradia | null> => {
+    const uid = activeUidRef.current;
+    if (!uid) return null;
     const house = await houseService.getMyHouse();
+    if (activeUidRef.current !== uid) return null;
     setMyHouse(house);
     return house;
   }, []);
@@ -212,6 +229,7 @@ function MainApp() {
   const routeAfterAuth = useCallback(async () => {
     try {
       const house = await loadMyHouse();
+      if (!activeUidRef.current) return;
       if (house?.status === 'aprovado') {
         setCurrentScreen('home');
       } else if (house?.status === 'pendente') {
@@ -220,45 +238,75 @@ function MainApp() {
         setCurrentScreen('house_selection');
       }
     } catch (err) {
-      Alert.alert(
+      showAlert(
         'Erro de conexão',
-        err instanceof Error ? err.message : 'Não foi possível carregar os dados da sua conta. Tente novamente.'
+        err instanceof Error ? err.message : 'Não foi possível carregar os dados da sua conta. Tente novamente.',
+        currentScreenRef.current === 'splash'
+          ? [
+              { text: 'Tentar novamente', onPress: () => routeAfterAuth() },
+              {
+                text: 'Sair',
+                style: 'destructive',
+                onPress: async () => {
+                  await signOut().catch(() => {});
+                  setCurrentScreen('welcome');
+                },
+              },
+            ]
+          : [{ text: 'OK' }]
       );
     }
-  }, [loadMyHouse]);
+  }, [loadMyHouse, signOut]);
 
   const loadRanking = useCallback(async (moradiaId: string) => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
-      const items = await rankingService.fetchRanking(moradiaId, user?.id);
+      const items = await rankingService.fetchRanking(moradiaId, uid);
+      if (activeUidRef.current !== uid) return;
       setRankingList(items || []);
     } catch (err) {
       console.warn('App: Erro ao carregar ranking:', err);
     }
-  }, [user?.id]);
+  }, []);
 
   const loadMembers = useCallback(async (moradiaId: string, withRanking = false) => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
       const data = await houseService.listMembers(moradiaId);
+      if (activeUidRef.current !== uid) return;
       setMembers(data);
       if (withRanking) {
         loadRanking(moradiaId);
       }
     } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar moradores.');
+      if (activeUidRef.current === uid) {
+        showAlert('Erro', err instanceof Error ? err.message : 'Falha ao carregar moradores.');
+      }
     }
   }, [loadRanking]);
 
   const loadRules = useCallback(async (moradiaId: string) => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
-      setHouseRules(await houseService.fetchRules(moradiaId));
+      const rules = await houseService.fetchRules(moradiaId);
+      if (activeUidRef.current !== uid) return;
+      setHouseRules(rules);
     } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar regras.');
+      if (activeUidRef.current === uid) {
+        showAlert('Erro', err instanceof Error ? err.message : 'Falha ao carregar regras.');
+      }
     }
   }, []);
 
   const loadStore = useCallback(async (moradiaId: string) => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
       const items = await storeService.fetchStoreItems(moradiaId);
+      if (activeUidRef.current !== uid) return;
       setStoreItems(items);
     } catch (err) {
       console.warn('App: Erro ao carregar loja:', err);
@@ -266,21 +314,29 @@ function MainApp() {
   }, []);
 
   const loadFinanceOverview = useCallback(async (moradiaId: string) => {
-    if (!user) return;
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
-      const settle = await financeService.fetchSettleUpData(moradiaId, user.id);
+      const settle = await financeService.fetchSettleUpData(moradiaId, uid);
+      if (activeUidRef.current !== uid) return;
       setSettleUpData(settle);
       const rep = await financeService.fetchFinancialReport(moradiaId);
+      if (activeUidRef.current !== uid) return;
       setReportData(rep);
-      setPendingPayments(await financeService.fetchPendingPayments(moradiaId, user.id));
+      const pending = await financeService.fetchPendingPayments(moradiaId, uid);
+      if (activeUidRef.current !== uid) return;
+      setPendingPayments(pending);
     } catch (err) {
       console.warn('App: Erro ao carregar balanço financeiro:', err);
     }
-  }, [user]);
+  }, []);
 
   const loadExpenses = useCallback(async (moradiaId: string) => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
       const exp = await financeService.fetchExpenses(moradiaId);
+      if (activeUidRef.current !== uid) return;
       setExpensesList(exp || []);
     } catch (err) {
       console.warn('App: Erro ao carregar despesas:', err);
@@ -288,27 +344,32 @@ function MainApp() {
   }, []);
 
   const loadNotifications = useCallback(async () => {
-    if (!user) return;
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
-      const notes = await notificationsService.fetchNotifications(user.id, myHouse?.moradia_id);
+      const notes = await notificationsService.fetchNotifications(uid, myHouse?.moradia_id);
+      if (activeUidRef.current !== uid) return;
       setNotificationsList(notes);
     } catch (err) {
       console.warn('App: Erro ao carregar notificações:', err);
     }
-  }, [user, myHouse?.moradia_id]);
+  }, [myHouse?.moradia_id]);
 
   /** Recarrega tarefas da moradia. */
   const reloadTasks = useCallback(async () => {
+    const uid = activeUidRef.current;
+    if (!uid) return;
     try {
       const fetched = await tasksService.fetchTasks(
         myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
-        user?.id
+        uid
       );
+      if (activeUidRef.current !== uid) return;
       setTasks(fetched || []);
     } catch (err) {
       console.warn('App: Erro ao recarregar tarefas:', err);
     }
-  }, [myHouse?.status, myHouse?.moradia_id, user?.id]);
+  }, [myHouse?.status, myHouse?.moradia_id]);
 
   /** Notifica os demais moradores aprovados da moradia (cada um recebe a sua notificação). */
   const notifyHouse = (
@@ -361,36 +422,67 @@ function MainApp() {
       const hashParams = new URLSearchParams(hashPart);
       const getParam = (key: string) => hashParams.get(key) || queryParams.get(key);
 
+      const errorParam = getParam('error');
+      const errorDesc = getParam('error_description');
       const code = getParam('code');
       const accessToken = getParam('access_token');
       const refreshToken = getParam('refresh_token');
       const typeParam = getParam('type');
 
+      if (errorParam || errorDesc) {
+        showAlert('Autenticação', errorDesc || 'O link de verificação é inválido ou expirou.');
+        return;
+      }
+
       let establishedSession = false;
-      if (code) {
+      if (code && Platform.OS !== 'web') {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (!error && data?.session) establishedSession = true;
+        if (!error && data?.session) {
+          activeUidRef.current = data.session.user.id;
+          establishedSession = true;
+        }
       } else if (accessToken && refreshToken) {
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
-        if (!error && data?.session) establishedSession = true;
+        if (!error && data?.session) {
+          activeUidRef.current = data.session.user.id;
+          establishedSession = true;
+        }
+      } else if (Platform.OS === 'web' && code) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session) {
+          activeUidRef.current = data.session.user.id;
+          establishedSession = true;
+        }
       }
 
       if (url.includes('reset-password') || typeParam === 'recovery') {
+        if (!establishedSession && (code || accessToken)) {
+          showAlert('Link expirado', 'O link de recuperação expirou ou já foi utilizado. Solicite um novo.');
+          setCurrentScreen('forgot_password');
+          return;
+        }
         setCurrentScreen('reset_password');
       } else if (
         url.includes('confirm-email') ||
         typeParam === 'signup' ||
         typeParam === 'email'
       ) {
-        Alert.alert(
+        if ((code || accessToken) && !establishedSession) {
+          showAlert('Link expirado', 'O link de ativação é inválido ou já foi utilizado.');
+          setCurrentScreen('login');
+          return;
+        }
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        activeUidRef.current = null;
+        showAlert(
           'E-mail ativado!',
           'Sua conta foi confirmada com sucesso. Faça login para continuar.'
         );
         setCurrentScreen('login');
-      } else if (establishedSession || url.includes('auth-callback')) {
+      } else if (establishedSession) {
         await routeAfterAuth();
       }
     } catch (err) {
@@ -698,13 +790,19 @@ function MainApp() {
       const screen = currentScreenRef.current;
       switch (screen) {
         case 'login':
+          setCurrentScreen('welcome');
+          return true;
         case 'register':
+          if (user && !user.user_metadata?.cadastro_concluido && user.user_metadata?.google_signup_incomplete) {
+            signOut().catch(() => {});
+          }
           setCurrentScreen('welcome');
           return true;
         case 'forgot_password':
           setCurrentScreen('login');
           return true;
         case 'reset_password':
+          signOut().catch(() => {});
           setCurrentScreen('forgot_password');
           return true;
         case 'create_house':
@@ -721,25 +819,34 @@ function MainApp() {
           setCurrentScreen(inviteSourceRef.current === 'members' ? 'manage_members' : 'home');
           return true;
         case 'manage_members':
+          setCurrentScreen(membersSourceRef.current);
+          return true;
         case 'notifications':
+          setCurrentScreen(notificationsSourceRef.current);
+          return true;
         case 'settle_up':
         case 'report':
           setCurrentScreen('home');
           return true;
         case 'store':
-          setCurrentScreen('ranking');
+          if (storeSourceRef.current === 'ranking' && myHouse?.moradia_id) {
+            loadRanking(myHouse.moradia_id);
+          }
+          setCurrentScreen(storeSourceRef.current);
           return true;
         case 'propose_reward':
           setCurrentScreen('store');
           return true;
         case 'new_expense':
+          setCurrentScreen(expenseReturnRef.current);
+          return true;
         case 'expense_details':
           setCurrentScreen('expenses_list');
           return true;
         case 'new_task':
         case 'task_details':
         case 'task_validation':
-          setCurrentScreen('tasks_list');
+          setCurrentScreen(taskReturnRef.current);
           return true;
         case 'payment_validation':
           setCurrentScreen('settle_up');
@@ -913,15 +1020,19 @@ function MainApp() {
                 const createdMs = data?.user?.created_at ? new Date(data.user.created_at).getTime() : 0;
                 const lastSignInMs = data?.user?.last_sign_in_at ? new Date(data.user.last_sign_in_at).getTime() : createdMs;
                 const isNewlyCreated = createdMs > 0 && Math.abs(lastSignInMs - createdMs) < 10000;
-                if (isNewlyCreated && !data?.user?.user_metadata?.cadastro_concluido) {
+                const isIncomplete =
+                  (isNewlyCreated && !data?.user?.user_metadata?.cadastro_concluido) ||
+                  data?.user?.user_metadata?.google_signup_incomplete === true;
+                if (isIncomplete) {
                   await supabase.auth.signOut().catch(() => {});
                   await GoogleSignin.signOut().catch(() => {});
-                  Alert.alert(
+                  showAlert(
                     'Conta não encontrada',
                     'Este e-mail Google ainda não possui cadastro no SplitHouse. Volte para a tela de Criar Conta para finalizar seu cadastro.'
                   );
                   return;
                 }
+                activeUidRef.current = data?.user?.id ?? null;
                 await routeAfterAuth();
                 return;
               }
@@ -933,13 +1044,13 @@ function MainApp() {
                 options: { redirectTo },
               });
               if (error) {
-                Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
+                showAlert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
               }
             } catch (err: any) {
-              if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
+              if (err?.code === statusCodes.SIGN_IN_CANCELLED || err?.code === statusCodes.IN_PROGRESS) {
                 return;
               }
-              Alert.alert('Login com Google', err?.message || 'Configuração OAuth do Google indisponível no momento.');
+              showAlert('Login com Google', err?.message || 'Configuração OAuth do Google indisponível no momento.');
             }
           }}
         />
@@ -947,20 +1058,30 @@ function MainApp() {
 
       {currentScreen === 'register' && (
         <RegisterScreen
-          onBackPress={() => setCurrentScreen('welcome')}
+          onBackPress={async () => {
+            if (user && !user.user_metadata?.cadastro_concluido && user.user_metadata?.google_signup_incomplete) {
+              await signOut().catch(() => {});
+            }
+            setCurrentScreen('welcome');
+          }}
           onRegisterSubmit={() => routeAfterAuth()}
-          onLoginPress={() => setCurrentScreen('login')}
+          onLoginPress={async () => {
+            if (user && !user.user_metadata?.cadastro_concluido && user.user_metadata?.google_signup_incomplete) {
+              await signOut().catch(() => {});
+            }
+            setCurrentScreen('login');
+          }}
           onGooglePress={async () => {
             try {
               if (Platform.OS === 'web') {
-                Alert.alert('Cadastro com Google', 'O cadastro rápido com Google está disponível no aplicativo Android.');
+                showAlert('Cadastro com Google', 'O cadastro rápido com Google está disponível no aplicativo Android.');
                 return null;
               }
               await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
               const response = await GoogleSignin.signIn();
               const idToken = response?.data?.idToken;
               if (!idToken) {
-                Alert.alert('Cadastro com Google', 'Não foi possível obter os dados da sua conta Google.');
+                showAlert('Cadastro com Google', 'Não foi possível obter os dados da sua conta Google.');
                 return null;
               }
               const { data, error } = await supabase.auth.signInWithIdToken({
@@ -968,18 +1089,30 @@ function MainApp() {
                 token: idToken,
               });
               if (error || !data?.user) {
-                Alert.alert('Cadastro com Google', error?.message || 'Não foi possível conectar com o Google.');
+                showAlert('Cadastro com Google', error?.message || 'Não foi possível conectar com o Google.');
                 return null;
               }
+              const createdMs = data.user.created_at ? new Date(data.user.created_at).getTime() : 0;
+              const lastSignInMs = data.user.last_sign_in_at ? new Date(data.user.last_sign_in_at).getTime() : createdMs;
+              const isNewlyCreated = createdMs > 0 && Math.abs(lastSignInMs - createdMs) < 10000;
+              if (data.user.user_metadata?.cadastro_concluido || (!isNewlyCreated && !data.user.user_metadata?.google_signup_incomplete)) {
+                activeUidRef.current = data.user.id;
+                showAlert('Conta já cadastrada', 'Este e-mail Google já possui uma conta ativa no SplitHouse. Redirecionando para sua conta...');
+                await routeAfterAuth();
+                return null;
+              }
+              await supabase.auth.updateUser({
+                data: { google_signup_incomplete: true },
+              }).catch(() => {});
               return {
                 name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || '',
                 email: data.user.email || '',
               };
             } catch (err: any) {
-              if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
+              if (err?.code === statusCodes.SIGN_IN_CANCELLED || err?.code === statusCodes.IN_PROGRESS) {
                 return null;
               }
-              Alert.alert('Cadastro com Google', err?.message || 'Não foi possível conectar com o Google.');
+              showAlert('Cadastro com Google', err?.message || 'Não foi possível conectar com o Google.');
               return null;
             }
           }}
@@ -1013,9 +1146,18 @@ function MainApp() {
       {currentScreen === 'reset_password' && (
         <ResetPasswordScreen
           initialEmail={recoveryEmail}
-          onBackPress={() => setCurrentScreen('forgot_password')}
-          onSuccess={() => setCurrentScreen('login')}
-          onLoginPress={() => setCurrentScreen('login')}
+          onBackPress={async () => {
+            await signOut().catch(() => {});
+            setCurrentScreen('forgot_password');
+          }}
+          onSuccess={async () => {
+            await signOut().catch(() => {});
+            setCurrentScreen('login');
+          }}
+          onLoginPress={async () => {
+            await signOut().catch(() => {});
+            setCurrentScreen('login');
+          }}
         />
       )}
 
@@ -1039,6 +1181,9 @@ function MainApp() {
             try {
               await signOut();
             } finally {
+              setHouseDraft(null);
+              setRecoveryEmail('');
+              setInviteSource('setup');
               setCurrentScreen('welcome');
             }
           }}
@@ -1047,10 +1192,11 @@ function MainApp() {
 
       {currentScreen === 'create_house' && (
         <CreateHouseScreen
+          initialData={houseDraft}
           onBackPress={() => setCurrentScreen('house_selection')}
           onSubmit={(data) => {
             if (!data.name.trim() || !data.address.trim()) {
-              Alert.alert('Atenção', 'Informe o nome e o endereço da moradia.');
+              showAlert('Atenção', 'Informe o nome e o endereço da moradia.');
               return;
             }
             setHouseDraft(data);
@@ -1068,14 +1214,21 @@ function MainApp() {
               setCurrentScreen('create_house');
               return;
             }
-            const payload: RegraInput[] = rules
-              .filter((r) => r.title.trim())
-              .map((r) => ({ titulo: r.title.trim(), descricao: r.value.trim() }));
-            await houseService.createHouse(houseDraft, payload);
-            await loadMyHouse();
-            setHouseDraft(null);
-            setInviteSource('setup');
-            setCurrentScreen('invite_qr');
+            try {
+              const payload: RegraInput[] = rules
+                .filter((r) => r.title.trim())
+                .map((r) => ({ titulo: r.title.trim(), descricao: r.value.trim() }));
+              await houseService.createHouse(houseDraft, payload);
+              await loadMyHouse();
+              setHouseDraft(null);
+              setInviteSource('setup');
+              setCurrentScreen('invite_qr');
+            } catch (err) {
+              showAlert(
+                'Erro ao criar moradia',
+                err instanceof Error ? err.message : 'Não foi possível criar a moradia. Tente novamente.'
+              );
+            }
           }}
         />
       )}
@@ -1114,7 +1267,7 @@ function MainApp() {
       {currentScreen === 'pending_request' && (
         <PendingRequestScreen
           houseName={myHouse?.nome}
-          onBackPress={() => setCurrentScreen('join_house')}
+          onBackPress={() => setCurrentScreen('house_selection')}
           onRefreshPress={async () => {
             try {
               const house = await loadMyHouse();
@@ -1167,7 +1320,7 @@ function MainApp() {
               email: m.email || '',
               initials: getInitials(m.nome),
             }))}
-          onBackPress={() => setCurrentScreen('home')}
+          onBackPress={() => setCurrentScreen(membersSourceRef.current)}
           onViewQrPress={() => {
             setInviteSource('members');
             setCurrentScreen('invite_qr');
@@ -1234,14 +1387,29 @@ function MainApp() {
               unreadNotificationsCount={unreadNotificationsCount}
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
-              onNewExpensePress={() => setCurrentScreen('new_expense')}
-              onNewTaskPress={() => setCurrentScreen('new_task')}
-              onTaskPress={(taskId) => openTask(taskId)}
-              onNotificationsPress={() => setCurrentScreen('notifications')}
+              onNewExpensePress={() => {
+                expenseReturnRef.current = 'home';
+                setCurrentScreen('new_expense');
+              }}
+              onNewTaskPress={() => {
+                taskReturnRef.current = 'home';
+                setCurrentScreen('new_task');
+              }}
+              onTaskPress={(taskId) => {
+                taskReturnRef.current = 'home';
+                openTask(taskId);
+              }}
+              onNotificationsPress={() => {
+                notificationsSourceRef.current = 'home';
+                setCurrentScreen('notifications');
+              }}
               onRankingPress={() => setCurrentScreen('ranking')}
               onSettleUpPress={() => { if (myHouse?.moradia_id) loadFinanceOverview(myHouse.moradia_id); setCurrentScreen('settle_up'); }}
               onReportPress={() => { if (myHouse?.moradia_id) loadFinanceOverview(myHouse.moradia_id); setCurrentScreen('report'); }}
-              onManageMembersPress={() => setCurrentScreen('manage_members')}
+              onManageMembersPress={() => {
+                membersSourceRef.current = 'home';
+                setCurrentScreen('manage_members');
+              }}
             />
           )}
 
@@ -1249,7 +1417,10 @@ function MainApp() {
             <ExpensesListScreen
               houseName={myHouse?.nome || 'Sua moradia'}
               expenses={expensesList}
-              onAddPress={() => setCurrentScreen('new_expense')}
+              onAddPress={() => {
+                expenseReturnRef.current = 'expenses_list';
+                setCurrentScreen('new_expense');
+              }}
               onExpenseDetailsPress={async (expense) => {
                 if (!expense?.id) return;
                 const reqId = ++openExpenseRequestRef.current;
@@ -1274,11 +1445,18 @@ function MainApp() {
             <TasksListScreen
               houseName={myHouse?.nome || 'Sua moradia'}
               tasks={tasks}
-              onNewTaskPress={() => setCurrentScreen('new_task')}
+              onNewTaskPress={() => {
+                taskReturnRef.current = 'tasks_list';
+                setCurrentScreen('new_task');
+              }}
               onValidatePress={(taskId) => {
+                taskReturnRef.current = 'tasks_list';
                 if (taskId) openTask(taskId);
               }}
-              onTaskPress={(taskId) => openTask(taskId)}
+              onTaskPress={(taskId) => {
+                taskReturnRef.current = 'tasks_list';
+                openTask(taskId);
+              }}
             />
           )}
 
@@ -1288,6 +1466,7 @@ function MainApp() {
               cycleName={myHouse?.nome_ciclo_atual || 'Ciclo Atual'}
               rankingList={effectiveRankingList}
               onStorePress={() => {
+                storeSourceRef.current = 'ranking';
                 if (myHouse?.moradia_id) loadStore(myHouse.moradia_id);
                 setCurrentScreen('store');
               }}
@@ -1330,19 +1509,32 @@ function MainApp() {
             <ProfileScreen
               user={profileUserData}
               onEditProfilePress={() => setCurrentScreen('edit_profile')}
-              onNotificationsPress={() => setCurrentScreen('notifications')}
-              onManageMembersPress={() => setCurrentScreen('manage_members')}
+              onNotificationsPress={() => {
+                notificationsSourceRef.current = 'profile';
+                setCurrentScreen('notifications');
+              }}
+              onManageMembersPress={() => {
+                membersSourceRef.current = 'profile';
+                setCurrentScreen('manage_members');
+              }}
               onHouseRulesPress={() => {
                 if (myHouse?.status === 'aprovado') loadRules(myHouse.moradia_id);
                 setCurrentScreen('house_rules');
               }}
               onLeaveHousePress={() => setCurrentScreen('leave_house')}
-              onStorePress={() => setCurrentScreen('store')}
+              onStorePress={() => {
+                storeSourceRef.current = 'profile';
+                if (myHouse?.moradia_id) loadStore(myHouse.moradia_id);
+                setCurrentScreen('store');
+              }}
               onTasksPress={() => setCurrentScreen('tasks_list')}
               onLogoutPress={async () => {
                 try {
                   await signOut();
                 } finally {
+                  setHouseDraft(null);
+                  setRecoveryEmail('');
+                  setInviteSource('setup');
                   setCurrentScreen('welcome');
                 }
               }}
@@ -1354,14 +1546,14 @@ function MainApp() {
       {currentScreen === 'new_task' && (
         <NewTaskScreen
           membersList={newTaskMembersList}
-          onBackPress={() => setCurrentScreen('tasks_list')}
+          onBackPress={() => setCurrentScreen(taskReturnRef.current)}
           onSubmitPress={async (taskData) => {
             try {
               const created = await tasksService.createTask(taskData, user?.id, myHouse?.moradia_id);
               setTasks((prev) => [created, ...prev]);
-              setCurrentScreen('tasks_list');
+              setCurrentScreen(taskReturnRef.current);
             } catch (err: any) {
-              Alert.alert('Erro ao cadastrar tarefa', err?.message || 'Falha ao salvar no banco.');
+              showAlert('Erro ao cadastrar tarefa', err?.message || 'Falha ao salvar no banco.');
               throw err;
             }
           }}
@@ -1387,10 +1579,10 @@ function MainApp() {
               }
               : undefined
           }
-          onBackPress={() => setCurrentScreen('tasks_list')}
+          onBackPress={() => setCurrentScreen(taskReturnRef.current)}
           onOptionsPress={() => {
             if (!selectedTask) return;
-            Alert.alert(
+            showAlert(
               selectedTask.title,
               `Tipo: ${selectedTask.type}\nCômodo: ${selectedTask.location}\nPrazo: ${selectedTask.deadline}\nRecompensa: +${selectedTask.xp} XP / ${selectedTask.points ?? 0} moedas`
             );
@@ -1445,7 +1637,7 @@ function MainApp() {
               }
               : undefined
           }
-          onBackPress={() => setCurrentScreen('tasks_list')}
+          onBackPress={() => setCurrentScreen(taskReturnRef.current)}
           onApprovePress={() => handleTaskValidation(true)}
           onRejectPress={(justification) => handleTaskValidation(false, justification)}
         />
@@ -1454,7 +1646,7 @@ function MainApp() {
       {currentScreen === 'new_expense' && (
         <NewExpenseScreen
           membersList={newExpenseMembersList}
-          onBackPress={() => setCurrentScreen('expenses_list')}
+          onBackPress={() => setCurrentScreen(expenseReturnRef.current)}
           onSubmitPress={async (data) => {
             if (!user || !myHouse) {
               Alert.alert('Atenção', 'Você precisa estar em uma moradia para cadastrar despesas.');
@@ -1575,7 +1767,7 @@ function MainApp() {
           netBalance={settleUpData.netBalance}
           isPositive={settleUpData.isPositive}
           pendingPayments={pendingPayments}
-          onBackPress={() => setCurrentScreen('home')}
+          onBackPress={() => setCurrentScreen(membersSourceRef.current)}
           onValidatePayment={(paymentId) => {
             setSelectedPaymentId(paymentId);
             setCurrentScreen('payment_validation');
@@ -1650,7 +1842,7 @@ function MainApp() {
           totalAmount={reportData.totalAmount}
           averagePerResident={reportData.averagePerResident}
           history={reportData.history}
-          onBackPress={() => setCurrentScreen('home')}
+          onBackPress={() => setCurrentScreen(membersSourceRef.current)}
         />
       )}
       {currentScreen === 'store' && (
@@ -1659,8 +1851,8 @@ function MainApp() {
           initialCoins={currentMember?.moedas || 0}
           items={storeItems}
           onBackPress={() => {
-            if (myHouse?.moradia_id) loadRanking(myHouse.moradia_id);
-            setCurrentScreen('ranking');
+            if (storeSourceRef.current === 'ranking' && myHouse?.moradia_id) loadRanking(myHouse.moradia_id);
+            setCurrentScreen(storeSourceRef.current);
           }}
           onProposePress={() => setCurrentScreen('propose_reward')}
           onRedeemPress={async (item) => {
@@ -1834,9 +2026,21 @@ function MainApp() {
               setMyHouse(null);
               setMembers([]);
               setHouseRules([]);
+              setTasks([]);
+              setRankingList([]);
+              setStoreItems([]);
+              setNotificationsList([]);
+              setExpensesList([]);
+              setSelectedExpenseDetails(null);
+              setPendingPayments([]);
+              setSelectedPaymentId(null);
+              setSelectedTaskId(null);
+              setTaskValidation(null);
+              setSettleUpData({ netBalance: 'R$ 0,00', isPositive: true, debts: [] });
+              setReportData({ totalAmount: '0,00', averagePerResident: '0,00', history: [] });
               setCurrentScreen('house_selection');
             } catch (err) {
-              Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
+              showAlert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
             }
           }}
         />
@@ -1844,7 +2048,7 @@ function MainApp() {
 
       {currentScreen === 'notifications' && (
         <NotificationsScreen
-          onBackPress={() => setCurrentScreen('home')}
+          onBackPress={() => setCurrentScreen(notificationsSourceRef.current)}
           notifications={notificationsList}
           onClearReadPress={async () => {
             if (user) {
@@ -1858,6 +2062,7 @@ function MainApp() {
               loadNotifications();
 
               if (notification.actionText === 'Ver na loja') {
+                storeSourceRef.current = 'notifications';
                 if (myHouse?.moradia_id) await loadStore(myHouse.moradia_id);
                 setCurrentScreen('store');
                 return;
@@ -1878,20 +2083,40 @@ function MainApp() {
                 }
                 const allTasks = await tasksService.fetchTasks(myHouse?.moradia_id, user?.id);
                 const matchedTarget = targetTaskId ? allTasks.find((t) => t.id === targetTaskId) : undefined;
-                const pending =
-                  matchedTarget &&
-                  matchedTarget.status === 'Aguardando validação' &&
-                  matchedTarget.assignee !== 'Você'
-                    ? matchedTarget
-                    : allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você');
+                const isOwnTask = (t: TaskItem) =>
+                  t.assignee === 'Você' || (!!user?.id && t.assigneeId === user.id);
 
-                if (pending) {
-                  setSelectedTaskId(pending.id);
+                if (matchedTarget) {
+                  taskReturnRef.current = 'notifications';
+                  if (matchedTarget.status === 'Aguardando validação' && !isOwnTask(matchedTarget)) {
+                    const reqId = ++openTaskRequestRef.current;
+                    setSelectedTaskId(matchedTarget.id);
+                    setTaskValidation(null);
+                    setCurrentScreen('task_validation');
+                    const valData = await tasksService.getPendingValidation(matchedTarget.id);
+                    if (openTaskRequestRef.current === reqId) {
+                      setTaskValidation(valData);
+                    }
+                  } else {
+                    openTask(matchedTarget.id);
+                  }
+                  return;
+                }
+
+                const pendingOther = allTasks.find(
+                  (t) => t.status === 'Aguardando validação' && !isOwnTask(t)
+                );
+
+                if (pendingOther) {
+                  taskReturnRef.current = 'notifications';
+                  const reqId = ++openTaskRequestRef.current;
+                  setSelectedTaskId(pendingOther.id);
                   setTaskValidation(null);
                   setCurrentScreen('task_validation');
-                  setTaskValidation(await tasksService.getPendingValidation(pending.id));
-                } else if (matchedTarget) {
-                  openTask(matchedTarget.id);
+                  const valData = await tasksService.getPendingValidation(pendingOther.id);
+                  if (openTaskRequestRef.current === reqId) {
+                    setTaskValidation(valData);
+                  }
                 } else {
                   setCurrentScreen('tasks_list');
                 }
@@ -1909,7 +2134,7 @@ function MainApp() {
                 setCurrentScreen('tasks_list');
               }
             } catch (err) {
-              Alert.alert('Erro', err instanceof Error ? err.message : 'Não foi possível abrir a notificação.');
+              showAlert('Erro', err instanceof Error ? err.message : 'Não foi possível abrir a notificação.');
             }
           }}
         />

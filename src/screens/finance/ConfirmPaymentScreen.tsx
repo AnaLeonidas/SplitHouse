@@ -14,6 +14,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Dados de detalhamento do pagamento sob validação do credor.
@@ -97,7 +98,7 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     const handleOpenReceipt = () => {
         if (!receiptUrl) return;
         Linking.openURL(receiptUrl).catch(() => {
-            Alert.alert('Comprovante indisponível', 'Não foi possível abrir o link do comprovante no dispositivo.');
+            showAlert('Comprovante indisponível', 'Não foi possível abrir o link do comprovante no dispositivo.');
         });
     };
 
@@ -108,7 +109,7 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={onBackPress}>
+                    <TouchableOpacity style={styles.backButton} disabled={!!submitting} onPress={onBackPress}>
                         <Feather name="chevron-left" size={22} color={Colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Validar Pagamento</Text>

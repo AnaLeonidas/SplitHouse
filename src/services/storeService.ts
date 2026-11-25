@@ -110,11 +110,12 @@ export const storeService = {
     }
 
     // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto 'status'
+    const inactiveStatuses = new Set(['recusada', 'inativa', 'cancelada', 'pendente']);
     const activeRows = (data || []).filter(
       (r: any) =>
         r.ativo !== false &&
-        r.status !== 'recusada' &&
-        r.status_aprovacao !== 'recusada'
+        !inactiveStatuses.has(String(r.status || '').toLowerCase()) &&
+        !inactiveStatuses.has(String(r.status_aprovacao || '').toLowerCase())
     );
 
     return activeRows.map(mapRowToStoreItem);
@@ -191,7 +192,8 @@ export const storeService = {
       const { data: membros } = await supabase
         .from('membros_moradia')
         .select('usuario_id')
-        .eq('moradia_id', moradiaId);
+        .eq('moradia_id', moradiaId)
+        .eq('status', 'aprovado');
       const memberIds = (membros || []).map((m: any) => m.usuario_id);
 
       await notificationsService.notifyUsers(memberIds, {
@@ -237,10 +239,11 @@ export const storeService = {
     if (rewardError || !recompensaRow) {
       throw new Error('Recompensa não encontrada nesta moradia.');
     }
+    const inactiveStatuses = new Set(['recusada', 'inativa', 'cancelada', 'pendente']);
     if (
       recompensaRow.ativo === false ||
-      (recompensaRow as any).status === 'recusada' ||
-      recompensaRow.status_aprovacao === 'recusada'
+      inactiveStatuses.has(String((recompensaRow as any).status || '').toLowerCase()) ||
+      inactiveStatuses.has(String(recompensaRow.status_aprovacao || '').toLowerCase())
     ) {
       throw new Error('Esta recompensa não está mais disponível para resgate.');
     }

@@ -17,6 +17,7 @@ import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { UpdateProfileInput, UpdateProfileResult } from '../../services/profileService';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks do formulário de edição de perfil do usuário.
@@ -49,18 +50,17 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const insets = useSafeAreaInsets();
+  const syncedProfileIdRef = React.useRef<string | null>(null);
 
   useEffect(() => {
-    if (profile?.nome_completo && !name) {
-      setName(profile.nome_completo);
+    const profileId = profile?.id ?? user?.id ?? null;
+    if (profileId && syncedProfileIdRef.current !== profileId) {
+      syncedProfileIdRef.current = profileId;
+      if (profile?.nome_completo) setName(profile.nome_completo);
+      if (user?.email || profile?.email) setEmail(user?.email || profile?.email || '');
+      if (profile?.chave_pix !== undefined) setPixKey(profile.chave_pix || '');
     }
-    if ((user?.email || profile?.email) && !email) {
-      setEmail(user?.email || profile?.email || '');
-    }
-    if (profile?.chave_pix !== undefined && !pixKey) {
-      setPixKey(profile.chave_pix || '');
-    }
-  }, [profile, user?.email]);
+  }, [profile, user?.email, user?.id]);
 
   const initials =
     name
@@ -74,15 +74,15 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   const handleSave = async () => {
     if (saving) return;
     if (!name.trim()) {
-      Alert.alert('Atenção', 'O nome não pode ficar em branco.');
+      showAlert('Atenção', 'O nome não pode ficar em branco.');
       return;
     }
     if (!email.trim()) {
-      Alert.alert('Atenção', 'O e-mail não pode ficar em branco.');
+      showAlert('Atenção', 'O e-mail não pode ficar em branco.');
       return;
     }
     if (currentPassword && !newPassword) {
-      Alert.alert('Atenção', 'Informe a nova senha ou deixe a senha atual em branco.');
+      showAlert('Atenção', 'Informe a nova senha ou deixe a senha atual em branco.');
       return;
     }
 
@@ -108,14 +108,13 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
           : '',
       ].filter(Boolean);
 
-      Alert.alert(
+      showAlert(
         'Perfil Atualizado',
         ['Suas alterações foram salvas com sucesso!', ...detalhes].join('\n\n'),
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }],
-        { cancelable: false }
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
       );
     } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar o perfil.');
+      showAlert('Erro', err instanceof Error ? err.message : 'Falha ao salvar o perfil.');
     } finally {
       setSaving(false);
     }
@@ -123,7 +122,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44) }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.glowTop}>
@@ -257,7 +256,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
+    overflow: 'hidden',
   },
   glowTop: {
     position: 'absolute',
@@ -304,7 +303,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 110,
+    paddingBottom: 130,
   },
   avatarSection: {
     alignItems: 'center',

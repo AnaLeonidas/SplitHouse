@@ -9,6 +9,7 @@ import {
   StatusBar as RNStatusBar,
   Alert,
   Modal,
+  Pressable,
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
@@ -16,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Modelo de dados que descreve uma recompensa resgatável na lojinha da moradia.
@@ -123,36 +125,41 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
     if (redeemingId) return;
 
     if (coins < item.cost) {
-      Alert.alert(
+      showAlert(
         'Saldo insuficiente',
         `Você precisa de ${item.cost} moedas para resgatar "${item.title}". Seu saldo atual é de ${coins} moedas.`
       );
       return;
     }
 
-    Alert.alert(
+    setRedeemingId(item.id);
+    showAlert(
       'Resgatar Recompensa',
       `Deseja trocar ${item.cost} moedas por "${item.title}"?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: () => {
+            if (mountedRef.current) setRedeemingId(null);
+          },
+        },
         {
           text: 'Confirmar',
           onPress: async () => {
-            if (redeemingId) return;
             try {
-              setRedeemingId(item.id);
               if (onRedeemPress) {
                 await onRedeemPress(item);
               }
               if (mountedRef.current) {
                 setCoins((prev) => Math.max(0, prev - item.cost));
               }
-              Alert.alert(
+              showAlert(
                 'Recompensa Resgatada!',
                 `Você resgatou "${item.title}". A república foi informada e seu benefício já está ativo.`
               );
             } catch (err) {
-              Alert.alert(
+              showAlert(
                 'Erro ao resgatar',
                 err instanceof Error ? err.message : 'Tente novamente.'
               );
@@ -171,19 +178,19 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
     if (proposing) return;
 
     if (!propTitle.trim()) {
-      Alert.alert('Campo obrigatório', 'Por favor, informe o título da recompensa.');
+      showAlert('Campo obrigatório', 'Por favor, informe o título da recompensa.');
       return;
     }
 
     const trimmedCost = propCost.trim();
     if (!/^\d+$/.test(trimmedCost)) {
-      Alert.alert('Valor inválido', 'Informe um número inteiro positivo de moedas.');
+      showAlert('Valor inválido', 'Informe um número inteiro positivo de moedas.');
       return;
     }
 
     const costNum = Number(trimmedCost);
     if (!Number.isInteger(costNum) || costNum <= 0) {
-      Alert.alert('Valor inválido', 'Informe um valor válido em moedas.');
+      showAlert('Valor inválido', 'Informe um valor válido em moedas.');
       return;
     }
 
@@ -211,12 +218,12 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
       setPropTitle('');
       setPropDescription('');
-      setPropCost('100');
+      setPropCost('');
       setIsProposeModalVisible(false);
 
-      Alert.alert('Proposta enviada!', 'Sua proposta de recompensa foi adicionada ao catálogo da moradia.');
+      showAlert('Proposta enviada!', 'Sua proposta de recompensa foi adicionada ao catálogo da moradia.');
     } catch (err) {
-      Alert.alert(
+      showAlert(
         'Erro ao propor recompensa',
         err instanceof Error ? err.message : 'Tente novamente.'
       );
@@ -493,95 +500,102 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => {
-              if (!proposing) setIsProposeModalVisible(false);
-            }}
-          >
-            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Propor Nova Recompensa</Text>
-                <TouchableOpacity
-                  onPress={() => !proposing && setIsProposeModalVisible(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  <Feather name="x" size={18} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalInputLabel}>TÍTULO DO BENEFÍCIO</Text>
-                <TextInput
-                  style={styles.modalTextInput}
-                  placeholder="Ex.: Café da manhã de domingo"
-                  placeholderTextColor={Colors.textSecondary}
-                  value={propTitle}
-                  onChangeText={setPropTitle}
-                />
-              </View>
-
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalInputLabel}>CATEGORIA</Text>
-                <View style={styles.modalCategoryRow}>
-                  {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[
-                        styles.modalCatBtn,
-                        propCategory === cat && styles.modalCatBtnActive,
-                      ]}
-                      onPress={() => setPropCategory(cat)}
-                    >
-                      <Text
-                        style={[
-                          styles.modalCatBtnText,
-                          propCategory === cat && styles.modalCatBtnTextActive,
-                        ]}
-                      >
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalInputLabel}>CUSTO EM MOEDAS</Text>
-                <TextInput
-                  style={styles.modalTextInput}
-                  keyboardType="numeric"
-                  value={propCost}
-                  onChangeText={setPropCost}
-                />
-              </View>
-
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalInputLabel}>DESCRIÇÃO / REGRAS</Text>
-                <TextInput
-                  style={[styles.modalTextInput, styles.modalTextArea]}
-                  placeholder="Explique como funciona o resgate..."
-                  placeholderTextColor={Colors.textSecondary}
-                  multiline
-                  numberOfLines={2}
-                  value={propDescription}
-                  onChangeText={setPropDescription}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.modalSubmitButton, proposing && { opacity: 0.65 }]}
-                activeOpacity={0.85}
-                disabled={proposing}
-                onPress={handleCreateProposal}
+          <View style={styles.modalOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                if (!proposing) setIsProposeModalVisible(false);
+              }}
+            />
+            <View style={[styles.modalCard, { maxHeight: '88%' }]}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.modalSubmitButtonText}>
-                  {proposing ? 'Enviando...' : 'Enviar para votação'}
-                </Text>
-              </TouchableOpacity>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Propor Nova Recompensa</Text>
+                  <TouchableOpacity
+                    onPress={() => !proposing && setIsProposeModalVisible(false)}
+                    style={styles.modalCloseBtn}
+                  >
+                    <Feather name="x" size={18} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalInputLabel}>TÍTULO DO BENEFÍCIO</Text>
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="Ex.: Café da manhã de domingo"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={propTitle}
+                    onChangeText={setPropTitle}
+                  />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalInputLabel}>CATEGORIA</Text>
+                  <View style={styles.modalCategoryRow}>
+                    {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.modalCatBtn,
+                          propCategory === cat && styles.modalCatBtnActive,
+                        ]}
+                        onPress={() => setPropCategory(cat)}
+                      >
+                        <Text
+                          style={[
+                            styles.modalCatBtnText,
+                            propCategory === cat && styles.modalCatBtnTextActive,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalInputLabel}>CUSTO EM MOEDAS</Text>
+                  <TextInput
+                    style={styles.modalTextInput}
+                    keyboardType="numeric"
+                    placeholder="Ex.: 50"
+                    placeholderTextColor={Colors.textSecondary}
+                    value={propCost}
+                    onChangeText={setPropCost}
+                  />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalInputLabel}>DESCRIÇÃO / REGRAS</Text>
+                  <TextInput
+                    style={[styles.modalTextInput, styles.modalTextArea]}
+                    placeholder="Explique como funciona o resgate..."
+                    placeholderTextColor={Colors.textSecondary}
+                    multiline
+                    numberOfLines={2}
+                    value={propDescription}
+                    onChangeText={setPropDescription}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, proposing && { opacity: 0.65 }]}
+                  activeOpacity={0.85}
+                  disabled={proposing}
+                  onPress={handleCreateProposal}
+                >
+                  <Text style={styles.modalSubmitButtonText}>
+                    {proposing ? 'Enviando...' : 'Enviar para votação'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
-          </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -595,6 +609,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

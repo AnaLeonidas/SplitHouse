@@ -124,7 +124,11 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <View style={styles.filterTabsContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterTabsContainer}
+        >
           <TouchableOpacity
             style={[
               styles.filterPill,
@@ -187,7 +191,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
               />
             )}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         <View style={styles.tasksListContainer}>
           {filteredTasks.length === 0 ? (

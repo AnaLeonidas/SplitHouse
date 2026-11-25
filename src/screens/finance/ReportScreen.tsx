@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Item individual do histórico financeiro exibido no relatório mensal.
@@ -64,7 +65,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
 
                     <TouchableOpacity
                         style={styles.monthSelector}
-                        onPress={() => Alert.alert('Período', 'Exibindo todas as movimentações do ciclo atual.')}
+                        onPress={() => showAlert('Período', 'Exibindo todas as movimentações do ciclo atual.')}
                     >
                         <Text style={styles.monthText}>Mês Atual</Text>
                         <Feather name="chevron-down" size={16} color={Colors.text} />
@@ -73,7 +74,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                     <TouchableOpacity
                         style={styles.backButton}
                         onPress={() =>
-                            Alert.alert(
+                            showAlert(
                                 'Resumo do Relatório',
                                 `Total da casa: R$ ${totalAmount}\nMédia por morador: R$ ${averagePerResident}\nLançamentos recentes: ${history.length}`
                             )

@@ -12,6 +12,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
+import { showAlert } from '../../utils/alert';
 
 /**
  * Propriedades e callbacks da tela de solicitação de entrada pendente.
@@ -53,7 +54,7 @@ export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
 
   const handleCancel = () => {
     if (busy || !onCancelPress) return;
-    Alert.alert(
+    showAlert(
       'Cancelar solicitação',
       `Deseja cancelar seu pedido de entrada em "${houseName}"?`,
       [
@@ -129,7 +130,7 @@ export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
               <View style={styles.houseIconBox}>
                 <Feather name="home" size={20} color={Colors.primary} />
               </View>
-              <View>
+              <View style={{ flex: 1, flexShrink: 1 }}>
                 <Text style={styles.houseCardLabel}>Imóvel Solicitado</Text>
                 <Text style={styles.houseCardName}>{houseName}</Text>
               </View>
@@ -179,6 +180,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     backgroundColor: '#FCFCFC',
+    overflow: 'hidden',
   },
   topGlowSvg: {
     position: 'absolute',

@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCFC',
     paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
+    overflow: 'hidden',
   },
   glowTop: {
     position: 'absolute',
@@ -316,6 +317,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#2D2D2A',
+    flex: 1,
+    flexShrink: 1,
   },
   ruleHighlight: {
     fontSize: 12,
