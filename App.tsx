@@ -902,12 +902,24 @@ function MainApp() {
                   Alert.alert('Login com Google', 'Não foi possível obter o token de autenticação do Google.');
                   return;
                 }
-                const { error } = await supabase.auth.signInWithIdToken({
+                const { data, error } = await supabase.auth.signInWithIdToken({
                   provider: 'google',
                   token: idToken,
                 });
                 if (error) {
                   Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
+                  return;
+                }
+                const createdMs = data?.user?.created_at ? new Date(data.user.created_at).getTime() : 0;
+                const lastSignInMs = data?.user?.last_sign_in_at ? new Date(data.user.last_sign_in_at).getTime() : createdMs;
+                const isNewlyCreated = createdMs > 0 && Math.abs(lastSignInMs - createdMs) < 10000;
+                if (isNewlyCreated && !data?.user?.user_metadata?.cadastro_concluido) {
+                  await supabase.auth.signOut().catch(() => {});
+                  await GoogleSignin.signOut().catch(() => {});
+                  Alert.alert(
+                    'Conta não encontrada',
+                    'Este e-mail Google ainda não possui cadastro no SplitHouse. Volte para a tela de Criar Conta para finalizar seu cadastro.'
+                  );
                   return;
                 }
                 await routeAfterAuth();
@@ -938,6 +950,39 @@ function MainApp() {
           onBackPress={() => setCurrentScreen('welcome')}
           onRegisterSubmit={() => routeAfterAuth()}
           onLoginPress={() => setCurrentScreen('login')}
+          onGooglePress={async () => {
+            try {
+              if (Platform.OS === 'web') {
+                Alert.alert('Cadastro com Google', 'O cadastro rápido com Google está disponível no aplicativo Android.');
+                return null;
+              }
+              await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+              const response = await GoogleSignin.signIn();
+              const idToken = response?.data?.idToken;
+              if (!idToken) {
+                Alert.alert('Cadastro com Google', 'Não foi possível obter os dados da sua conta Google.');
+                return null;
+              }
+              const { data, error } = await supabase.auth.signInWithIdToken({
+                provider: 'google',
+                token: idToken,
+              });
+              if (error || !data?.user) {
+                Alert.alert('Cadastro com Google', error?.message || 'Não foi possível conectar com o Google.');
+                return null;
+              }
+              return {
+                name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || '',
+                email: data.user.email || '',
+              };
+            } catch (err: any) {
+              if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
+                return null;
+              }
+              Alert.alert('Cadastro com Google', err?.message || 'Não foi possível conectar com o Google.');
+              return null;
+            }
+          }}
           onTermsPress={() =>
             Alert.alert(
               'Termos de Uso',
