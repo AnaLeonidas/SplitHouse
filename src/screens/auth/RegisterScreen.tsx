@@ -95,13 +95,26 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
     try {
       setLoading(true);
       if (googleLinked) {
-        const { data: updated, error: updateError } = await supabase.auth.updateUser({
+        let { data: updated, error: updateError } = await supabase.auth.updateUser({
           password,
           data: {
             full_name: name.trim(),
             cadastro_concluido: true,
           },
         });
+        if (
+          updateError &&
+          updateError.message?.toLowerCase().includes('different from the old password')
+        ) {
+          const retry = await supabase.auth.updateUser({
+            data: {
+              full_name: name.trim(),
+              cadastro_concluido: true,
+            },
+          });
+          updated = retry.data;
+          updateError = retry.error;
+        }
         if (updateError) {
           throw updateError;
         }
