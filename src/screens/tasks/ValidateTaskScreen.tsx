@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/theme';
 
@@ -49,9 +50,9 @@ export interface ValidateTaskScreenProps {
   /** Callback para voltar à lista de tarefas */
   onBackPress?: () => void;
   /** Callback para aprovar a conclusão da tarefa com justificativa opcional */
-  onApprovePress?: (justification?: string) => void;
+  onApprovePress?: (justification?: string) => Promise<void> | void;
   /** Callback para rejeitar a conclusão exigindo justificativa obrigatória */
-  onRejectPress?: (justification: string) => void;
+  onRejectPress?: (justification: string) => Promise<void> | void;
 }
 
 /**
@@ -66,8 +67,12 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   onApprovePress,
   onRejectPress,
 }) => {
+  const insets = useSafeAreaInsets();
   const [justification, setJustification] = useState('');
-  const [imageLoading, setImageLoading] = useState(true);
+  const [imageLoading, setImageLoading] = useState(!!task?.photoUrl);
+  const [imageFailed, setImageFailed] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<'approve' | 'reject' | null>(null);
+  const mountedRef = useRef(true);
 
   const title = task?.title || 'Tarefa';
   const executorName = task?.executorName || 'Morador';
@@ -77,9 +82,31 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   const xp = task?.xp ?? 0;
   const points = task?.points ?? 0;
 
-  const handleApprove = () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setImageLoading(!!photoUrl);
+    setImageFailed(false);
+  }, [photoUrl]);
+
+  const handleApprove = async () => {
+    if (submittingAction) return;
     if (onApprovePress) {
-      onApprovePress(justification.trim() || undefined);
+      try {
+        setSubmittingAction('approve');
+        await onApprovePress(justification.trim() || undefined);
+      } catch {
+        // erro tratado pelo caller
+      } finally {
+        if (mountedRef.current) {
+          setSubmittingAction(null);
+        }
+      }
     } else {
       Alert.alert(
         'Tarefa Aprovada!',
@@ -88,7 +115,8 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
     }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (submittingAction) return;
     if (!justification.trim()) {
       Alert.alert(
         'Justificativa obrigatória',
@@ -98,7 +126,16 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
     }
 
     if (onRejectPress) {
-      onRejectPress(justification.trim());
+      try {
+        setSubmittingAction('reject');
+        await onRejectPress(justification.trim());
+      } catch {
+        // erro tratado pelo caller
+      } finally {
+        if (mountedRef.current) {
+          setSubmittingAction(null);
+        }
+      }
     } else {
       Alert.alert(
         'Tarefa Recusada',
@@ -110,7 +147,7 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
   return (
     <KeyboardAvoidingView
       style={styles.wrapper}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Svg height="320" width="320" style={styles.topGlowSvg} pointerEvents="none">
         <Defs>
@@ -123,7 +160,18 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
         <Rect x="0" y="0" width="320" height="320" fill="url(#validateTaskTopGlow)" />
       </Svg>
 
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backButton}
           activeOpacity={0.8}
@@ -148,8 +196,8 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
           </View>
           <Text style={styles.taskTitle}>{title}</Text>
           <Text style={styles.taskSubtitle}>
-            Executada por <Text style={styles.executorHighlight}>{executorName}</Text> •{' '}
-            {executedAt}
+            Executada por <Text style={styles.executorHighlight}>{executorName}</Text>
+            {executedAt ? ` • ${executedAt}` : ''}
           </Text>
         </View>
 
@@ -157,13 +205,17 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
           <Text style={styles.photoCardLabel}>FOTO ANEXADA PELO EXECUTOR</Text>
 
           <View style={styles.photoContainer}>
-            {photoUrl ? (
+            {photoUrl && !imageFailed ? (
               <>
                 <Image
                   source={{ uri: photoUrl }}
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                   onLoadEnd={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageLoading(false);
+                    setImageFailed(true);
+                  }}
                 />
                 {imageLoading && <ActivityIndicator color="#FCFCFC" />}
                 {!!photoTimestamp && (
@@ -175,7 +227,9 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
             ) : (
               <View style={styles.photoGraphicBox}>
                 <Feather name="image" size={36} color="#D4D4D8" />
-                <Text style={styles.photoFilename}>Foto não disponível</Text>
+                <Text style={styles.photoFilename}>
+                  {imageFailed ? 'Falha ao carregar foto' : 'Foto não disponível'}
+                </Text>
               </View>
             )}
           </View>
@@ -198,7 +252,7 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
 
         <View style={styles.rewardNoticeCard}>
           <Text style={styles.rewardNoticeText}>
-            Se aprovado, concede a {executorName.split(' ')[0]}:
+            Se aprovado, concede a {(executorName || 'Morador').split(' ')[0]}:
           </Text>
           <View style={styles.rewardValuesRow}>
             <Text style={styles.rewardXpText}>+{xp} XP •</Text>
@@ -225,23 +279,34 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 12) },
+        ]}
+      >
         <TouchableOpacity
-          style={styles.approveButton}
+          style={[styles.approveButton, submittingAction !== null && { opacity: 0.65 }]}
           activeOpacity={0.88}
+          disabled={submittingAction !== null}
           onPress={handleApprove}
         >
           <Feather name="check" size={18} color="#FCFCFC" />
-          <Text style={styles.approveButtonText}>Aprovar tarefa</Text>
+          <Text style={styles.approveButtonText}>
+            {submittingAction === 'approve' ? 'Aprovando...' : 'Aprovar tarefa'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.rejectButton}
+          style={[styles.rejectButton, submittingAction !== null && { opacity: 0.65 }]}
           activeOpacity={0.85}
+          disabled={submittingAction !== null}
           onPress={handleReject}
         >
           <Feather name="x" size={14} color={Colors.danger} />
-          <Text style={styles.rejectButtonText}>Recusar com justificativa</Text>
+          <Text style={styles.rejectButtonText}>
+            {submittingAction === 'reject' ? 'Recusando...' : 'Recusar com justificativa'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.homeIndicator} />

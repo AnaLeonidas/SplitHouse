@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   Platform,
   StatusBar as RNStatusBar,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -38,6 +40,8 @@ export interface CandidateMember {
 export interface LeaveHouseScreenProps {
   /** Nome da república */
   republicName?: string;
+  /** Indica se o usuário atual é administrador da moradia */
+  isAdmin?: boolean;
   /** Saldo financeiro do morador a ser liquidado */
   balance?: number;
   /** Moradores elegíveis para assumir a administração */
@@ -45,7 +49,7 @@ export interface LeaveHouseScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback executado após a confirmação com sucesso da desvinculação */
-  onConfirmSuccess?: () => void;
+  onConfirmSuccess?: (selectedCandidateId?: string, password?: string) => Promise<void> | void;
   /** Callback para cancelar o processo de saída */
   onCancelPress?: () => void;
 }
@@ -58,30 +62,92 @@ export interface LeaveHouseScreenProps {
  */
 export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
   republicName = 'Sua moradia',
+  isAdmin = true,
   balance = 0.0,
   candidates = [],
   onBackPress,
   onConfirmSuccess,
   onCancelPress,
 }) => {
+  const insets = useSafeAreaInsets();
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>(
     candidates[0]?.id || ''
   );
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+
+  const isDebtor = balance < -0.01;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (candidates.length === 0) {
+      setSelectedCandidateId('');
+      return;
+    }
+    setSelectedCandidateId((prev) =>
+      prev && candidates.some((c) => c.id === prev) ? prev : candidates[0].id
+    );
+  }, [candidates]);
 
   const handleConfirm = () => {
+    if (submitting) return;
+
+    if (isDebtor) {
+      Alert.alert(
+        'Saldo pendente',
+        'Quite suas dívidas em aberto antes de sair da moradia.'
+      );
+      return;
+    }
+
+    if (isAdmin && candidates.length > 0 && !selectedCandidateId) {
+      Alert.alert(
+        'Seleção obrigatória',
+        'Escolha qual morador assumirá a administração da república.'
+      );
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert(
+        'Senha obrigatória',
+        'Digite sua senha atual para confirmar sua desvinculação.'
+      );
+      return;
+    }
+
     const selected = candidates.find((c) => c.id === selectedCandidateId);
     Alert.alert(
-      'Solicitação Enviada',
-      candidates.length > 0
-        ? `O convite de administração foi enviado para ${selected?.name || 'o morador indicado'}. Sua desvinculação será concluída assim que o aceite for confirmado.`
-        : 'Sua solicitação de desvinculação foi registrada.',
+      'Confirmar desvinculação',
+      isAdmin && candidates.length > 0
+        ? `A administração será transferida para ${selected?.name || 'o morador indicado'} e você sairá de "${republicName}". Deseja continuar?`
+        : `Tem certeza que deseja sair de "${republicName}"?`,
       [
+        { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Entendido',
-          onPress: () => {
-            if (onConfirmSuccess) {
-              onConfirmSuccess();
+          text: 'Confirmar saída',
+          style: 'destructive',
+          onPress: async () => {
+            if (!onConfirmSuccess) return;
+            try {
+              setSubmitting(true);
+              await onConfirmSuccess(
+                isAdmin ? selectedCandidateId || undefined : undefined,
+                password
+              );
+            } catch {
+              // erro tratado pelo caller
+            } finally {
+              if (mountedRef.current) {
+                setSubmitting(false);
+              }
             }
           },
         },
@@ -90,7 +156,18 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(
+            insets.top,
+            Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 20
+          ),
+        },
+      ]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.glowTop}>
         <Svg width="340" height="340" viewBox="0 0 340 340">
           <Defs>
@@ -128,7 +205,11 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 135 },
+        ]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.introSection}>
@@ -141,91 +222,115 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
         <View style={styles.card}>
           <View style={styles.financeHeader}>
             <Text style={styles.label}>SITUAÇÃO FINANCEIRA</Text>
-            <View style={styles.paidBadge}>
-              <Text style={styles.paidBadgeText}>Quitado</Text>
+            <View
+              style={[
+                styles.paidBadge,
+                isDebtor && { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.paidBadgeText,
+                  isDebtor && { color: '#DC2626' },
+                ]}
+              >
+                {isDebtor ? 'Devedor' : 'Quitado'}
+              </Text>
             </View>
           </View>
           <Text style={styles.financeText}>
-            Você não possui dívidas em aberto. Seu saldo atual é de{' '}
-            <Text style={styles.financeHighlight}>
-              {balance >= 0 ? `+R$ ${balance.toFixed(2).replace('.', ',')} a receber` : `-R$ ${Math.abs(balance).toFixed(2).replace('.', ',')} a pagar`}
+            {isDebtor
+              ? 'Você possui saldo pendente na casa. Seu saldo atual é de '
+              : 'Você não possui dívidas em aberto. Seu saldo atual é de '}
+            <Text
+              style={[
+                styles.financeHighlight,
+                isDebtor && { color: '#DC2626' },
+              ]}
+            >
+              {balance >= 0
+                ? `+R$ ${balance.toFixed(2).replace('.', ',')} a receber`
+                : `-R$ ${Math.abs(balance).toFixed(2).replace('.', ',')} a pagar`}
             </Text>.
           </Text>
         </View>
 
-        <View style={[styles.card, styles.adminCard]}>
-          <View style={styles.adminHeader}>
-            <View style={styles.adminTag}>
-              <Text style={styles.adminTagText}>Admin</Text>
-            </View>
-            <Text style={styles.adminTitle}>Indicar Novo Administrador</Text>
-          </View>
-          <Text style={styles.adminSubtitle}>
-            Como administrador atual, escolha quem assumirá a gestão da moradia:
-          </Text>
-
-          <View style={styles.candidatesList}>
-            {candidates.length === 0 ? (
-              <View style={{ paddingVertical: 12 }}>
-                <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
-                  Não há outros moradores para transferir a administração.
-                </Text>
+        {isAdmin && (
+          <View style={[styles.card, styles.adminCard]}>
+            <View style={styles.adminHeader}>
+              <View style={styles.adminTag}>
+                <Text style={styles.adminTagText}>Admin</Text>
               </View>
-            ) : (
-              candidates.map((member) => {
-                const isSelected = selectedCandidateId === member.id;
-              return (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[
-                    styles.candidateRow,
-                    isSelected && styles.candidateRowSelected,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setSelectedCandidateId(member.id)}
-                >
-                  <View style={styles.candidateLeft}>
-                    <View
+              <Text style={styles.adminTitle}>Indicar Novo Administrador</Text>
+            </View>
+            <Text style={styles.adminSubtitle}>
+              Como administrador atual, escolha quem assumirá a gestão da moradia:
+            </Text>
+
+            <View style={styles.candidatesList}>
+              {candidates.length === 0 ? (
+                <View style={{ paddingVertical: 12 }}>
+                  <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                    Não há outros moradores para transferir a administração.
+                  </Text>
+                </View>
+              ) : (
+                candidates.map((member) => {
+                  const isSelected = selectedCandidateId === member.id;
+                  return (
+                    <TouchableOpacity
+                      key={member.id}
                       style={[
-                        styles.candidateAvatar,
-                        { backgroundColor: member.avatarBg },
+                        styles.candidateRow,
+                        isSelected && styles.candidateRowSelected,
                       ]}
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedCandidateId(member.id)}
                     >
-                      <Text
+                      <View style={styles.candidateLeft}>
+                        <View
+                          style={[
+                            styles.candidateAvatar,
+                            { backgroundColor: member.avatarBg },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.candidateAvatarText,
+                              { color: member.avatarTextColor },
+                            ]}
+                          >
+                            {member.initials}
+                          </Text>
+                        </View>
+                        <View style={{ flexShrink: 1 }}>
+                          <Text style={styles.candidateName}>{member.name}</Text>
+                          <Text style={styles.candidateLevel}>{member.levelInfo}</Text>
+                        </View>
+                      </View>
+
+                      <View
                         style={[
-                          styles.candidateAvatarText,
-                          { color: member.avatarTextColor },
+                          styles.radioCircle,
+                          isSelected && styles.radioCircleSelected,
                         ]}
                       >
-                        {member.initials}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.candidateName}>{member.name}</Text>
-                      <Text style={styles.candidateLevel}>{member.levelInfo}</Text>
-                    </View>
-                  </View>
+                        {isSelected && <View style={styles.radioInner} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
 
-                  <View
-                    style={[
-                      styles.radioCircle,
-                      isSelected && styles.radioCircleSelected,
-                    ]}
-                  >
-                    {isSelected && <View style={styles.radioInner} />}
-                  </View>
-                </TouchableOpacity>
-              );
-            }))}
+            <View style={styles.warningBox}>
+              <Feather name="alert-circle" size={15} color="#B45309" style={styles.warningIcon} />
+              <Text style={styles.warningText}>
+                Ao confirmar sua saída, a administração da moradia será transferida imediatamente para o morador selecionado.
+              </Text>
+            </View>
           </View>
-
-          <View style={styles.warningBox}>
-            <Feather name="alert-circle" size={15} color="#B45309" style={styles.warningIcon} />
-            <Text style={styles.warningText}>
-              O indicado receberá uma solicitação de posse. A troca de administração e sua desvinculação só ocorrerão após o aceite dele.
-            </Text>
-          </View>
-        </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.label}>CONFIRMAÇÃO POR SENHA</Text>
@@ -238,29 +343,42 @@ export const LeaveHouseScreen: React.FC<LeaveHouseScreenProps> = ({
             placeholderTextColor="#84828F"
           />
           <Text style={styles.helpText}>
-            Confirme suas credenciais para autorizar a transferência de posse.
+            Confirme suas credenciais para autorizar sua desvinculação da moradia.
           </Text>
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, 16) + 8 },
+        ]}
+      >
         <TouchableOpacity
-          style={styles.dangerButton}
+          style={[styles.dangerButton, (submitting || isDebtor) && { opacity: 0.6 }]}
           activeOpacity={0.8}
+          disabled={submitting || isDebtor}
           onPress={handleConfirm}
         >
-          <Text style={styles.dangerButtonText}>Solicitar transferência e sair</Text>
+          <Text style={styles.dangerButtonText}>
+            {submitting
+              ? 'Processando saída...'
+              : isAdmin && candidates.length > 0
+              ? 'Transferir administração e sair'
+              : 'Confirmar saída da república'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.cancelButton}
           activeOpacity={0.7}
+          disabled={submitting}
           onPress={onCancelPress || onBackPress}
         >
           <Text style={styles.cancelButtonText}>Cancelar e permanecer na república</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

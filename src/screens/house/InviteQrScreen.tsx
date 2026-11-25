@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Share,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { QRCode } from '../../components/QRCode';
@@ -43,11 +45,27 @@ export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
   onSharePress,
   onContinuePress,
 }) => {
+  const insets = useSafeAreaInsets();
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = () => {
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await Clipboard.setStringAsync(houseCode || '');
+      setCopied(true);
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {}
   };
 
   const handleShare = async () => {
@@ -76,7 +94,17 @@ export const InviteQrScreen: React.FC<InviteQrScreenProps> = ({
       </Svg>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+            paddingBottom: Math.max(insets.bottom, 20) + 16,
+          },
+        ]}
         bounces={false}
         showsVerticalScrollIndicator={false}
       >

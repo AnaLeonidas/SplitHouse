@@ -40,6 +40,8 @@ export interface UserProfileData {
   completedTasks: number;
   /** Porcentagem de tarefas executadas rigorosamente dentro do prazo */
   onTimePercentage: number;
+  /** Quantidade de notificações não lidas */
+  unreadNotificationsCount?: number;
 }
 
 /**
@@ -149,7 +151,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           onPress={onNotificationsPress}
         >
           <Feather name="bell" size={20} color={Colors.text} />
-          <View style={styles.notificationBadge} />
+          {(user.unreadNotificationsCount ?? 0) > 0 && <View style={styles.notificationBadge} />}
         </TouchableOpacity>
       </View>
 
@@ -321,7 +323,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {
     position: 'absolute',

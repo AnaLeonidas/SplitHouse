@@ -79,11 +79,9 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               }
             },
           },
-        ]
+        ],
+        { cancelable: false }
       );
-      if (onSubmit) {
-        onSubmit(email.trim());
-      }
     } catch (error: any) {
       Alert.alert(
         'Erro ao recuperar senha',

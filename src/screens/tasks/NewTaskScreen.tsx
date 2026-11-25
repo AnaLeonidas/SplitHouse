@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   StatusBar as RNStatusBar,
   KeyboardAvoidingView,
   Modal,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -46,7 +48,7 @@ export interface NewTaskScreenProps {
   /** Callback para voltar ao quadro de tarefas */
   onBackPress?: () => void;
   /** Callback de submissão dos dados da nova tarefa */
-  onSubmitPress?: (taskData: TaskFormData) => void;
+  onSubmitPress?: (taskData: TaskFormData) => Promise<void> | void;
   /** Lista de membros reais da moradia para atribuição */
   membersList?: MemberOption[];
 }
@@ -91,6 +93,7 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   onSubmitPress,
   membersList = [],
 }) => {
+  const insets = useSafeAreaInsets();
   const availableMembers = membersList.length > 0 ? membersList : [];
   const defaultMember = availableMembers[0] || {
     id: 'unassigned',
@@ -102,6 +105,15 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
   const [location, setLocation] = useState('');
   const [taskType, setTaskType] = useState<'Fixa' | 'Rotativa' | 'Emergencial'>('Rotativa');
   const [selectedMember, setSelectedMember] = useState<MemberOption>(defaultMember);
+  const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (membersList.length > 0 && selectedMember.id === 'unassigned') {
@@ -140,9 +152,10 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
     if (!title.trim()) {
-      alert('Por favor, informe o título da tarefa.');
+      Alert.alert('Atenção', 'Por favor, informe o título da tarefa.');
       return;
     }
 
@@ -159,14 +172,30 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
     };
 
     if (onSubmitPress) {
-      onSubmitPress(taskData);
+      try {
+        setSubmitting(true);
+        await onSubmitPress(taskData);
+      } catch {
+        // erro tratado pelo caller
+      } finally {
+        if (mountedRef.current) {
+          setSubmitting(false);
+        }
+      }
     }
+  };
+
+  const formatShortAssigneeName = (rawName: string): string => {
+    const cleanName = rawName.replace(' (Você)', '').trim();
+    const parts = cleanName.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'Geral';
+    return parts.length > 1 ? `${parts[0]} ${parts[1][0]}.` : parts[0];
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.wrapper}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
 
       <Svg height="320" width="320" style={styles.topGlowSvg} pointerEvents="none">
@@ -307,7 +336,7 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.assigneeName} numberOfLines={1}>
-                {selectedMember.name.split(' ')[0] + ' ' + (selectedMember.name.split(' ')[1] ? selectedMember.name.split(' ')[1][0] + '.' : '')}
+                {formatShortAssigneeName(selectedMember.name)}
               </Text>
             </View>
           </TouchableOpacity>
@@ -359,13 +388,21 @@ export const NewTaskScreen: React.FC<NewTaskScreenProps> = ({
         </TouchableOpacity>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8) },
+        ]}
+      >
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, submitting && { opacity: 0.65 }]}
           activeOpacity={0.88}
+          disabled={submitting}
           onPress={handleSubmit}
         >
-          <Text style={styles.submitButtonText}>Criar tarefa</Text>
+          <Text style={styles.submitButtonText}>
+            {submitting ? 'Criando tarefa...' : 'Criar tarefa'}
+          </Text>
           <Feather name="check" size={18} color="#FCFCFC" />
         </TouchableOpacity>
 

@@ -73,6 +73,10 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const hasPhoto = !!photoUri;
 
+  React.useEffect(() => {
+    setPhotoUri(null);
+  }, [task?.id]);
+
   const title = task?.title || 'Tarefa';
   const description =
     task?.description ||
@@ -464,7 +468,7 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: Platform.OS === 'android' ? 28 : 20,
     paddingTop: 8,
     backgroundColor: '#FCFCFC',
     gap: 8,

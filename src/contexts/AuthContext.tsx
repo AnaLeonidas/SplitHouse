@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
 import { Perfil } from '../types/database';
@@ -49,7 +50,7 @@ export interface AuthContextData {
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
 /**
  * Propriedades do componente provedor de autenticação.
@@ -57,6 +58,13 @@ const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 export interface AuthProviderProps {
   /** Árvore de componentes filhos que terão acesso ao contexto de autenticação */
   children: React.ReactNode;
+}
+
+function getEmailRedirectUrl(path: string): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/${path}`;
+  }
+  return `splithouse://${path}`;
 }
 
 /**
@@ -71,22 +79,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Perfil | null>(null);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
   /**
    * Consulta os dados cadastrais do morador na tabela 'perfis' a partir do UUID.
+   * Cria automaticamente o registro caso ainda não exista no banco.
    *
    * @param userId Identificador único do usuário no auth.users.
+   * @param authUser Usuário autenticado usado como fallback de nome/e-mail.
    */
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, authUser?: User | null) => {
     try {
       const { data, error } = await supabase
         .from('perfis')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
+      if (activeUserIdRef.current !== userId) return;
 
       if (!error && data) {
         setProfile(data as Perfil);
+        return;
+      }
+
+      if (!data && authUser) {
+        const fallbackName =
+          String(authUser.user_metadata?.full_name || authUser.user_metadata?.name || '').trim() ||
+          authUser.email?.split('@')[0] ||
+          'Morador';
+        const { data: created } = await supabase
+          .from('perfis')
+          .upsert(
+            {
+              id: userId,
+              nome_completo: fallbackName,
+              email: authUser.email || '',
+            },
+            { onConflict: 'id' }
+          )
+          .select('*')
+          .maybeSingle();
+
+        if (activeUserIdRef.current === userId && created) {
+          setProfile(created as Perfil);
+        }
       }
     } catch (err) {
       console.warn('Erro ao carregar perfil do morador:', err);
@@ -94,31 +131,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+    let mounted = true;
+
+    const initSession = async () => {
+      try {
+        const {
+          data: { session: currentSession },
+        } = await supabase.auth.getSession();
+        if (!mounted) return;
+        activeUserIdRef.current = currentSession?.user?.id ?? null;
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id, currentSession.user);
+        }
+      } catch (err) {
+        console.warn('Erro ao restaurar sessão inicial:', err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
-    });
+    };
+
+    initSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!mounted) return;
+      activeUserIdRef.current = nextSession?.user?.id ?? null;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
 
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+      if (nextSession?.user) {
+        await fetchProfile(nextSession.user.id, nextSession.user);
       } else {
         setProfile(null);
       }
 
-      setLoading(false);
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -158,12 +216,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         data: {
           full_name: nomeCompleto,
         },
-        emailRedirectTo: 'splithouse://confirm-email',
+        emailRedirectTo: getEmailRedirectUrl('confirm-email'),
       },
     });
 
     if (error) {
       throw error;
+    }
+
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new Error('User already registered');
     }
 
     const emailConfirmed = !!(
@@ -186,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: 'splithouse://confirm-email',
+        emailRedirectTo: getEmailRedirectUrl('confirm-email'),
       },
     });
     if (error) {
@@ -196,17 +258,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Encerra a sessão ativa do morador e limpa os estados locais de usuário e perfil.
-   *
-   * @throws {AuthError} Lança erro caso ocorra falha na revogação do token.
    */
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    } catch {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignora erro de rede e força limpeza local
+      }
+    } finally {
+      activeUserIdRef.current = null;
+      setUser(null);
+      setSession(null);
+      setProfile(null);
     }
-    setUser(null);
-    setSession(null);
-    setProfile(null);
   };
 
   /**
@@ -217,7 +287,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'splithouse://reset-password',
+      redirectTo: getEmailRedirectUrl('reset-password'),
     });
     if (error) {
       throw error;
@@ -259,7 +329,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await fetchProfile(user.id, user);
     }
   };
 

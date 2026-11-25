@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -56,7 +57,7 @@ export interface RankingScreenProps {
   /** Lista opcional de moradores ordenada por classificação */
   rankingList?: ResidentRankingItem[];
   /** Callback para notificar/cutucar morador com pendências */
-  onNudgePress?: (residentName: string, residentId?: string) => void;
+  onNudgePress?: (residentName: string, residentId?: string) => Promise<void> | void;
   /** Callback para navegar até a loja de recompensas da república */
   onStorePress?: () => void;
 }
@@ -77,20 +78,33 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
   onNudgePress,
   onStorePress,
 }) => {
-  const [nudgedMembers, setNudgedMembers] = useState<string[]>([]);
+  const insets = useSafeAreaInsets();
+  const [nudgedKeys, setNudgedKeys] = useState<string[]>([]);
+  const [nudgingKey, setNudgingKey] = useState<string | null>(null);
 
   const leader = rankingList[0];
 
-  const handleNudge = (name: string, id?: string) => {
-    if (onNudgePress) {
-      onNudgePress(name, id);
-    } else {
-      Alert.alert(
-        'Cutucada Enviada!',
-        `${name} foi notificado sobre suas tarefas próximas do vencimento.`
-      );
+  const handleNudge = async (targetKey: string, name: string, id?: string) => {
+    if (nudgedKeys.includes(targetKey) || nudgingKey === targetKey) {
+      return;
     }
-    setNudgedMembers((prev) => (prev.includes(name) ? prev : [...prev, name]));
+
+    try {
+      setNudgingKey(targetKey);
+      if (onNudgePress) {
+        await onNudgePress(name, id);
+      } else {
+        Alert.alert(
+          'Cutucada Enviada!',
+          `${name} foi notificado sobre suas tarefas próximas do vencimento.`
+        );
+      }
+      setNudgedKeys((prev) => (prev.includes(targetKey) ? prev : [...prev, targetKey]));
+    } catch {
+      // erro tratado pelo caller; mantém habilitado para nova tentativa
+    } finally {
+      setNudgingKey((prev) => (prev === targetKey ? null : prev));
+    }
   };
 
   const formatXp = (amount: number) => {
@@ -110,10 +124,21 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
         <Rect x="0" y="0" width="320" height="320" fill="url(#rankingTopGlow)" />
       </Svg>
 
-      <View style={styles.header}>
-        <View>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+          },
+        ]}
+      >
+        <View style={{ flexShrink: 1, marginRight: 10 }}>
           <Text style={styles.headerTitle}>Ranking</Text>
-          <Text style={styles.headerSubtitle}>{houseName}</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{houseName}</Text>
         </View>
 
         <View style={styles.headerRightRow}>
@@ -134,7 +159,10 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 100 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {rankingList.length === 0 ? (
@@ -159,7 +187,9 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                 </View>
 
                 <View style={styles.leaderBottomRow}>
-                  <Text style={styles.leaderName}>{leader.name}</Text>
+                  <Text style={[styles.leaderName, { flexShrink: 1 }]} numberOfLines={1}>
+                    {leader.name}
+                  </Text>
                   <Text style={styles.leaderXp}>{formatXp(leader.xp)}</Text>
                 </View>
               </View>
@@ -173,7 +203,9 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
             <View style={styles.rankingListContainer}>
               {rankingList.map((item) => {
             const isFirst = item.rank === 1;
-            const isNudged = nudgedMembers.includes(item.name);
+            const targetKey = item.userId || item.id;
+            const isNudged = nudgedKeys.includes(targetKey);
+            const isNudging = nudgingKey === targetKey;
 
             return (
               <View
@@ -221,7 +253,9 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
 
                   <View style={styles.residentInfo}>
                     <View style={styles.residentNameRow}>
-                      <Text style={styles.residentName}>{item.name}</Text>
+                      <Text style={[styles.residentName, { flexShrink: 1 }]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
                       {item.isCurrentUser && (
                         <View style={styles.youBadge}>
                           <Text style={styles.youBadgeText}>Você</Text>
@@ -284,23 +318,24 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                         <TouchableOpacity
                           style={[
                             styles.nudgeButtonHighlight,
-                            isNudged && styles.nudgeButtonActive,
+                            (isNudged || isNudging) && styles.nudgeButtonActive,
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name, item.userId || item.id)}
+                          disabled={isNudged || isNudging}
+                          onPress={() => handleNudge(targetKey, item.name, item.userId || item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}
                             size={12}
-                            color={isNudged ? Colors.primary : Colors.white}
+                            color={isNudged || isNudging ? Colors.primary : Colors.white}
                           />
                           <Text
                             style={[
                               styles.nudgeButtonHighlightText,
-                              isNudged && styles.nudgeButtonActiveText,
+                              (isNudged || isNudging) && styles.nudgeButtonActiveText,
                             ]}
                           >
-                            {isNudged ? 'Enviado' : 'Cutucar'}
+                            {isNudged ? 'Enviado' : isNudging ? '...' : 'Cutucar'}
                           </Text>
                         </TouchableOpacity>
                       ) : (
@@ -308,9 +343,11 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({
                           style={[
                             styles.nudgeButtonDefault,
                             isNudged && styles.nudgeButtonDefaultActive,
+                            isNudging && { opacity: 0.6 },
                           ]}
                           activeOpacity={0.8}
-                          onPress={() => handleNudge(item.name, item.userId || item.id)}
+                          disabled={isNudged || isNudging}
+                          onPress={() => handleNudge(targetKey, item.name, item.userId || item.id)}
                         >
                           <Feather
                             name={isNudged ? 'check' : 'zap'}

@@ -26,7 +26,9 @@ export interface HomeScreenProps {
     /** Callback para criar nova tarefa doméstica */
     onNewTaskPress?: () => void;
     /** Callback ao clicar em uma tarefa do quadro rápido */
-    onTaskPress?: (taskTitle: string) => void;
+    onTaskPress?: (taskId: string) => void;
+    /** Quantidade de notificações não lidas */
+    unreadNotificationsCount?: number;
     /** Callback para abrir central de notificações */
     onNotificationsPress?: () => void;
     /** Callback para abrir o ranking da moradia */
@@ -86,6 +88,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     leaderXp = 0,
     userLevel = 1,
     pendingMembersCount = 0,
+    unreadNotificationsCount = 0,
 }) => {
     const { profile } = useAuth();
     const userName = profile?.nome_completo || 'Morador';
@@ -143,7 +146,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconButton} onPress={onNotificationsPress}>
                             <Feather name="bell" size={20} color={Colors.text} />
-                            <View style={styles.notificationDot} />
+                            {unreadNotificationsCount > 0 && <View style={styles.notificationDot} />}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -235,7 +238,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                 key={task.id}
                                 style={styles.taskCard}
                                 activeOpacity={0.8}
-                                onPress={() => onTaskPress && onTaskPress(task.title)}
+                                onPress={() => onTaskPress && onTaskPress(task.id)}
                             >
                                 <View style={styles.checkbox} />
                                 <View style={styles.taskInfo}>

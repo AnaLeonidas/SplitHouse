@@ -15,6 +15,36 @@ CREATE TABLE IF NOT EXISTS public.perfis (
     atualizado_em TIMESTAMPTZ DEFAULT now()
 );
 
+-- Sincronização automática de perfis ao criar usuário no auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    INSERT INTO public.perfis (id, nome_completo, email)
+    VALUES (
+        NEW.id,
+        COALESCE(
+            NULLIF(TRIM(NEW.raw_user_meta_data ->> 'full_name'), ''),
+            NULLIF(split_part(COALESCE(NEW.email, ''), '@', 1), ''),
+            'Morador'
+        ),
+        COALESCE(NEW.email, '')
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        atualizado_em = now();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 -- 2. Tabela de Moradias (Repúblicas e Apartamentos)
 CREATE TABLE IF NOT EXISTS public.moradias (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.membros_moradia (
     papel TEXT NOT NULL DEFAULT 'morador' CHECK (papel IN ('admin', 'morador')),
     status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aprovado', 'recusado', 'saiu')),
     nivel INTEGER NOT NULL DEFAULT 1,
-    titulo_nivel TEXT NOT NULL DEFAULT 'Iniciante',
+    titulo_nivel TEXT NOT NULL DEFAULT 'Morador Iniciante',
     xp INTEGER NOT NULL DEFAULT 0,
     moedas INTEGER NOT NULL DEFAULT 0,
     entrou_em TIMESTAMPTZ DEFAULT now(),
@@ -168,6 +198,7 @@ CREATE TABLE IF NOT EXISTS public.rateios_despesa (
     valor_parte NUMERIC(10, 2) NOT NULL CHECK (valor_parte >= 0),
     status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago')),
     pago_em TIMESTAMPTZ,
+    criado_em TIMESTAMPTZ DEFAULT now(),
     UNIQUE (despesa_id, usuario_id)
 );
 
@@ -185,6 +216,43 @@ CREATE TABLE IF NOT EXISTS public.pagamentos_acerto (
     criado_em TIMESTAMPTZ DEFAULT now()
 );
 
+-- Storage público para fotos de tarefas, comprovantes de despesas e pagamentos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('comprovantes', 'comprovantes', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Funções auxiliares SECURITY DEFINER para evitar recursão infinita (42P17) nas políticas RLS
+CREATE OR REPLACE FUNCTION public.is_approved_house_member(target_moradia_id UUID, target_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.membros_moradia
+        WHERE moradia_id = target_moradia_id
+          AND usuario_id = target_user_id
+          AND status = 'aprovado'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_house_admin(target_moradia_id UUID, target_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.membros_moradia
+        WHERE moradia_id = target_moradia_id
+          AND usuario_id = target_user_id
+          AND status = 'aprovado'
+          AND papel = 'admin'
+    );
+$$;
+
 -- Habilitar Row Level Security (RLS) em todas as tabelas
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.moradias ENABLE ROW LEVEL SECURITY;
@@ -201,97 +269,124 @@ ALTER TABLE public.notificacoes ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de Acesso RLS Isoladas por Usuário e Moradia
 CREATE POLICY "Leitura de perfis por autenticados" ON public.perfis FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Atualizacao do proprio perfil" ON public.perfis FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Atualizacao do proprio perfil" ON public.perfis FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 CREATE POLICY "Insercao do proprio perfil" ON public.perfis FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Leitura de moradias por membros ou convite" ON public.moradias FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Criacao de moradias por autenticados" ON public.moradias FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Criacao de moradias por autenticados" ON public.moradias FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL AND (criado_por IS NULL OR criado_por = auth.uid()));
 CREATE POLICY "Atualizacao de moradia por administradores" ON public.moradias FOR UPDATE TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.moradias.id AND usuario_id = auth.uid() AND papel = 'admin')
+    public.is_house_admin(public.moradias.id, auth.uid())
+);
+CREATE POLICY "Exclusao de moradia pelo criador ou admin" ON public.moradias FOR DELETE TO authenticated USING (
+    criado_por = auth.uid() OR public.is_house_admin(public.moradias.id, auth.uid())
 );
 
 CREATE POLICY "Leitura de membros da mesma moradia" ON public.membros_moradia FOR SELECT TO authenticated USING (
-    usuario_id = auth.uid() OR EXISTS (SELECT 1 FROM public.membros_moradia m WHERE m.moradia_id = public.membros_moradia.moradia_id AND m.usuario_id = auth.uid())
+    usuario_id = auth.uid()
+    OR public.is_approved_house_member(public.membros_moradia.moradia_id, auth.uid())
 );
-CREATE POLICY "Insercao de vinculo de morador" ON public.membros_moradia FOR INSERT TO authenticated WITH CHECK (usuario_id = auth.uid());
+CREATE POLICY "Insercao de vinculo de morador" ON public.membros_moradia FOR INSERT TO authenticated WITH CHECK (
+    usuario_id = auth.uid()
+    AND (
+        (status = 'pendente' AND papel = 'morador')
+        OR EXISTS (
+            SELECT 1 FROM public.moradias mo
+            WHERE mo.id = public.membros_moradia.moradia_id AND mo.criado_por = auth.uid()
+        )
+    )
+);
 CREATE POLICY "Atualizacao de vinculo por admin ou proprio usuario" ON public.membros_moradia FOR UPDATE TO authenticated USING (
-    usuario_id = auth.uid() OR EXISTS (SELECT 1 FROM public.membros_moradia m WHERE m.moradia_id = public.membros_moradia.moradia_id AND m.usuario_id = auth.uid() AND m.papel = 'admin')
+    public.is_house_admin(public.membros_moradia.moradia_id, auth.uid())
+    OR public.is_approved_house_member(public.membros_moradia.moradia_id, auth.uid())
+    OR usuario_id = auth.uid()
+);
+CREATE POLICY "Exclusao de vinculo por admin ou criador" ON public.membros_moradia FOR DELETE TO authenticated USING (
+    usuario_id = auth.uid()
+    OR public.is_house_admin(public.membros_moradia.moradia_id, auth.uid())
+    OR EXISTS (SELECT 1 FROM public.moradias mo WHERE mo.id = public.membros_moradia.moradia_id AND mo.criado_por = auth.uid())
 );
 
 CREATE POLICY "Leitura de regras por moradores" ON public.regras_moradia FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.regras_moradia.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.regras_moradia.moradia_id, auth.uid())
 );
 CREATE POLICY "Gestao de regras por administradores" ON public.regras_moradia FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.regras_moradia.moradia_id AND usuario_id = auth.uid() AND papel = 'admin')
+    public.is_house_admin(public.regras_moradia.moradia_id, auth.uid())
 );
 
 CREATE POLICY "Leitura de tarefas por membros da moradia" ON public.tarefas FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.tarefas.moradia_id, auth.uid())
 );
 CREATE POLICY "Insercao de tarefas por membros da moradia" ON public.tarefas FOR INSERT TO authenticated WITH CHECK (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.tarefas.moradia_id, auth.uid())
 );
 CREATE POLICY "Atualizacao de tarefas por membros da moradia" ON public.tarefas FOR UPDATE TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.tarefas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.tarefas.moradia_id, auth.uid())
 );
 
 CREATE POLICY "Acesso a validacoes por membros da moradia" ON public.validacoes_tarefa FOR ALL TO authenticated USING (
     EXISTS (
         SELECT 1 FROM public.tarefas t
-        JOIN public.membros_moradia m ON m.moradia_id = t.moradia_id
-        WHERE t.id = public.validacoes_tarefa.tarefa_id AND m.usuario_id = auth.uid()
+        WHERE t.id = public.validacoes_tarefa.tarefa_id
+          AND public.is_approved_house_member(t.moradia_id, auth.uid())
     )
 );
 
 CREATE POLICY "Leitura de despesas por membros da moradia" ON public.despesas FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.despesas.moradia_id, auth.uid())
 );
 CREATE POLICY "Insercao de despesas por membros da moradia" ON public.despesas FOR INSERT TO authenticated WITH CHECK (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.despesas.moradia_id, auth.uid())
 );
 CREATE POLICY "Atualizacao de despesas por membros da moradia" ON public.despesas FOR UPDATE TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.despesas.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.despesas.moradia_id, auth.uid())
+);
+CREATE POLICY "Exclusao de despesas por membros ou pagador" ON public.despesas FOR DELETE TO authenticated USING (
+    pagador_id = auth.uid() OR public.is_house_admin(public.despesas.moradia_id, auth.uid())
 );
 
 CREATE POLICY "Leitura de rateios por membros da moradia" ON public.rateios_despesa FOR SELECT TO authenticated USING (
     EXISTS (
         SELECT 1 FROM public.despesas d
-        JOIN public.membros_moradia m ON m.moradia_id = d.moradia_id
-        WHERE d.id = public.rateios_despesa.despesa_id AND m.usuario_id = auth.uid()
+        WHERE d.id = public.rateios_despesa.despesa_id
+          AND public.is_approved_house_member(d.moradia_id, auth.uid())
     )
 );
 CREATE POLICY "Insercao e atualizacao de rateios por membros" ON public.rateios_despesa FOR ALL TO authenticated USING (
     EXISTS (
         SELECT 1 FROM public.despesas d
-        JOIN public.membros_moradia m ON m.moradia_id = d.moradia_id
-        WHERE d.id = public.rateios_despesa.despesa_id AND m.usuario_id = auth.uid()
+        WHERE d.id = public.rateios_despesa.despesa_id
+          AND public.is_approved_house_member(d.moradia_id, auth.uid())
     )
 );
 
 CREATE POLICY "Leitura de pagamentos por membros da moradia" ON public.pagamentos_acerto FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.pagamentos_acerto.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.pagamentos_acerto.moradia_id, auth.uid())
 );
 CREATE POLICY "Insercao de pagamentos pelo devedor" ON public.pagamentos_acerto FOR INSERT TO authenticated WITH CHECK (
-    devedor_id = auth.uid()
+    devedor_id = auth.uid() AND public.is_approved_house_member(public.pagamentos_acerto.moradia_id, auth.uid())
 );
 CREATE POLICY "Confirmacao de pagamentos pelo credor" ON public.pagamentos_acerto FOR UPDATE TO authenticated USING (
-    credor_id = auth.uid() OR devedor_id = auth.uid()
+    (credor_id = auth.uid() OR devedor_id = auth.uid())
+    AND public.is_approved_house_member(public.pagamentos_acerto.moradia_id, auth.uid())
 );
 
 CREATE POLICY "Leitura de recompensas por membros" ON public.recompensas_loja FOR SELECT TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.recompensas_loja.moradia_id, auth.uid())
 );
 CREATE POLICY "Criacao de recompensas por membros" ON public.recompensas_loja FOR INSERT TO authenticated WITH CHECK (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.recompensas_loja.moradia_id, auth.uid())
 );
 CREATE POLICY "Atualizacao de recompensas por membros" ON public.recompensas_loja FOR UPDATE TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.recompensas_loja.moradia_id AND usuario_id = auth.uid())
+    public.is_approved_house_member(public.recompensas_loja.moradia_id, auth.uid())
 );
 
 CREATE POLICY "Leitura de resgates por membros" ON public.resgates_recompensa FOR SELECT TO authenticated USING (
-    auth.uid() = usuario_id OR EXISTS (SELECT 1 FROM public.membros_moradia WHERE moradia_id = public.resgates_recompensa.moradia_id AND usuario_id = auth.uid())
+    auth.uid() = usuario_id OR public.is_approved_house_member(public.resgates_recompensa.moradia_id, auth.uid())
 );
 CREATE POLICY "Insercao de resgate pelo proprio usuario" ON public.resgates_recompensa FOR INSERT TO authenticated WITH CHECK (
+    auth.uid() = usuario_id AND public.is_approved_house_member(public.resgates_recompensa.moradia_id, auth.uid())
+);
+CREATE POLICY "Exclusao de resgate pelo proprio usuario" ON public.resgates_recompensa FOR DELETE TO authenticated USING (
     auth.uid() = usuario_id
 );
 
@@ -304,4 +399,25 @@ CREATE POLICY "Criacao de notificacoes por autenticados" ON public.notificacoes 
 CREATE POLICY "Atualizacao de notificacoes pelo destinatario" ON public.notificacoes FOR UPDATE TO authenticated USING (
     auth.uid() = usuario_id
 );
+CREATE POLICY "Exclusao de notificacoes pelo destinatario" ON public.notificacoes FOR DELETE TO authenticated USING (
+    auth.uid() = usuario_id
+);
+
+DROP POLICY IF EXISTS "Upload de comprovantes por autenticados" ON storage.objects;
+CREATE POLICY "Upload de comprovantes por autenticados" ON storage.objects FOR INSERT TO authenticated WITH CHECK (
+    bucket_id = 'comprovantes'
+);
+DROP POLICY IF EXISTS "Leitura publica de comprovantes" ON storage.objects;
+CREATE POLICY "Leitura publica de comprovantes" ON storage.objects FOR SELECT TO public USING (
+    bucket_id = 'comprovantes'
+);
+
+-- Índices para otimização de consultas
+CREATE INDEX IF NOT EXISTS idx_despesas_moradia ON public.despesas (moradia_id, status);
+CREATE INDEX IF NOT EXISTS idx_rateios_despesa_usuario ON public.rateios_despesa (despesa_id, usuario_id);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_moradia ON public.pagamentos_acerto (moradia_id, status);
+CREATE INDEX IF NOT EXISTS idx_recompensas_moradia ON public.recompensas_loja (moradia_id, ativo);
+CREATE INDEX IF NOT EXISTS idx_resgates_moradia_usuario ON public.resgates_recompensa (moradia_id, usuario_id);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario ON public.notificacoes (usuario_id, lida, criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_membros_ranking_xp ON public.membros_moradia (moradia_id, status, xp DESC);
 

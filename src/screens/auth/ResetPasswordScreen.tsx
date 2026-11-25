@@ -55,6 +55,14 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    if (initialEmail) setEmail(initialEmail);
+  }, [initialEmail]);
+
+  React.useEffect(() => {
+    if (initialToken) setToken(initialToken);
+  }, [initialToken]);
+
   // Se já houver sessão ativa (ex: usuário veio de link de recuperação que gerou sessão de recovery), não exige token
   const hasActiveRecoverySession = !!session;
 

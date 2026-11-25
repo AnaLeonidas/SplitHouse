@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   StatusBar as RNStatusBar,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
@@ -21,9 +22,9 @@ export interface PendingRequestScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback para verificar o status atual da aprovação */
-  onRefreshPress?: () => void;
+  onRefreshPress?: () => Promise<void> | void;
   /** Callback para cancelar o pedido de entrada pendente */
-  onCancelPress?: () => void;
+  onCancelPress?: () => Promise<void> | void;
 }
 
 /**
@@ -38,6 +39,40 @@ export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
   onRefreshPress,
   onCancelPress,
 }) => {
+  const [busy, setBusy] = useState<'refresh' | 'cancel' | null>(null);
+
+  const handleRefresh = async () => {
+    if (busy || !onRefreshPress) return;
+    try {
+      setBusy('refresh');
+      await onRefreshPress();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCancel = () => {
+    if (busy || !onCancelPress) return;
+    Alert.alert(
+      'Cancelar solicitação',
+      `Deseja cancelar seu pedido de entrada em "${houseName}"?`,
+      [
+        { text: 'Manter pedido', style: 'cancel' },
+        {
+          text: 'Cancelar pedido',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setBusy('cancel');
+              await onCancelPress();
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ]
+    );
+  };
   return (
     <View style={styles.wrapper}>
       <Svg height="260" width="260" style={styles.topGlowSvg} pointerEvents="none">
@@ -66,9 +101,10 @@ export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.navButton}
+            style={[styles.navButton, busy === 'refresh' && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={onRefreshPress}
+            disabled={!!busy}
+            onPress={handleRefresh}
           >
             <Feather name="rotate-cw" size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
@@ -123,12 +159,15 @@ export const PendingRequestScreen: React.FC<PendingRequestScreenProps> = ({
           </View>
 
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButton, !!busy && { opacity: 0.6 }]}
             activeOpacity={0.8}
-            onPress={onCancelPress}
+            disabled={!!busy}
+            onPress={handleCancel}
           >
             <Feather name="x-circle" size={16} color={Colors.textSecondary} />
-            <Text style={styles.cancelButtonText}>Cancelar solicitação</Text>
+            <Text style={styles.cancelButtonText}>
+              {busy === 'cancel' ? 'Cancelando...' : 'Cancelar solicitação'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

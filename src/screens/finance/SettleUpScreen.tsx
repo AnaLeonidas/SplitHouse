@@ -1,5 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar as RNStatusBar } from 'react-native';
+import React, { useState } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    Platform,
+    StatusBar as RNStatusBar,
+    Modal,
+    ActivityIndicator,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,6 +20,8 @@ import { useAuth } from '../../contexts/AuthContext';
 export interface SettleUpDebtItem {
     /** Identificador único da pendência bilateral */
     id: string;
+    /** UUID da contraparte (quando disponível) */
+    debtorId?: string;
     /** Nome da contraparte envolvida no saldo */
     debtorName: string;
     /** Iniciais da contraparte para renderização do avatar */
@@ -18,6 +30,8 @@ export interface SettleUpDebtItem {
     debtorStatus: string;
     /** Valor líquido da dívida formatado em reais */
     debtAmount: string;
+    /** Valor numérico assinado (>0: deve a você; <0: você deve) */
+    rawAmount?: number;
     /** Texto auxiliar com contexto da pendência (opcional) */
     refText?: string;
     /** Indica se o saldo já foi quitado (opcional) */
@@ -45,7 +59,9 @@ export interface SettleUpScreenProps {
     /** Callback para voltar ao painel financeiro */
     onBackPress?: () => void;
     /** Callback para iniciar fluxo de liquidação ou pagamento de dívida */
-    onPayPress?: () => void;
+    onPayPress?: () => Promise<void> | void;
+    /** Callback direto para pagar um credor específico selecionado */
+    onPayDebt?: (debt: SettleUpDebtItem) => Promise<void> | void;
     /** Callback para disparar cutucada/lembrete de cobrança amigável */
     onNudgePress?: (debt: any) => void;
     /** Lista de pendências bilaterais calculadas */
@@ -69,6 +85,7 @@ export interface SettleUpScreenProps {
 export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
     onBackPress,
     onPayPress,
+    onPayDebt,
     onNudgePress,
     debts = [],
     netBalance = 'R$ 0,00',
@@ -78,6 +95,46 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
 }) => {
     const { profile } = useAuth();
     const displayName = profile?.nome_completo ? profile.nome_completo.toUpperCase() : 'SUA SITUAÇÃO';
+    const [creditorModalVisible, setCreditorModalVisible] = useState(false);
+    const [payingDebtId, setPayingDebtId] = useState<string | null>(null);
+
+    const owedDebts = debts.filter((d) => typeof d.rawAmount === 'number' && d.rawAmount < 0);
+    const hasPayableDebt = owedDebts.length > 0 || (debts.length > 0 && debts.every((d) => d.rawAmount === undefined));
+
+    const executePayDebt = async (debt: SettleUpDebtItem) => {
+        if (payingDebtId) return;
+        setCreditorModalVisible(false);
+        try {
+            setPayingDebtId(debt.id);
+            if (onPayDebt) {
+                await onPayDebt(debt);
+            } else if (onPayPress) {
+                await onPayPress();
+            }
+        } finally {
+            setPayingDebtId(null);
+        }
+    };
+
+    const handlePayButtonPress = async () => {
+        if (payingDebtId) return;
+        if (onPayDebt && owedDebts.length > 1) {
+            setCreditorModalVisible(true);
+            return;
+        }
+        if (onPayDebt && owedDebts.length === 1) {
+            await executePayDebt(owedDebts[0]);
+            return;
+        }
+        if (onPayPress) {
+            try {
+                setPayingDebtId('general');
+                await onPayPress();
+            } finally {
+                setPayingDebtId(null);
+            }
+        }
+    };
 
     return (
         <View style={styles.wrapper}>
@@ -165,26 +222,72 @@ export const SettleUpScreen: React.FC<SettleUpScreenProps> = ({
                             {item.refText && !item.isSettled && (
                                 <View style={styles.debtFooter}>
                                     <Text style={styles.refText}>{item.refText}</Text>
-                                    <TouchableOpacity
-                                        style={styles.smallNudgeBtn}
-                                        onPress={() => onNudgePress && onNudgePress(item)}
-                                    >
-                                        <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
-                                    </TouchableOpacity>
+                                    {(typeof item.rawAmount !== 'number' || item.rawAmount > 0) && (
+                                        <TouchableOpacity
+                                            style={styles.smallNudgeBtn}
+                                            onPress={() => onNudgePress && onNudgePress(item)}
+                                        >
+                                            <Text style={styles.smallNudgeText}>Lembrar (Cutucar)</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             )}
                         </View>
                     ))
                 )}
 
-                {onPayPress && debts.length > 0 && (
-                    <TouchableOpacity style={styles.payButton} onPress={onPayPress}>
-                        <Feather name="credit-card" size={18} color={Colors.white} />
-                        <Text style={styles.payButtonText}>Informar pagamento efetuado</Text>
+                {(onPayPress || onPayDebt) && hasPayableDebt && (
+                    <TouchableOpacity
+                        style={[styles.payButton, !!payingDebtId && { opacity: 0.7 }]}
+                        onPress={handlePayButtonPress}
+                        disabled={!!payingDebtId}
+                    >
+                        {payingDebtId ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                            <Feather name="credit-card" size={18} color={Colors.white} />
+                        )}
+                        <Text style={styles.payButtonText}>
+                            {payingDebtId ? 'Enviando comprovante...' : 'Informar pagamento efetuado'}
+                        </Text>
                     </TouchableOpacity>
                 )}
 
             </ScrollView>
+
+            <Modal
+                visible={creditorModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setCreditorModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Quem você pagou?</Text>
+                        <Text style={styles.modalSubtitle}>Selecione o morador que recebeu a transferência:</Text>
+                        <ScrollView style={{ maxHeight: 280 }}>
+                            {owedDebts.map((debt) => (
+                                <TouchableOpacity
+                                    key={debt.id}
+                                    style={styles.modalItem}
+                                    onPress={() => executePayDebt(debt)}
+                                >
+                                    <Text style={styles.modalItemName} numberOfLines={1}>
+                                        {debt.debtorName}
+                                    </Text>
+                                    <Text style={styles.modalItemAmount}>{debt.debtAmount}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.modalCloseBtn}
+                            onPress={() => setCreditorModalVisible(false)}
+                        >
+                            <Text style={styles.modalCloseText}>Cancelar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -220,4 +323,13 @@ const styles = StyleSheet.create({
     smallNudgeText: { color: Colors.primary, fontSize: 11, fontWeight: 'bold' },
     payButton: { backgroundColor: Colors.primary, height: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 },
     payButtonText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+    modalContent: { width: '100%', backgroundColor: Colors.white, borderRadius: 20, padding: 20, elevation: 8 },
+    modalTitle: { fontSize: 17, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+    modalSubtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 14 },
+    modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#FAF8FC', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(94, 43, 151, 0.15)' },
+    modalItemName: { fontSize: 14, fontWeight: '700', color: Colors.text, flex: 1, marginRight: 10 },
+    modalItemAmount: { fontSize: 14, fontWeight: '800', color: Colors.primary },
+    modalCloseBtn: { marginTop: 8, paddingVertical: 12, alignItems: 'center', borderRadius: 12, backgroundColor: '#F3F4F6' },
+    modalCloseText: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary },
 });

@@ -70,6 +70,20 @@ function parseDeadlineToISO(deadlineStr: string): string {
     return target.toISOString();
   }
 
+  // Padrão "DD/MM/YYYY" com horário opcional "HH:mm"
+  const brDateMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:.*(\d{1,2}):(\d{2}))?/);
+  if (brDateMatch) {
+    const day = parseInt(brDateMatch[1], 10);
+    const month = parseInt(brDateMatch[2], 10) - 1;
+    const year = parseInt(brDateMatch[3], 10);
+    const hours = brDateMatch[4] ? parseInt(brDateMatch[4], 10) : 18;
+    const minutes = brDateMatch[5] ? parseInt(brDateMatch[5], 10) : 0;
+    const parsed = new Date(year, month, day, hours, minutes, 0);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+
   // Fallback: 24h a partir de agora
   return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
 }
@@ -148,36 +162,58 @@ function mapRowToTaskItem(row: TarefaDB, currentUserId?: string): TaskItem {
   }
 
   let visualStatus: 'Pendente' | 'Concluída' | 'Aguardando validação' = 'Pendente';
-  if (row.status === 'em_validacao') {
+  if (row.status === 'em_validacao' || (row.status as string) === 'Aguardando validação') {
     visualStatus = 'Aguardando validação';
-  } else if (row.status === 'concluida') {
+  } else if (row.status === 'concluida' || (row.status as string) === 'Concluída') {
     visualStatus = 'Concluída';
   }
 
   const isUserResponsible = !!currentUserId && row.responsavel_id === currentUserId;
-  const rawName = row.responsavel?.nome_completo || 'Morador';
+  const rawName = row.responsavel?.nome_completo || row.responsavel_nome || 'Morador';
   const assigneeDisplay = isUserResponsible ? 'Você' : rawName;
+  const requiresValidation = visualStatus === 'Aguardando validação';
 
   return {
     id: row.id,
     title: row.titulo,
     type: row.tipo,
     location: row.comodo,
-    deadline: formatPrazoLimite(row.prazo_limite),
-    xp: row.recompensa_xp,
-    points: row.recompensa_moedas,
-    assigneeId: row.responsavel_id,
+    deadline: row.prazo_limite ? formatPrazoLimite(row.prazo_limite) : (row.prazo || 'Hoje, 22:00'),
+    xp: row.recompensa_xp ?? (row as any).xp ?? 25,
+    points: row.recompensa_moedas ?? (row as any).moedas ?? 10,
+    assigneeId: row.responsavel_id ?? undefined,
     assignee: assigneeDisplay,
     status: visualStatus,
     icon,
     iconBg,
     iconColor,
-    requiresValidation: row.status === 'em_validacao',
+    requiresValidation,
     executorInfo:
-      row.status === 'em_validacao'
-        ? `Executada por ${assigneeDisplay === 'Você' ? 'você' : rawName} com foto`
+      requiresValidation
+        ? row.executor_info || `Executada por ${assigneeDisplay === 'Você' ? 'você' : rawName} com foto`
         : undefined,
   };
+}
+
+/** Helper para anexar nomes da tabela 'perfis' às tarefas sem depender de join FK no PostgREST. */
+async function attachResponsavelProfiles(rows: TarefaDB[]): Promise<TarefaDB[]> {
+  const ids = Array.from(new Set(rows.map((r) => r.responsavel_id).filter(Boolean))) as string[];
+  if (ids.length === 0) return rows;
+
+  const { data: perfis } = await supabase
+    .from('perfis')
+    .select('id, nome_completo')
+    .in('id', ids);
+
+  const perfilMap = new Map<string, { id: string; nome_completo: string | null }>();
+  (perfis || []).forEach((p: { id: string; nome_completo: string | null }) => {
+    perfilMap.set(p.id, p);
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    responsavel: row.responsavel_id ? perfilMap.get(row.responsavel_id) ?? row.responsavel ?? null : null,
+  }));
 }
 
 /**
@@ -192,33 +228,26 @@ export const tasksService = {
    * @returns Lista de tarefas para exibição.
    */
   async fetchTasks(moradiaId?: string, currentUserId?: string): Promise<TaskItem[]> {
-    try {
-      if (!moradiaId) {
-        return [];
-      }
-
-      const { data, error } = await supabase
-        .from('tarefas')
-        .select(`
-          *,
-          responsavel:responsavel_id (
-            id,
-            nome_completo
-          )
-        `)
-        .eq('moradia_id', moradiaId)
-        .order('prazo_limite', { ascending: true });
-
-      if (error || !data) {
-        if (error) console.warn('Supabase: Erro ao buscar tarefas:', error.message);
-        return [];
-      }
-
-      return (data as TarefaDB[]).map((row) => mapRowToTaskItem(row, currentUserId));
-    } catch (err) {
-      console.warn('Supabase: Exceção ao consultar tarefas:', err);
+    if (!moradiaId) {
       return [];
     }
+
+    const { data, error } = await supabase
+      .from('tarefas')
+      .select('*')
+      .eq('moradia_id', moradiaId)
+      .order('prazo_limite', { ascending: true });
+
+    if (error) {
+      console.warn('Supabase: Erro ao buscar tarefas:', error.message);
+      throw new Error(error.message || 'Não foi possível carregar as tarefas.');
+    }
+    if (!data) {
+      return [];
+    }
+
+    const enriched = await attachResponsavelProfiles(data as TarefaDB[]);
+    return enriched.map((row) => mapRowToTaskItem(row, currentUserId));
   },
 
   /**
@@ -243,7 +272,7 @@ export const tasksService = {
       throw new Error('Selecione um morador responsável pela tarefa.');
     }
 
-    const payload = {
+    const basePayload: any = {
       moradia_id: moradiaId,
       titulo: formData.title,
       descricao: formData.location ? `Cômodo: ${formData.location}` : null,
@@ -253,29 +282,39 @@ export const tasksService = {
       prazo_limite: parseDeadlineToISO(formData.deadline),
       recompensa_xp: formData.xp ?? 25,
       recompensa_moedas: formData.points ?? 10,
-      requer_validacao: true,
+      requer_validacao: false,
       status: 'pendente' as const,
       criado_por: userId || targetResponsavelId,
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('tarefas')
-      .insert(payload)
-      .select(`
-        *,
-        responsavel:responsavel_id (
-          id,
-          nome_completo
-        )
-      `)
+      .insert(basePayload)
+      .select('*')
       .single();
+
+    // Se o banco tiver a coluna legada 'prazo' requerida, tenta incluir
+    if (error && (error.code === '23502' || error.message?.includes('prazo'))) {
+      const fallbackPayload = {
+        ...basePayload,
+        prazo: formData.deadline || 'Hoje, 22:00',
+      };
+      const retry = await supabase
+        .from('tarefas')
+        .insert(fallbackPayload)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       console.error('Supabase: Erro ao salvar tarefa:', error);
       throw new Error(error?.message || 'Falha ao salvar tarefa no banco.');
     }
 
-    return mapRowToTaskItem(data as TarefaDB, userId);
+    const [enriched] = await attachResponsavelProfiles([data as TarefaDB]);
+    return mapRowToTaskItem(enriched, userId);
   },
 
   /**
@@ -294,25 +333,41 @@ export const tasksService = {
   ): Promise<string> {
     const photoUrl = await uploadImage(photoUri, 'tarefas');
 
-    const { error: valError } = await supabase.from('validacoes_tarefa').insert({
-      tarefa_id: taskId,
-      executor_id: executorId,
-      foto_comprovante_url: photoUrl,
-      status: 'pendente',
-    });
-    if (valError) {
-      throw new Error(`Falha ao registrar a validação: ${valError.message}`);
+    const { data: valInserted, error: valError } = await supabase
+      .from('validacoes_tarefa')
+      .insert({
+        tarefa_id: taskId,
+        executor_id: executorId,
+        foto_comprovante_url: photoUrl,
+        data_hora_foto: new Date().toISOString(),
+        status: 'pendente',
+      })
+      .select('id')
+      .single();
+    if (valError || !valInserted) {
+      throw new Error(`Falha ao registrar a validação: ${valError?.message || 'Erro desconhecido.'}`);
     }
 
-    const { error } = await supabase
+    const { data: updatedTask, error } = await supabase
       .from('tarefas')
       .update({
         status: 'em_validacao',
+        requer_validacao: true,
+        foto_comprovante_url: photoUrl,
         atualizado_em: new Date().toISOString(),
       })
-      .eq('id', taskId);
-    if (error) {
-      throw new Error(`Falha ao atualizar a tarefa: ${error.message}`);
+      .eq('id', taskId)
+      .in('status', ['pendente', 'Pendente'])
+      .select('id')
+      .maybeSingle();
+
+    if (error || !updatedTask) {
+      await supabase.from('validacoes_tarefa').delete().eq('id', valInserted.id);
+      throw new Error(
+        error
+          ? `Falha ao atualizar a tarefa: ${error.message}`
+          : 'A tarefa não está mais pendente para envio de validação.'
+      );
     }
 
     return photoUrl;
@@ -341,7 +396,7 @@ export const tasksService = {
       return {
         photoUrl: row.foto_comprovante_url || null,
         executorId: row.executor_id || null,
-        sentAt: row.criado_em || row.created_at || null,
+        sentAt: row.data_hora_foto || row.criado_em || row.created_at || null,
       };
     } catch {
       return null;
@@ -365,95 +420,122 @@ export const tasksService = {
     approved: boolean,
     justification?: string
   ): Promise<boolean> {
-    try {
-      // 1. Atualiza o envio pendente na tabela validacoes_tarefa
-      const { error: valError } = await supabase
-        .from('validacoes_tarefa')
-        .update({
-          validador_id: validatorId,
-          status: approved ? 'aprovada' : 'recusada',
-          justificativa: justification || null,
-          validado_em: new Date().toISOString(),
-        })
-        .eq('tarefa_id', taskId)
-        .eq('status', 'pendente');
+    if (!approved && !justification?.trim()) {
+      throw new Error('Informe uma justificativa ao recusar a tarefa.');
+    }
 
-      if (valError) {
-        console.error('Supabase: Erro ao atualizar validacao:', valError.message);
-        return false;
+    const { data: currentTask, error: taskFetchError } = await supabase
+      .from('tarefas')
+      .select('id, moradia_id, responsavel_id, status')
+      .eq('id', taskId)
+      .single();
+
+    if (taskFetchError || !currentTask) {
+      throw new Error('Tarefa não encontrada para validação.');
+    }
+
+    const pending = await this.getPendingValidation(taskId);
+    const executorId = pending?.executorId || currentTask.responsavel_id;
+    if (validatorId && executorId && validatorId === executorId) {
+      throw new Error('Regra RN-09: Você não pode validar a própria tarefa.');
+    }
+
+    // 1. Atualiza estado em tarefas atomicamente somente se ainda estiver aguardando validação
+    const newStatus = approved ? 'concluida' : 'pendente';
+    const nowIso = new Date().toISOString();
+    const { data: updatedTask, error } = await supabase
+      .from('tarefas')
+      .update({
+        status: newStatus,
+        requer_validacao: false,
+        concluido_em: approved ? nowIso : null,
+        atualizado_em: nowIso,
+      })
+      .eq('id', taskId)
+      .in('status', ['em_validacao', 'Aguardando validação'])
+      .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas')
+      .single();
+
+    if (error || !updatedTask) {
+      console.error('Supabase: Tarefa não encontrada ou não está aguardando validação:', error?.message);
+      return false;
+    }
+
+    // 2. Atualiza o envio pendente na tabela validacoes_tarefa
+    const { error: valError } = await supabase
+      .from('validacoes_tarefa')
+      .update({
+        validador_id: validatorId,
+        status: approved ? 'aprovada' : 'recusada',
+        justificativa: justification?.trim() || null,
+        validado_em: nowIso,
+      })
+      .eq('tarefa_id', taskId)
+      .eq('status', 'pendente');
+
+    if (valError) {
+      console.error('Supabase: Erro ao atualizar validacao:', valError.message);
+      await supabase
+        .from('tarefas')
+        .update({ status: 'em_validacao', requer_validacao: true, concluido_em: null, atualizado_em: nowIso })
+        .eq('id', taskId);
+      return false;
+    }
+
+    // 3. Se aprovada, credita XP e Moedas e recalcula nível e título honorífico
+    if (approved) {
+      const targetUserId = updatedTask.responsavel_id || executorId;
+      if (!targetUserId) {
+        return true;
       }
 
-      // 2. Atualiza estado em tarefas somente se ainda estiver aguardando validação
-      const newStatus = approved ? 'concluida' : 'pendente';
-      const { data: updatedTask, error } = await supabase
-        .from('tarefas')
-        .update({
-          status: newStatus,
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq('id', taskId)
-        .in('status', ['em_validacao', 'Aguardando validação'])
-        .select('moradia_id, responsavel_id, recompensa_xp, recompensa_moedas, xp, moedas')
+      const { data: membro, error: membFetchError } = await supabase
+        .from('membros_moradia')
+        .select('id, xp, moedas, nivel')
+        .eq('moradia_id', updatedTask.moradia_id)
+        .eq('usuario_id', targetUserId)
         .single();
 
-      if (error || !updatedTask) {
-        console.error('Supabase: Tarefa não encontrada ou não está aguardando validação:', error?.message);
+      if (membFetchError || !membro) {
+        console.error('Supabase: Erro ao buscar membro para creditar recompensa:', membFetchError?.message);
         return false;
       }
 
-      // 3. Se aprovada, credita XP e Moedas e recalcula nível e título honorífico
-      if (approved && updatedTask) {
-        const { data: membro, error: membFetchError } = await supabase
-          .from('membros_moradia')
-          .select('id, xp, moedas, nivel')
-          .eq('moradia_id', updatedTask.moradia_id)
-          .eq('usuario_id', updatedTask.responsavel_id)
-          .single();
+      const xpReward = updatedTask.recompensa_xp ?? 25;
+      const coinReward = updatedTask.recompensa_moedas ?? 10;
 
-        if (membFetchError || !membro) {
-          console.error('Supabase: Erro ao buscar membro para creditar recompensa:', membFetchError?.message);
-          return false;
-        }
+      const newXp = (membro.xp || 0) + xpReward;
+      const newMoedas = (membro.moedas || 0) + coinReward;
+      const { level: newLevel, title: newTitle } = calculateLevelAndTitle(newXp);
 
-        const xpReward = updatedTask.recompensa_xp ?? (updatedTask as any).xp ?? 25;
-        const coinReward = updatedTask.recompensa_moedas ?? (updatedTask as any).moedas ?? 10;
+      let { error: updateMembError } = await supabase
+        .from('membros_moradia')
+        .update({
+          xp: newXp,
+          moedas: newMoedas,
+          nivel: newLevel,
+          titulo_nivel: newTitle,
+        })
+        .eq('id', membro.id);
 
-        const newXp = (membro.xp || 0) + xpReward;
-        const newMoedas = (membro.moedas || 0) + coinReward;
-        const { level: newLevel, title: newTitle } = calculateLevelAndTitle(newXp);
-
-        let { error: updateMembError } = await supabase
+      if (updateMembError && (updateMembError.code === '42703' || updateMembError.code === 'PGRST204')) {
+        const retry = await supabase
           .from('membros_moradia')
           .update({
             xp: newXp,
             moedas: newMoedas,
             nivel: newLevel,
-            titulo_nivel: newTitle,
           })
           .eq('id', membro.id);
-
-        if (updateMembError && updateMembError.code === '42703') {
-          const retry = await supabase
-            .from('membros_moradia')
-            .update({
-              xp: newXp,
-              moedas: newMoedas,
-              nivel: newLevel,
-            })
-            .eq('id', membro.id);
-          updateMembError = retry.error;
-        }
-
-        if (updateMembError) {
-          console.error('Supabase: Erro ao creditar saldo do membro:', updateMembError.message);
-          return false;
-        }
+        updateMembError = retry.error;
       }
 
-      return true;
-    } catch (err) {
-      console.warn('Supabase: Exceção ao validar tarefa:', err);
-      return false;
+      if (updateMembError) {
+        console.error('Supabase: Erro ao creditar saldo do membro:', updateMembError.message);
+        return false;
+      }
     }
+
+    return true;
   },
 };

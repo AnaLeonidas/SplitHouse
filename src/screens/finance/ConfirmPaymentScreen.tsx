@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -8,8 +8,11 @@ import {
     Platform,
     StatusBar as RNStatusBar,
     Linking,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 
 /**
@@ -41,9 +44,9 @@ export interface ConfirmPaymentScreenProps {
     /** Callback para voltar à tela anterior */
     onBackPress?: () => void;
     /** Callback para aprovar e dar baixa no comprovante de pagamento */
-    onConfirmPress?: () => void;
+    onConfirmPress?: () => Promise<void> | void;
     /** Callback para rejeitar o comprovante submetido */
-    onRejectPress?: () => void;
+    onRejectPress?: () => Promise<void> | void;
     /** Dados da transferência financeira a ser validada */
     paymentData?: PaymentValidationData;
 }
@@ -60,6 +63,9 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     onRejectPress,
     paymentData,
 }) => {
+    const [submitting, setSubmitting] = useState<'confirm' | 'reject' | null>(null);
+    const insets = useSafeAreaInsets();
+
     const payerName = paymentData?.payerName || 'Morador';
     const payerInitials = paymentData?.payerInitials || 'MO';
     const paymentMethod = paymentData?.paymentMethod || 'Transferência via Pix';
@@ -67,6 +73,33 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
     const reference = paymentData?.reference || 'Acerto de contas da moradia';
     const dateTime = paymentData?.dateTime || 'Pendente de validação';
     const receiptUrl = paymentData?.receiptUrl || null;
+
+    const handleConfirm = async () => {
+        if (submitting || !onConfirmPress) return;
+        try {
+            setSubmitting('confirm');
+            await onConfirmPress();
+        } finally {
+            setSubmitting(null);
+        }
+    };
+
+    const handleReject = async () => {
+        if (submitting || !onRejectPress) return;
+        try {
+            setSubmitting('reject');
+            await onRejectPress();
+        } finally {
+            setSubmitting(null);
+        }
+    };
+
+    const handleOpenReceipt = () => {
+        if (!receiptUrl) return;
+        Linking.openURL(receiptUrl).catch(() => {
+            Alert.alert('Comprovante indisponível', 'Não foi possível abrir o link do comprovante no dispositivo.');
+        });
+    };
 
     return (
         <View style={styles.wrapper}>
@@ -124,7 +157,7 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
                     </View>
 
                     {receiptUrl ? (
-                        <TouchableOpacity style={styles.receiptButton} onPress={() => Linking.openURL(receiptUrl)}>
+                        <TouchableOpacity style={styles.receiptButton} onPress={handleOpenReceipt}>
                             <View style={styles.receiptLeft}>
                                 <Feather name="image" size={16} color={Colors.primary} />
                                 <Text style={styles.receiptText} numberOfLines={1}>Comprovante anexado</Text>
@@ -135,14 +168,30 @@ export const ConfirmPaymentScreen: React.FC<ConfirmPaymentScreenProps> = ({
                 </View>
             </ScrollView>
 
-            <View style={styles.bottomActions}>
-                <TouchableOpacity style={styles.confirmButton} onPress={onConfirmPress}>
-                    <Feather name="check" size={18} color={Colors.white} />
-                    <Text style={styles.confirmButtonText}>Confirmar recebimento</Text>
+            <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'ios' ? 32 : 24) }]}>
+                <TouchableOpacity
+                    style={[styles.confirmButton, !!submitting && { opacity: 0.65 }]}
+                    onPress={handleConfirm}
+                    disabled={!!submitting}
+                >
+                    {submitting === 'confirm' ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                        <Feather name="check" size={18} color={Colors.white} />
+                    )}
+                    <Text style={styles.confirmButtonText}>
+                        {submitting === 'confirm' ? 'Confirmando...' : 'Confirmar recebimento'}
+                    </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.rejectButton} onPress={onRejectPress}>
-                    <Text style={styles.rejectButtonText}>Não recebi esse pagamento</Text>
+                <TouchableOpacity
+                    style={[styles.rejectButton, !!submitting && { opacity: 0.65 }]}
+                    onPress={handleReject}
+                    disabled={!!submitting}
+                >
+                    <Text style={styles.rejectButtonText}>
+                        {submitting === 'reject' ? 'Registrando recusa...' : 'Não recebi esse pagamento'}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </View>

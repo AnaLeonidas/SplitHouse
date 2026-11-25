@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
   StatusBar as RNStatusBar,
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -55,8 +57,12 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
   onSave,
   onSaveSuccess,
 }) => {
-  const [rules, setRules] = useState<EditableRule[]>(initialRules);
+  const nextIdRef = useRef(1);
+  const [rules, setRules] = useState<(EditableRule & { _key: string })[]>(() =>
+    initialRules.map((r) => ({ ...r, _key: `r-${nextIdRef.current++}` }))
+  );
   const [saving, setSaving] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const updateRule = (index: number, patch: Partial<EditableRule>) => {
     setRules((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -67,12 +73,13 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
     setSaving(true);
     try {
       if (onSave) {
-        await onSave(rules);
+        await onSave(rules.map(({ _key, ...rest }) => rest));
       }
       Alert.alert(
         'Regras Atualizadas',
         'O estatuto da casa foi atualizado com sucesso.',
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }],
+        { cancelable: false }
       );
     } catch (err) {
       Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar as regras.');
@@ -82,7 +89,10 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
   };
 
   const handleAddRule = () => {
-    setRules((prev) => [...prev, { titulo: '', destaque: '', descricao: '' }]);
+    setRules((prev) => [
+      ...prev,
+      { titulo: '', destaque: '', descricao: '', _key: `r-${nextIdRef.current++}` },
+    ]);
   };
 
   const handleDeleteRule = (index: number) => {
@@ -90,7 +100,10 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.glowTop}>
         <Svg width="340" height="340" viewBox="0 0 340 340">
           <Defs>
@@ -129,6 +142,7 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.introSection}>
@@ -139,7 +153,7 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
         </View>
 
         {rules.map((rule, index) => (
-          <View key={index} style={styles.card}>
+          <View key={rule._key} style={styles.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={styles.label}>{index + 1}. REGRA</Text>
               <TouchableOpacity activeOpacity={0.7} onPress={() => handleDeleteRule(index)}>
@@ -189,18 +203,19 @@ export const EditHouseRulesScreen: React.FC<EditHouseRulesScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'android' ? 24 : 20) }]}>
         <TouchableOpacity
-          style={styles.saveButton}
+          style={[styles.saveButton, saving && { opacity: 0.65 }]}
           activeOpacity={0.8}
           onPress={handleSave}
+          disabled={saving}
         >
           <Text style={styles.saveButtonText}>
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -208,7 +223,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {
     position: 'absolute',

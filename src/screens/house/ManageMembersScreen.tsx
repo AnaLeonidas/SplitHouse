@@ -64,13 +64,13 @@ export interface ManageMembersScreenProps {
   /** Callback para exibir o QR Code e código de convite */
   onViewQrPress?: () => void;
   /** Aprova uma solicitação (id do vínculo) */
-  onApprove?: (memberId: string) => void;
+  onApprove?: (memberId: string) => Promise<void> | void;
   /** Recusa uma solicitação (id do vínculo) */
-  onReject?: (memberId: string) => void;
+  onReject?: (memberId: string) => Promise<void> | void;
   /** Remove um morador ativo da moradia */
-  onRemoveMember?: (memberId: string) => void;
+  onRemoveMember?: (memberId: string) => Promise<void> | void;
   /** Promove um morador ao papel de administrador */
-  onPromoteAdmin?: (memberId: string) => void;
+  onPromoteAdmin?: (memberId: string) => Promise<void> | void;
 }
 
 /**
@@ -91,12 +91,26 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
   onRemoveMember,
   onPromoteAdmin,
 }) => {
-  const handleApprove = (member: PendingMember) => {
-    if (onApprove) onApprove(member.id);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const handleApprove = async (member: PendingMember) => {
+    if (processingId || !onApprove) return;
+    try {
+      setProcessingId(member.id);
+      await onApprove(member.id);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
-  const handleReject = (memberId: string) => {
-    if (onReject) onReject(memberId);
+  const handleReject = async (memberId: string) => {
+    if (processingId || !onReject) return;
+    try {
+      setProcessingId(memberId);
+      await onReject(memberId);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const handleMemberOptions = (member: ActiveMember) => {
@@ -215,28 +229,30 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
 
             {pendingMembers.map((member) => (
               <View key={member.id} style={styles.pendingCard}>
-                <View style={styles.memberInfoRow}>
+                <View style={[styles.memberInfoRow, { flex: 1, marginRight: 8 }]}>
                   <View style={styles.pendingAvatar}>
                     <Text style={styles.pendingAvatarText}>{member.initials}</Text>
                   </View>
-                  <View>
-                    <Text style={styles.memberName}>{member.name}</Text>
-                    <Text style={styles.memberEmail}>{member.email}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
+                    <Text style={styles.memberEmail} numberOfLines={1}>{member.email}</Text>
                   </View>
                 </View>
 
                 <View style={styles.actionButtonsRow}>
                   <TouchableOpacity
-                    style={styles.rejectButton}
+                    style={[styles.rejectButton, processingId === member.id && { opacity: 0.5 }]}
                     activeOpacity={0.8}
+                    disabled={!!processingId}
                     onPress={() => handleReject(member.id)}
                   >
                     <Feather name="x" size={16} color="#DC2626" />
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.approveButton}
+                    style={[styles.approveButton, processingId === member.id && { opacity: 0.5 }]}
                     activeOpacity={0.8}
+                    disabled={!!processingId}
                     onPress={() => handleApprove(member)}
                   >
                     <Feather name="check" size={16} color={Colors.white} />
@@ -259,7 +275,7 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
                   member.isAdmin && styles.adminCardBorder,
                 ]}
               >
-                <View style={styles.memberInfoRow}>
+                <View style={[styles.memberInfoRow, { flex: 1, marginRight: 8 }]}>
                   <View
                     style={[
                       styles.activeAvatar,
@@ -277,16 +293,16 @@ export const ManageMembersScreen: React.FC<ManageMembersScreenProps> = ({
                       {member.initials}
                     </Text>
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.memberName}>{member.name}</Text>
+                      <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
                       {member.isCurrentUser && (
                         <View style={styles.youBadge}>
                           <Text style={styles.youBadgeText}>Você</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.memberEmail}>
+                    <Text style={styles.memberEmail} numberOfLines={1}>
                       {member.email || member.statusText}
                     </Text>
                   </View>

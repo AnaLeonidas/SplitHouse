@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {
     position: 'absolute',

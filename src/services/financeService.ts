@@ -138,10 +138,10 @@ export const financeService = {
     const { data, error } = await query;
     if (error) {
       console.warn('financeService: Erro ao carregar despesas:', error.message);
-      return [];
+      throw new Error(error.message || 'Não foi possível carregar as despesas.');
     }
 
-    return (data as DespesaDB[]).map((d) => ({
+    return ((data || []) as DespesaDB[]).map((d) => ({
       id: d.id,
       titulo: d.titulo,
       categoria: d.categoria,
@@ -170,14 +170,42 @@ export const financeService = {
     if (!input.moradiaId || !input.pagadorId) {
       throw new Error('Moradia e pagador são obrigatórios para registrar uma despesa.');
     }
+    if (!Number.isFinite(input.valorTotal) || input.valorTotal <= 0) {
+      throw new Error('Informe um valor total positivo válido para a despesa.');
+    }
 
-    const targetUserIds = customSplits && customSplits.length > 0
-      ? customSplits.map((s) => s.userId)
-      : memberUserIds;
+    let normalizedCustomSplits: CustomSplitInput[] | undefined;
+    if (customSplits && customSplits.length > 0) {
+      const seen = new Set<string>();
+      normalizedCustomSplits = [];
+      for (const s of customSplits) {
+        if (!s.userId || seen.has(s.userId)) {
+          throw new Error('Moradores duplicados ou inválidos no rateio.');
+        }
+        if (!Number.isFinite(s.amount) || s.amount < 0) {
+          throw new Error('Os valores individuais do rateio não podem ser negativos.');
+        }
+        seen.add(s.userId);
+        normalizedCustomSplits.push(s);
+      }
+      const sumSplits = normalizedCustomSplits.reduce((acc, s) => acc + s.amount, 0);
+      const diff = parseFloat((input.valorTotal - sumSplits).toFixed(2));
+      const adjustedFirst = parseFloat((normalizedCustomSplits[0].amount + diff).toFixed(2));
+      if (adjustedFirst < 0) {
+        throw new Error('A soma das parcelas excede o valor total da despesa.');
+      }
+    }
+
+    const dedupedMembers = Array.from(new Set(memberUserIds.filter(Boolean)));
+    const targetUserIds = normalizedCustomSplits
+      ? normalizedCustomSplits.map((s) => s.userId)
+      : dedupedMembers;
 
     if (!targetUserIds || targetUserIds.length === 0) {
       throw new Error('Nenhum morador selecionado para a divisão da conta.');
     }
+
+    const willAllBePaid = targetUserIds.every((uid) => uid === input.pagadorId);
 
     // 1. Inserir a despesa principal
     const { data: despesaCriada, error: despesaError } = await supabase
@@ -190,7 +218,7 @@ export const financeService = {
         data_vencimento: input.dataVencimento || null,
         tipo_divisao: input.tipoDivisao || 'igualitaria',
         pagador_id: input.pagadorId,
-        status: 'pendente',
+        status: willAllBePaid ? 'pago' : 'pendente',
         comprovante_url: input.comprovanteUrl || null,
       })
       .select()
@@ -203,18 +231,19 @@ export const financeService = {
     // 2. Gerar rateios individuais para cada morador
     let rateiosParaInserir: any[] = [];
 
-    if (customSplits && customSplits.length > 0) {
-      const sumSplits = customSplits.reduce((acc, s) => acc + s.amount, 0);
+    if (normalizedCustomSplits) {
+      const sumSplits = normalizedCustomSplits.reduce((acc, s) => acc + s.amount, 0);
       const diff = parseFloat((input.valorTotal - sumSplits).toFixed(2));
-      rateiosParaInserir = customSplits.map((split, index) => {
+      rateiosParaInserir = normalizedCustomSplits.map((split, index) => {
         const isPagador = split.userId === input.pagadorId;
-        const adjustedAmount = index === 0 ? parseFloat((split.amount + diff).toFixed(2)) : parseFloat(split.amount.toFixed(2));
+        const adjustedAmount =
+          index === 0 ? parseFloat((split.amount + diff).toFixed(2)) : parseFloat(split.amount.toFixed(2));
         return {
           despesa_id: despesaCriada.id,
           usuario_id: split.userId,
-          valor_parte: adjustedAmount,
-          status: isPagador ? 'pago' : 'pendente',
-          pago_em: isPagador ? new Date().toISOString() : null,
+          valor_parte: Math.max(0, adjustedAmount),
+          status: isPagador || adjustedAmount === 0 ? 'pago' : 'pendente',
+          pago_em: isPagador || adjustedAmount === 0 ? new Date().toISOString() : null,
         };
       });
     } else {
@@ -344,10 +373,14 @@ export const financeService = {
     }
 
     // 1. Buscar todas as despesas da casa
-    const { data: despesas } = await supabase
+    const { data: despesas, error: despesasError } = await supabase
       .from('despesas')
       .select('id, titulo, pagador_id')
       .eq('moradia_id', moradiaId);
+
+    if (despesasError) {
+      throw new Error(despesasError.message || 'Falha ao carregar despesas da moradia.');
+    }
 
     const despesasMap = new Map((despesas || []).map((d) => [d.id, d]));
     const despesasIds = (despesas || []).map((d) => d.id);
@@ -357,34 +390,17 @@ export const financeService = {
     }
 
     // 2. Buscar rateios pendentes dessas despesas
-    const { data: rateios } = await supabase
+    const { data: rateios, error: rateiosError } = await supabase
       .from('rateios_despesa')
       .select('*')
       .in('despesa_id', despesasIds)
       .eq('status', 'pendente');
 
-    // 3. Buscar perfis dos membros da moradia para nomes e iniciais
-    const { data: membros } = await supabase
-      .from('membros_moradia')
-      .select('usuario_id')
-      .eq('moradia_id', moradiaId)
-      .eq('status', 'aprovado');
-
-    const memberIds = (membros || []).map((m) => m.usuario_id);
-    let namesMap: Record<string, string> = {};
-
-    if (memberIds.length > 0) {
-      const { data: perfis } = await supabase
-        .from('perfis')
-        .select('id, nome_completo')
-        .in('id', memberIds);
-
-      (perfis || []).forEach((p: { id: string; nome_completo: string }) => {
-        namesMap[p.id] = p.nome_completo;
-      });
+    if (rateiosError) {
+      throw new Error(rateiosError.message || 'Falha ao carregar rateios pendentes.');
     }
 
-    // 4. Balanços cruzados: quanto cada morador deve ao usuário logado vs quanto o usuário logado deve
+    // 3. Balanços cruzados: quanto cada morador deve ao usuário logado vs quanto o usuário logado deve
     // balanceWithOthers[otherUserId] > 0 => otherUserId deve a currentUserId
     // balanceWithOthers[otherUserId] < 0 => currentUserId deve a otherUserId
     const balanceWithOthers: Record<string, number> = {};
@@ -397,13 +413,26 @@ export const financeService = {
       const devedor = r.usuario_id;
 
       if (pagador === currentUserId && devedor !== currentUserId) {
-        // Alguém deve para o usuário logado
         balanceWithOthers[devedor] = (balanceWithOthers[devedor] || 0) + Number(r.valor_parte);
       } else if (devedor === currentUserId && pagador !== currentUserId) {
-        // Usuário logado deve para alguém
         balanceWithOthers[pagador] = (balanceWithOthers[pagador] || 0) - Number(r.valor_parte);
       }
     });
+
+    // 4. Buscar perfis de todas as contrapartes envolvidas (incluindo ex-moradores)
+    const counterpartIds = Array.from(new Set(Object.keys(balanceWithOthers)));
+    let namesMap: Record<string, string> = {};
+
+    if (counterpartIds.length > 0) {
+      const { data: perfis } = await supabase
+        .from('perfis')
+        .select('id, nome_completo')
+        .in('id', counterpartIds);
+
+      (perfis || []).forEach((p: { id: string; nome_completo: string }) => {
+        namesMap[p.id] = p.nome_completo;
+      });
+    }
 
     let totalLiquido = 0;
     const debtItems: DebtBalanceItem[] = [];
@@ -413,13 +442,14 @@ export const financeService = {
       if (Math.abs(bal) < 0.01) return;
 
       const otherName = namesMap[otherId] || 'Morador';
-      const initials = otherName
-        .split(' ')
-        .filter(Boolean)
-        .map((p) => p[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
+      const initials =
+        otherName
+          .split(' ')
+          .filter(Boolean)
+          .map((p) => p[0])
+          .slice(0, 2)
+          .join('')
+          .toUpperCase() || 'MO';
 
       const deveAoUsuario = bal > 0;
       debtItems.push({
@@ -437,11 +467,12 @@ export const financeService = {
       });
     });
 
-    const isPos = totalLiquido >= 0;
-    const netFormatted = `R$ ${formatMoney(Math.abs(totalLiquido))}${totalLiquido < 0 ? ' (Devedor)' : ''}`;
+    const normalizedTotal = Math.abs(totalLiquido) < 0.01 ? 0 : parseFloat(totalLiquido.toFixed(2));
+    const isPos = normalizedTotal >= 0;
+    const netFormatted = `R$ ${formatMoney(Math.abs(normalizedTotal))}${normalizedTotal < 0 ? ' (Devedor)' : ''}`;
 
     return {
-      netBalance: totalLiquido === 0 ? 'R$ 0,00' : netFormatted,
+      netBalance: normalizedTotal === 0 ? 'R$ 0,00' : netFormatted,
       isPositive: isPos,
       debts: debtItems,
     };
@@ -495,11 +526,12 @@ export const financeService = {
         confirmado_em: isApproved ? new Date().toISOString() : null,
       })
       .eq('id', pagamentoId)
+      .eq('status', 'aguardando_aprovacao')
       .select()
       .single();
 
-    if (error) {
-      throw new Error(error.message || 'Falha ao atualizar status do pagamento.');
+    if (error || !data) {
+      throw new Error(error?.message || 'Pagamento já processado ou não encontrado.');
     }
 
     const pagamento = data as PagamentoAcertoDB;
@@ -508,12 +540,11 @@ export const financeService = {
       // O devedor está pagando o credor. Buscamos despesas pagas pelo credor na moradia
       const { data: despesas, error: despesasError } = await supabase
         .from('despesas')
-        .select('id, pagador_id')
+        .select('id, pagador_id, criado_em')
         .eq('moradia_id', pagamento.moradia_id)
         .eq('pagador_id', pagamento.credor_id);
 
       if (despesasError) {
-        // Reverte o pagamento para aguardando_aprovacao
         await supabase
           .from('pagamentos_acerto')
           .update({ status: 'aguardando_aprovacao', confirmado_em: null })
@@ -522,15 +553,16 @@ export const financeService = {
       }
 
       const affected = (despesas || []).map((d) => d.id);
+      const expenseDateMap = new Map((despesas || []).map((d) => [d.id, d.criado_em || '']));
+
       if (affected.length > 0) {
-        // Buscar apenas os rateios pendentes onde o devedor deve ao credor, ordenados pelos mais antigos
-        const { data: rateios, error: rateiosError } = await supabase
+        // Buscar apenas os rateios pendentes onde o devedor deve ao credor e ordenar pelas despesas mais antigas
+        const { data: rateiosRaw, error: rateiosError } = await supabase
           .from('rateios_despesa')
           .select('*')
           .in('despesa_id', affected)
           .eq('usuario_id', pagamento.devedor_id)
-          .eq('status', 'pendente')
-          .order('criado_em', { ascending: true });
+          .eq('status', 'pendente');
 
         if (rateiosError) {
           await supabase
@@ -540,15 +572,26 @@ export const financeService = {
           throw new Error(`Falha ao consultar rateios para quitação: ${rateiosError.message}`);
         }
 
-        // Quitar rateios correspondentes estritamente até o valor confirmado
+        const rateios = [...((rateiosRaw || []) as RateioDespesaDB[])].sort((a, b) =>
+          (expenseDateMap.get(a.despesa_id) || '').localeCompare(expenseDateMap.get(b.despesa_id) || '')
+        );
+
         let remaining = Number(pagamento.valor || 0);
         const toSettle: string[] = [];
+        let partialUpdate: { id: string; novoValor: number } | null = null;
 
-        for (const r of (rateios || [])) {
+        for (const r of rateios) {
           const rValor = Number(r.valor_parte || 0);
           if (remaining >= rValor - 0.01) {
             toSettle.push(r.id);
-            remaining -= rValor;
+            remaining = Math.max(0, parseFloat((remaining - rValor).toFixed(2)));
+          } else if (remaining >= 0.01) {
+            partialUpdate = {
+              id: r.id,
+              novoValor: Math.max(0.01, parseFloat((rValor - remaining).toFixed(2))),
+            };
+            remaining = 0;
+            break;
           } else {
             break;
           }
@@ -569,21 +612,52 @@ export const financeService = {
           }
         }
 
-        // Despesas sem nenhum rateio pendente passam a 'pago'
-        const { data: stillPending, error: pendingError } = await supabase
-          .from('rateios_despesa')
-          .select('despesa_id')
-          .in('despesa_id', affected)
-          .eq('status', 'pendente');
+        if (partialUpdate) {
+          const { error: partialError } = await supabase
+            .from('rateios_despesa')
+            .update({ valor_parte: partialUpdate.novoValor })
+            .eq('id', partialUpdate.id);
 
-        if (!pendingError) {
-          const pendingSet = new Set((stillPending || []).map((r: { despesa_id: string }) => r.despesa_id));
-          const settledExpenses = affected.filter((id) => !pendingSet.has(id));
-          if (settledExpenses.length > 0) {
+          if (partialError) {
+            throw new Error(`Falha ao abater pagamento parcial no rateio: ${partialError.message}`);
+          }
+        }
+
+        // Atualiza status das despesas afetadas para 'pago' ou 'parcial'
+        const { data: allSplits, error: splitsStatusError } = await supabase
+          .from('rateios_despesa')
+          .select('despesa_id, status')
+          .in('despesa_id', affected);
+
+        if (!splitsStatusError && allSplits) {
+          const byExpense = new Map<string, { paid: number; pending: number }>();
+          for (const row of allSplits as { despesa_id: string; status: string }[]) {
+            const entry = byExpense.get(row.despesa_id) || { paid: 0, pending: 0 };
+            if (row.status === 'pago') entry.paid += 1;
+            else entry.pending += 1;
+            byExpense.set(row.despesa_id, entry);
+          }
+
+          const settledIds: string[] = [];
+          const partialIds: string[] = [];
+          for (const expId of affected) {
+            const counts = byExpense.get(expId);
+            if (!counts || counts.pending === 0) settledIds.push(expId);
+            else if (counts.paid > 0 && counts.pending > 0) partialIds.push(expId);
+          }
+
+          const nowIso = new Date().toISOString();
+          if (settledIds.length > 0) {
             await supabase
               .from('despesas')
-              .update({ status: 'pago', atualizado_em: new Date().toISOString() })
-              .in('id', settledExpenses);
+              .update({ status: 'pago', atualizado_em: nowIso })
+              .in('id', settledIds);
+          }
+          if (partialIds.length > 0) {
+            await supabase
+              .from('despesas')
+              .update({ status: 'parcial', atualizado_em: nowIso })
+              .in('id', partialIds);
           }
         }
       }
@@ -629,6 +703,7 @@ export const financeService = {
         .join('')
         .toUpperCase();
       const created = p.criado_em ? new Date(p.criado_em) : null;
+      const validCreated = created && !Number.isNaN(created.getTime()) ? created : null;
       return {
         id: p.id,
         payerId: p.devedor_id,
@@ -637,7 +712,7 @@ export const financeService = {
         paymentMethod: p.metodo_pagamento === 'pix' ? 'Transferência via Pix' : p.metodo_pagamento,
         amount: `R$ ${formatMoney(p.valor)}`,
         reference: 'Acerto de contas da moradia',
-        dateTime: created ? created.toLocaleString('pt-BR') : '',
+        dateTime: validCreated ? validCreated.toLocaleString('pt-BR') : '',
         receiptUrl: p.comprovante_url || null,
       };
     });

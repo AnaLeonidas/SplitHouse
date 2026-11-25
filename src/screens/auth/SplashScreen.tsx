@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { SplitHouseLogo } from '../../components/SplitHouseLogo';
@@ -27,21 +28,44 @@ export interface SplashScreenProps {
  * @param props Callback de finalização da splash screen.
  */
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+  const insets = useSafeAreaInsets();
+  const finishedRef = useRef(false);
+
+  const handleFinish = useCallback(() => {
+    if (finishedRef.current || !onFinish) {
+      return;
+    }
+    finishedRef.current = true;
+    onFinish();
+  }, [onFinish]);
+
   useEffect(() => {
     if (!onFinish) {
       return;
     }
 
     const timer = setTimeout(() => {
-      onFinish();
+      handleFinish();
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [onFinish]);
+  }, [handleFinish, onFinish]);
 
   return (
-    <TouchableWithoutFeedback onPress={onFinish}>
-      <View style={styles.container}>
+    <TouchableWithoutFeedback onPress={handleFinish}>
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 24
+              ) + 16,
+            paddingBottom: Math.max(insets.bottom, 16) + 16,
+          },
+        ]}
+      >
         <LinearGradient
           colors={['#6830a6', '#5E2B97', '#421b70', '#341459']}
           locations={[0, 0.45, 0.85, 1]}

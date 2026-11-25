@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import { Alert, Platform } from 'react-native';
 import { supabase } from './supabase';
 
@@ -72,6 +73,33 @@ export function pickImageWithPrompt(title = 'Anexar imagem'): Promise<string | n
 }
 
 /**
+ * Extrai a extensão e MIME type adequados a partir de uma URI local de imagem.
+ */
+function resolveImageMetadata(uri: string): { ext: string; contentType: string } {
+  if (uri.startsWith('data:image/')) {
+    const mime = uri.slice(5, uri.indexOf(';')).toLowerCase();
+    if (mime === 'image/png') return { ext: 'png', contentType: 'image/png' };
+    if (mime === 'image/webp') return { ext: 'webp', contentType: 'image/webp' };
+    if (mime === 'image/heic' || mime === 'image/heif') return { ext: 'heic', contentType: 'image/heic' };
+    return { ext: 'jpg', contentType: 'image/jpeg' };
+  }
+
+  const cleanUri = uri.split('?')[0].split('#')[0];
+  const rawExt = cleanUri.includes('.') ? cleanUri.split('.').pop()?.toLowerCase() || '' : '';
+  const ext = ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(rawExt) ? rawExt : 'jpg';
+  const contentType =
+    ext === 'png'
+      ? 'image/png'
+      : ext === 'webp'
+      ? 'image/webp'
+      : ext === 'heic'
+      ? 'image/heic'
+      : 'image/jpeg';
+
+  return { ext, contentType };
+}
+
+/**
  * Envia uma imagem local para o bucket e retorna a URL pública.
  *
  * @param uri URI local da imagem.
@@ -79,12 +107,36 @@ export function pickImageWithPrompt(title = 'Anexar imagem'): Promise<string | n
  * @returns URL pública permanente do arquivo enviado ao Supabase Storage.
  */
 export async function uploadImage(uri: string, folder: string): Promise<string> {
-  const response = await fetch(uri);
-  const buffer = await response.arrayBuffer();
-  const ext = (uri.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-  const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext) ? ext : 'jpg';
-  const contentType = safeExt === 'png' ? 'image/png' : safeExt === 'webp' ? 'image/webp' : 'image/jpeg';
-  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+  if (!uri || !uri.trim()) {
+    throw new Error('Nenhuma imagem selecionada para envio.');
+  }
+
+  let buffer: ArrayBuffer;
+  if (Platform.OS !== 'web') {
+    try {
+      const localFile = new File(uri);
+      buffer = await localFile.arrayBuffer();
+    } catch {
+      const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Não foi possível ler a imagem selecionada (HTTP ${response.status}).`);
+      }
+      buffer = await response.arrayBuffer();
+    }
+  } else {
+    const response = await fetch(uri);
+    if (!response.ok) {
+      throw new Error(`Não foi possível ler a imagem selecionada (HTTP ${response.status}).`);
+    }
+    buffer = await response.arrayBuffer();
+  }
+
+  if (!buffer || buffer.byteLength === 0) {
+    throw new Error('O arquivo de imagem selecionado está vazio.');
+  }
+
+  const { ext, contentType } = resolveImageMetadata(uri);
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, buffer, {
     contentType,

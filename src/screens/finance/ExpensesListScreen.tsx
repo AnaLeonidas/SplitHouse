@@ -60,7 +60,13 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                         <Text style={styles.subtitle}>{houseName}</Text>
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.filterButton}>
+                        <TouchableOpacity
+                            style={styles.filterButton}
+                            onPress={() => {
+                                const idx = tabs.indexOf(activeTab);
+                                setActiveTab(tabs[(idx + 1) % tabs.length]);
+                            }}
+                        >
                             <Feather name="sliders" size={18} color={Colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,12 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import {
+  BarcodeScanningResult,
+  CameraView,
+  useCameraPermissions,
+} from 'expo-camera';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -21,12 +27,12 @@ export interface JoinHouseScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão do código alfanumérico digitado ou lido via scanner */
-  onSubmitCode?: (code: string) => void;
+  onSubmitCode?: (code: string) => Promise<void> | void;
 }
 
 /**
  * Tela de entrada em república via leitura de QR Code ou digitação de código (Tela 10).
- * Simula visor de câmera para escaneamento de QR Code e fornece formulário alternativo de código manual.
+ * Exibe visor real da câmera para escaneamento de QR Code e formulário alternativo de código manual.
  *
  * @param props Handlers de submissão do código e retorno.
  */
@@ -34,8 +40,60 @@ export const JoinHouseScreen: React.FC<JoinHouseScreenProps> = ({
   onBackPress,
   onSubmitCode,
 }) => {
+  const insets = useSafeAreaInsets();
+  const [permission, requestPermission] = useCameraPermissions();
   const [code, setCode] = useState('');
   const [flashActive, setFlashActive] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const mountedRef = useRef(true);
+  const rescanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (rescanTimerRef.current) {
+        clearTimeout(rescanTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSubmit = async (rawCode: string) => {
+    if (submitting || !onSubmitCode) return;
+    try {
+      setSubmitting(true);
+      await onSubmitCode(rawCode.trim().toUpperCase());
+    } catch {
+      // erro tratado pelo caller
+    } finally {
+      if (mountedRef.current) {
+        setSubmitting(false);
+      }
+    }
+  };
+
+  const handleBarcodeScanned = (result: BarcodeScanningResult) => {
+    if (scanned || submitting) return;
+    const raw = (result?.data || '').trim();
+    if (!raw) return;
+
+    setScanned(true);
+    const match = raw.match(/SPLIT-[A-Z0-9]+/i);
+    const extracted = (match ? match[0] : raw).toUpperCase();
+    setCode(extracted);
+
+    if (rescanTimerRef.current) {
+      clearTimeout(rescanTimerRef.current);
+    }
+    rescanTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        setScanned(false);
+      }
+    }, 2500);
+
+    handleSubmit(extracted);
+  };
 
   return (
     <KeyboardAvoidingView
@@ -54,7 +112,17 @@ export const JoinHouseScreen: React.FC<JoinHouseScreenProps> = ({
       </Svg>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+            paddingBottom: Math.max(insets.bottom, 20) + 16,
+          },
+        ]}
         bounces={false}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -90,14 +158,46 @@ export const JoinHouseScreen: React.FC<JoinHouseScreenProps> = ({
 
         <View style={styles.cameraBoxContainer}>
           <View style={styles.cameraViewfinder}>
-            <View style={[styles.cornerBracket, styles.bracketTopLeft]} />
-            <View style={[styles.cornerBracket, styles.bracketTopRight]} />
-            <View style={[styles.cornerBracket, styles.bracketBottomLeft]} />
-            <View style={[styles.cornerBracket, styles.bracketBottomRight]} />
+            {permission?.granted ? (
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                enableTorch={flashActive}
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+              />
+            ) : (
+              <TouchableOpacity
+                style={{ alignItems: 'center', paddingHorizontal: 18, gap: 8 }}
+                activeOpacity={0.8}
+                onPress={() => requestPermission()}
+              >
+                <Feather name="camera" size={28} color="#CC92C2" />
+                <Text
+                  style={{
+                    color: '#FCFCFC',
+                    fontSize: 12,
+                    fontWeight: '700',
+                    textAlign: 'center',
+                  }}
+                >
+                  {permission && !permission.canAskAgain
+                    ? 'Habilite a câmera nas configurações do aparelho ou digite o código abaixo'
+                    : 'Toque para permitir acesso à câmera'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            <View style={styles.scannerCenter}>
-              <View style={styles.scannerDot} />
-            </View>
+            <View style={[styles.cornerBracket, styles.bracketTopLeft]} pointerEvents="none" />
+            <View style={[styles.cornerBracket, styles.bracketTopRight]} pointerEvents="none" />
+            <View style={[styles.cornerBracket, styles.bracketBottomLeft]} pointerEvents="none" />
+            <View style={[styles.cornerBracket, styles.bracketBottomRight]} pointerEvents="none" />
+
+            {permission?.granted && (
+              <View style={styles.scannerCenter} pointerEvents="none">
+                <View style={styles.scannerDot} />
+              </View>
+            )}
           </View>
         </View>
 
@@ -131,11 +231,14 @@ export const JoinHouseScreen: React.FC<JoinHouseScreenProps> = ({
         </View>
 
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, submitting && { opacity: 0.65 }]}
           activeOpacity={0.85}
-          onPress={() => onSubmitCode && onSubmitCode(code)}
+          disabled={submitting}
+          onPress={() => handleSubmit(code)}
         >
-          <Text style={styles.submitButtonText}>Solicitar entrada</Text>
+          <Text style={styles.submitButtonText}>
+            {submitting ? 'Solicitando...' : 'Solicitar entrada'}
+          </Text>
           <Feather name="arrow-right" size={18} color={Colors.white} />
         </TouchableOpacity>
       </ScrollView>
@@ -211,6 +314,7 @@ const styles = StyleSheet.create({
     width: 240,
     height: 220,
     borderRadius: 24,
+    overflow: 'hidden',
     backgroundColor: '#121214',
     borderWidth: 1,
     borderColor: 'rgba(94, 43, 151, 0.4)',

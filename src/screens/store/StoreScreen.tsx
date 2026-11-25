@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   Alert,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle, Path } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -77,7 +79,18 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
   onRedeemPress,
   onProposeSubmit,
 }) => {
+  const insets = useSafeAreaInsets();
   const [coins, setCoins] = useState(initialCoins);
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [proposing, setProposing] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setCoins(initialCoins);
@@ -107,6 +120,8 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       : storeItems.filter((i) => i.category === activeCategory);
 
   const handleRedeem = (item: StoreItem) => {
+    if (redeemingId) return;
+
     if (coins < item.cost) {
       Alert.alert(
         'Saldo insuficiente',
@@ -123,11 +138,15 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         {
           text: 'Confirmar',
           onPress: async () => {
+            if (redeemingId) return;
             try {
+              setRedeemingId(item.id);
               if (onRedeemPress) {
                 await onRedeemPress(item);
               }
-              setCoins((prev) => Math.max(0, prev - item.cost));
+              if (mountedRef.current) {
+                setCoins((prev) => Math.max(0, prev - item.cost));
+              }
               Alert.alert(
                 'Recompensa Resgatada!',
                 `Você resgatou "${item.title}". A república foi informada e seu benefício já está ativo.`
@@ -137,6 +156,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
                 'Erro ao resgatar',
                 err instanceof Error ? err.message : 'Tente novamente.'
               );
+            } finally {
+              if (mountedRef.current) {
+                setRedeemingId(null);
+              }
             }
           },
         },
@@ -145,13 +168,21 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
   };
 
   const handleCreateProposal = async () => {
+    if (proposing) return;
+
     if (!propTitle.trim()) {
       Alert.alert('Campo obrigatório', 'Por favor, informe o título da recompensa.');
       return;
     }
 
-    const costNum = parseInt(propCost, 10);
-    if (isNaN(costNum) || costNum <= 0) {
+    const trimmedCost = propCost.trim();
+    if (!/^\d+$/.test(trimmedCost)) {
+      Alert.alert('Valor inválido', 'Informe um número inteiro positivo de moedas.');
+      return;
+    }
+
+    const costNum = Number(trimmedCost);
+    if (!Number.isInteger(costNum) || costNum <= 0) {
       Alert.alert('Valor inválido', 'Informe um valor válido em moedas.');
       return;
     }
@@ -167,6 +198,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
     };
 
     try {
+      setProposing(true);
       if (onProposeSubmit) {
         await onProposeSubmit(newItemPayload);
       } else {
@@ -188,6 +220,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         'Erro ao propor recompensa',
         err instanceof Error ? err.message : 'Tente novamente.'
       );
+    } finally {
+      if (mountedRef.current) {
+        setProposing(false);
+      }
     }
   };
 
@@ -249,8 +285,19 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         <Rect x="0" y="0" width="320" height="320" fill="url(#storeTopGlow)" />
       </Svg>
 
-      <View style={styles.header}>
-        <View style={styles.headerLeftGroup}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+          },
+        ]}
+      >
+        <View style={[styles.headerLeftGroup, { flexShrink: 1, marginRight: 10 }]}>
           {onBackPress && (
             <TouchableOpacity
               style={styles.backButton}
@@ -260,9 +307,9 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
               <Feather name="chevron-left" size={20} color={Colors.text} />
             </TouchableOpacity>
           )}
-          <View>
+          <View style={{ flexShrink: 1 }}>
             <Text style={styles.headerTitle}>Loja da casa</Text>
-            <Text style={styles.headerSubtitle}>{houseName}</Text>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>{houseName}</Text>
           </View>
         </View>
 
@@ -283,7 +330,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 20) + 28 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.balanceCard}>
@@ -410,13 +460,18 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.redeemButton,
-                      coins < item.cost && { opacity: 0.6 },
+                      (coins < item.cost || redeemingId !== null) && { opacity: 0.6 },
                     ]}
                     activeOpacity={0.8}
+                    disabled={redeemingId !== null}
                     onPress={() => handleRedeem(item)}
                   >
                     <Text style={styles.redeemButtonText}>
-                      {coins >= item.cost ? 'Resgatar' : 'Saldo insuficiente'}
+                      {redeemingId === item.id
+                        ? 'Resgatando...'
+                        : coins >= item.cost
+                        ? 'Resgatar'
+                        : 'Saldo insuficiente'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -430,92 +485,104 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
         visible={isProposeModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setIsProposeModalVisible(false)}
+        onRequestClose={() => {
+          if (!proposing) setIsProposeModalVisible(false);
+        }}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsProposeModalVisible(false)}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Propor Nova Recompensa</Text>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              if (!proposing) setIsProposeModalVisible(false);
+            }}
+          >
+            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Propor Nova Recompensa</Text>
+                <TouchableOpacity
+                  onPress={() => !proposing && setIsProposeModalVisible(false)}
+                  style={styles.modalCloseBtn}
+                >
+                  <Feather name="x" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>TÍTULO DO BENEFÍCIO</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="Ex.: Café da manhã de domingo"
+                  placeholderTextColor={Colors.textSecondary}
+                  value={propTitle}
+                  onChangeText={setPropTitle}
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>CATEGORIA</Text>
+                <View style={styles.modalCategoryRow}>
+                  {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.modalCatBtn,
+                        propCategory === cat && styles.modalCatBtnActive,
+                      ]}
+                      onPress={() => setPropCategory(cat)}
+                    >
+                      <Text
+                        style={[
+                          styles.modalCatBtnText,
+                          propCategory === cat && styles.modalCatBtnTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>CUSTO EM MOEDAS</Text>
+                <TextInput
+                  style={styles.modalTextInput}
+                  keyboardType="numeric"
+                  value={propCost}
+                  onChangeText={setPropCost}
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalInputLabel}>DESCRIÇÃO / REGRAS</Text>
+                <TextInput
+                  style={[styles.modalTextInput, styles.modalTextArea]}
+                  placeholder="Explique como funciona o resgate..."
+                  placeholderTextColor={Colors.textSecondary}
+                  multiline
+                  numberOfLines={2}
+                  value={propDescription}
+                  onChangeText={setPropDescription}
+                />
+              </View>
+
               <TouchableOpacity
-                onPress={() => setIsProposeModalVisible(false)}
-                style={styles.modalCloseBtn}
+                style={[styles.modalSubmitButton, proposing && { opacity: 0.65 }]}
+                activeOpacity={0.85}
+                disabled={proposing}
+                onPress={handleCreateProposal}
               >
-                <Feather name="x" size={18} color={Colors.textSecondary} />
+                <Text style={styles.modalSubmitButtonText}>
+                  {proposing ? 'Enviando...' : 'Enviar para votação'}
+                </Text>
               </TouchableOpacity>
             </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>TÍTULO DO BENEFÍCIO</Text>
-              <TextInput
-                style={styles.modalTextInput}
-                placeholder="Ex.: Café da manhã de domingo"
-                placeholderTextColor={Colors.textSecondary}
-                value={propTitle}
-                onChangeText={setPropTitle}
-              />
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>CATEGORIA</Text>
-              <View style={styles.modalCategoryRow}>
-                {(['Folga', 'Convivência', 'Bônus'] as const).map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.modalCatBtn,
-                      propCategory === cat && styles.modalCatBtnActive,
-                    ]}
-                    onPress={() => setPropCategory(cat)}
-                  >
-                    <Text
-                      style={[
-                        styles.modalCatBtnText,
-                        propCategory === cat && styles.modalCatBtnTextActive,
-                      ]}
-                    >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>CUSTO EM MOEDAS</Text>
-              <TextInput
-                style={styles.modalTextInput}
-                keyboardType="numeric"
-                value={propCost}
-                onChangeText={setPropCost}
-              />
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>DESCRIÇÃO / REGRAS</Text>
-              <TextInput
-                style={[styles.modalTextInput, styles.modalTextArea]}
-                placeholder="Explique como funciona o resgate..."
-                placeholderTextColor={Colors.textSecondary}
-                multiline
-                numberOfLines={2}
-                value={propDescription}
-                onChangeText={setPropDescription}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalSubmitButton}
-              activeOpacity={0.85}
-              onPress={handleCreateProposal}
-            >
-              <Text style={styles.modalSubmitButtonText}>Enviar para votação</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

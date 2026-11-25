@@ -100,6 +100,7 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
   const filteredTasks = getFilteredTasks();
   const myTasksCount = taskList.filter((t) => t.assignee === 'Você').length;
   const houseTasksCount = taskList.length;
+  const validateTasksCount = taskList.filter((t) => t.requiresValidation && t.assignee !== 'Você').length;
 
   return (
     <View style={styles.wrapper}>
@@ -177,12 +178,14 @@ export const TasksListScreen: React.FC<TasksListScreenProps> = ({
             >
               Validar
             </Text>
-            <View
-              style={[
-                styles.validateDot,
-                activeTab === 'validate' && styles.validateDotActive,
-              ]}
-            />
+            {validateTasksCount > 0 && (
+              <View
+                style={[
+                  styles.validateDot,
+                  activeTab === 'validate' && styles.validateDotActive,
+                ]}
+              />
+            )}
           </TouchableOpacity>
         </View>
 

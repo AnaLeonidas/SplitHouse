@@ -94,35 +94,30 @@ export const storeService = {
    * @returns Lista de recompensas ativas da república.
    */
   async fetchStoreItems(moradiaId: string): Promise<StoreItem[]> {
-    try {
-      if (!moradiaId) {
-        return [];
-      }
-
-      const { data, error } = await supabase
-        .from('recompensas_loja')
-        .select('*')
-        .eq('moradia_id', moradiaId)
-        .order('custo_moedas', { ascending: true });
-
-      if (error) {
-        console.warn('storeService.fetchStoreItems: aviso do Supabase:', error.message);
-        return [];
-      }
-
-      // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto 'status'
-      const activeRows = (data || []).filter(
-        (r: any) =>
-          r.ativo !== false &&
-          r.status !== 'recusada' &&
-          r.status_aprovacao !== 'recusada'
-      );
-
-      return activeRows.map(mapRowToStoreItem);
-    } catch (err) {
-      console.warn('storeService.fetchStoreItems: exceção capturada:', err);
+    if (!moradiaId) {
       return [];
     }
+
+    const { data, error } = await supabase
+      .from('recompensas_loja')
+      .select('*')
+      .eq('moradia_id', moradiaId)
+      .order('custo_moedas', { ascending: true });
+
+    if (error) {
+      console.warn('storeService.fetchStoreItems: erro do Supabase:', error.message);
+      throw new Error(error.message || 'Falha ao carregar os itens da loja.');
+    }
+
+    // Filtra em memória para suportar tanto bancos com a coluna 'ativo' quanto 'status'
+    const activeRows = (data || []).filter(
+      (r: any) =>
+        r.ativo !== false &&
+        r.status !== 'recusada' &&
+        r.status_aprovacao !== 'recusada'
+    );
+
+    return activeRows.map(mapRowToStoreItem);
   },
 
   /**
@@ -140,47 +135,48 @@ export const storeService = {
     moradiaId: string,
     userName?: string
   ): Promise<StoreItem> {
+    const costInt = Number(input.cost);
     if (!input.title.trim()) {
       throw new Error('Informe o título da recompensa.');
     }
-    if (!input.cost || Number(input.cost) <= 0) {
-      throw new Error('O custo em moedas deve ser maior que zero.');
+    if (!Number.isInteger(costInt) || costInt <= 0) {
+      throw new Error('O custo em moedas deve ser um número inteiro maior que zero.');
     }
 
-    const rowCompat = {
+    const payloadCanonical = {
       moradia_id: moradiaId,
       titulo: input.title.trim(),
       subtitulo: input.subtitle || `${input.category} da casa`,
-      categoria: normalizeCategoryForDb(input.category),
-      custo_moedas: Number(input.cost),
-      descricao_regras: input.description.trim() || 'Sem descrição informada.',
-      texto_disponibilidade: input.limit || 'Disponível',
+      categoria: input.category,
+      custo_moedas: costInt,
+      descricao: input.description.trim() || null,
+      disponibilidade: input.limit || 'Disponível',
       tipo_icone: input.iconType || (input.category === 'Folga' ? 'minus-circle' : 'tv'),
-      status: 'ativa',
-      proposta_por: userId,
+      ativo: true,
+      status_aprovacao: 'aprovada' as const,
+      criado_por: userId,
     };
 
     let { data, error } = await supabase
       .from('recompensas_loja')
-      .insert(rowCompat)
+      .insert(payloadCanonical)
       .select()
       .single();
 
-    if (error && (error.code === '42703' || error.code === '23502' || error.code === '23514')) {
-      const payloadAlt = {
+    if (error && (error.code === '42703' || error.code === 'PGRST204' || error.code === '23502' || error.code === '23514')) {
+      const rowCompat = {
         moradia_id: moradiaId,
         titulo: input.title.trim(),
         subtitulo: input.subtitle || `${input.category} da casa`,
-        categoria: input.category,
-        custo_moedas: Number(input.cost),
-        descricao: input.description.trim() || null,
-        disponibilidade: input.limit || 'Disponível',
+        categoria: normalizeCategoryForDb(input.category),
+        custo_moedas: costInt,
+        descricao_regras: input.description.trim() || 'Sem descrição informada.',
+        texto_disponibilidade: input.limit || 'Disponível',
         tipo_icone: input.iconType || (input.category === 'Folga' ? 'minus-circle' : 'tv'),
-        ativo: true,
-        status_aprovacao: 'aprovada' as const,
-        criado_por: userId,
+        status: 'ativa',
+        proposta_por: userId,
       };
-      const retry = await supabase.from('recompensas_loja').insert(payloadAlt).select().single();
+      const retry = await supabase.from('recompensas_loja').insert(rowCompat).select().single();
       data = retry.data;
       error = retry.error;
     }
@@ -228,14 +224,52 @@ export const storeService = {
   async redeemReward(
     input: RedeemRewardInput
   ): Promise<RedeemRewardResult> {
-    const { rewardId, userId, moradiaId, cost, rewardTitle } = input;
+    const { rewardId, userId, moradiaId, rewardTitle } = input;
 
-    // 1. Busca vínculo do membro e saldo atual de moedas
+    // 1. Verifica recompensa ativa no banco (custo autoritativo e limite por ciclo)
+    const { data: recompensaRow, error: rewardError } = await supabase
+      .from('recompensas_loja')
+      .select('*')
+      .eq('id', rewardId)
+      .eq('moradia_id', moradiaId)
+      .maybeSingle();
+
+    if (rewardError || !recompensaRow) {
+      throw new Error('Recompensa não encontrada nesta moradia.');
+    }
+    if (
+      recompensaRow.ativo === false ||
+      (recompensaRow as any).status === 'recusada' ||
+      recompensaRow.status_aprovacao === 'recusada'
+    ) {
+      throw new Error('Esta recompensa não está mais disponível para resgate.');
+    }
+
+    const actualCost = Number(recompensaRow.custo_moedas || input.cost);
+    const effectiveTitle = recompensaRow.titulo || rewardTitle;
+    const limiteCiclo = Number(recompensaRow.limite_por_ciclo || 0);
+
+    if (limiteCiclo > 0) {
+      const { count: usedCount, error: countError } = await supabase
+        .from('resgates_recompensa')
+        .select('id', { count: 'exact', head: true })
+        .eq('recompensa_id', rewardId)
+        .eq('moradia_id', moradiaId)
+        .eq('usuario_id', userId)
+        .neq('status', 'cancelado');
+
+      if (!countError && usedCount !== null && usedCount >= limiteCiclo) {
+        throw new Error(`Você já atingiu o limite de ${limiteCiclo} resgate(s) para esta recompensa neste ciclo.`);
+      }
+    }
+
+    // 2. Busca vínculo do membro e saldo atual de moedas
     const { data: membro, error: memberError } = await supabase
       .from('membros_moradia')
       .select('id, moedas')
       .eq('moradia_id', moradiaId)
       .eq('usuario_id', userId)
+      .eq('status', 'aprovado')
       .maybeSingle();
 
     if (memberError || !membro) {
@@ -243,14 +277,14 @@ export const storeService = {
     }
 
     const currentCoins = membro.moedas || 0;
-    if (currentCoins < cost) {
+    if (currentCoins < actualCost) {
       throw new Error(
-        `Saldo insuficiente. Você possui ${currentCoins} moedas, mas a recompensa custa ${cost} moedas.`
+        `Saldo insuficiente. Você possui ${currentCoins} moedas, mas a recompensa custa ${actualCost} moedas.`
       );
     }
-    const updatedCoins = currentCoins - cost;
+    const updatedCoins = currentCoins - actualCost;
 
-    // 2. Registra o resgate na tabela 'resgates_recompensa' antes de debitar moedas
+    // 3. Registra o resgate na tabela 'resgates_recompensa' usando esquema canônico primeiro
     let redemptionId: string | undefined;
     let resgateInsertError: any = null;
 
@@ -260,20 +294,20 @@ export const storeService = {
         recompensa_id: rewardId,
         moradia_id: moradiaId,
         usuario_id: userId,
-        moedas_gastas: cost,
+        custo_moedas: actualCost,
         status: 'ativo',
       })
       .select('id')
       .single();
 
-    if (resgateError && resgateError.code === '42703') {
+    if (resgateError && (resgateError.code === '42703' || resgateError.code === 'PGRST204')) {
       const retry = await supabase
         .from('resgates_recompensa')
         .insert({
           recompensa_id: rewardId,
           moradia_id: moradiaId,
           usuario_id: userId,
-          custo_moedas: cost,
+          moedas_gastas: actualCost,
           status: 'ativo',
         })
         .select('id')
@@ -293,17 +327,16 @@ export const storeService = {
 
     redemptionId = resgate.id;
 
-    // 3. Debita moedas no banco verificando se o saldo ainda é suficiente
+    // 4. Debita moedas no banco verificando se o saldo ainda é suficiente
     const { data: updatedMember, error: updateError } = await supabase
       .from('membros_moradia')
       .update({ moedas: updatedCoins })
       .eq('id', membro.id)
-      .gte('moedas', cost)
+      .gte('moedas', actualCost)
       .select('id, moedas')
       .single();
 
     if (updateError || !updatedMember) {
-      // Rollback do registro de resgate caso a cobrança de moedas falhe
       await supabase.from('resgates_recompensa').delete().eq('id', redemptionId);
       throw new Error(
         'Falha ao debitar moedas da conta: ' +
@@ -311,15 +344,14 @@ export const storeService = {
       );
     }
 
-    // 4. Cria notificação de confirmação do benefício ativo
+    // 5. Cria notificação de confirmação para o próprio morador (sem senderId para não filtrá-lo)
     try {
       await notificationsService.notifyUsers([userId], {
         moradiaId,
-        senderId: userId,
         tipo: 'Recompensa',
         categoryFilter: 'Finanças',
         titulo: 'Recompensa Resgatada!',
-        descricao: `Você resgatou "${rewardTitle}" por ${cost} moedas. Seu benefício está ativo no ciclo atual.`,
+        descricao: `Você resgatou "${effectiveTitle}" por ${actualCost} moedas. Seu benefício está ativo no ciclo atual.`,
         hasCoinIcon: true,
       });
     } catch {

@@ -14,6 +14,7 @@ import {
     Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { pickImageWithPrompt } from '../../services/storageService';
@@ -77,14 +78,48 @@ export interface NewExpenseScreenProps {
 const CATEGORIAS_DISPONIVEIS = ['Utilidades', 'Aluguel', 'Mercado', 'Limpeza', 'Outros'];
 
 /**
- * Retorna a data atual acrescentada de 7 dias no formato YYYY-MM-DD para compatibilidade com o banco.
+ * Retorna a data atual acrescentada de 7 dias no formato YYYY-MM-DD em horário local.
  *
  * @returns Data padrão de vencimento no formato YYYY-MM-DD.
  */
 const getDefaultDueDate = (): string => {
     const today = new Date();
     today.setDate(today.getDate() + 7); // vencimento padrão em 7 dias
-    return today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
+ * Converte entradas monetárias pt-BR ou com ponto decimal ("12.50", "12,50", "1.250,50") para número.
+ */
+const parseMoneyInput = (raw: string): number => {
+    const cleaned = (raw || '').trim().replace(/[^\d.,-]/g, '');
+    if (!cleaned) return 0;
+
+    const hasComma = cleaned.includes(',');
+    const hasDot = cleaned.includes('.');
+
+    let normalized = cleaned;
+    if (hasComma && hasDot) {
+        normalized = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')
+            ? cleaned.replace(/\./g, '').replace(',', '.')
+            : cleaned.replace(/,/g, '');
+    } else if (hasComma) {
+        normalized = cleaned.replace(',', '.');
+    } else if (hasDot) {
+        const dotParts = cleaned.split('.');
+        if (dotParts.length > 2) {
+            const last = dotParts.pop() || '';
+            normalized = `${dotParts.join('')}.${last}`;
+        } else if (dotParts.length === 2 && dotParts[1].length === 3 && dotParts[0].length >= 1) {
+            normalized = dotParts.join('');
+        }
+    }
+
+    const num = parseFloat(normalized);
+    return isNaN(num) || num < 0 ? 0 : num;
 };
 
 /**
@@ -113,6 +148,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     onSubmitPress,
     membersList = [],
 }) => {
+    const insets = useSafeAreaInsets();
     const { user, profile } = useAuth();
     const [value, setValue] = useState('');
     const [description, setDescription] = useState('');
@@ -148,23 +184,30 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     // Valores para divisão fixa (id -> string de R$)
     const [fixedAmounts, setFixedAmounts] = useState<{ [id: string]: string }>({});
 
-    // Inicializa moradores e valores padrão quando effectiveMembers mudar
+    // Inicializa/sincroniza moradores preservando escolhas já feitas pelo usuário
     useEffect(() => {
-        if (effectiveMembers.length > 0) {
-            setSelectedEqualMembers(effectiveMembers.map((m) => m.id));
-            if (!selectedOtherPayerId) {
-                const other = effectiveMembers.find((m) => m.id !== user?.id);
-                if (other) setSelectedOtherPayerId(other.id);
+        if (effectiveMembers.length === 0) return;
+
+        const validIds = effectiveMembers.map((m) => m.id);
+        setSelectedEqualMembers((prev) => {
+            if (prev.length === 0) {
+                return validIds;
             }
-        }
+            const kept = prev.filter((id) => validIds.includes(id));
+            return kept.length > 0 ? kept : validIds;
+        });
+
+        setSelectedOtherPayerId((prev) => {
+            if (prev && validIds.includes(prev) && prev !== user?.id) {
+                return prev;
+            }
+            const other = effectiveMembers.find((m) => m.id !== user?.id);
+            return other ? other.id : '';
+        });
     }, [effectiveMembers, user?.id]);
 
     // Valor numérico digitado no campo principal
-    const numericTotal = useMemo(() => {
-        const sanitized = value.replace(/\./g, '').replace(',', '.');
-        const num = parseFloat(sanitized);
-        return isNaN(num) || num < 0 ? 0 : num;
-    }, [value]);
+    const numericTotal = useMemo(() => parseMoneyInput(value), [value]);
 
     // Distribuir porcentagens igualmente entre todos os membros
     const handleDistributePercentagesEqually = () => {
@@ -209,9 +252,8 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
     const totalFixedSum = useMemo(() => {
         let sum = 0;
         effectiveMembers.forEach((m) => {
-            const raw = (fixedAmounts[m.id] || '').replace(/\./g, '').replace(',', '.');
-            const num = parseFloat(raw);
-            if (!isNaN(num) && num > 0) sum += num;
+            const num = parseMoneyInput(fixedAmounts[m.id] || '');
+            if (num > 0) sum += num;
         });
         return parseFloat(sum.toFixed(2));
     }, [fixedAmounts, effectiveMembers]);
@@ -336,8 +378,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
 
             splits = effectiveMembers
                 .map((m) => {
-                    const raw = (fixedAmounts[m.id] || '').replace(/\./g, '').replace(',', '.');
-                    const num = parseFloat(raw) || 0;
+                    const num = parseMoneyInput(fixedAmounts[m.id] || '');
                     return {
                         userId: m.id,
                         amount: parseFloat(num.toFixed(2)),
@@ -371,6 +412,8 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                     receiptUri,
                     splits,
                 });
+            } catch {
+                // erro tratado pelo caller
             } finally {
                 setSubmitting(false);
             }
@@ -390,7 +433,21 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
             style={styles.wrapper}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    {
+                        paddingTop:
+                            Math.max(
+                                insets.top,
+                                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+                            ) + 12,
+                        paddingBottom: Math.max(insets.bottom, 20) + 24,
+                    },
+                ]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.backButton} onPress={onBackPress}>
                         <Feather name="chevron-left" size={22} color={Colors.text} />
@@ -628,25 +685,25 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                             <View
                                 style={[
                                     styles.validationBadge,
-                                    Math.abs(totalPercentageSum - 100) < 0.1
+                                    Math.abs(totalPercentageSum - 100) <= 0.1
                                         ? styles.validationBadgeSuccess
                                         : styles.validationBadgeWarning,
                                 ]}
                             >
                                 <Feather
-                                    name={Math.abs(totalPercentageSum - 100) < 0.1 ? 'check-circle' : 'alert-circle'}
+                                    name={Math.abs(totalPercentageSum - 100) <= 0.1 ? 'check-circle' : 'alert-circle'}
                                     size={14}
-                                    color={Math.abs(totalPercentageSum - 100) < 0.1 ? Colors.success : Colors.danger}
+                                    color={Math.abs(totalPercentageSum - 100) <= 0.1 ? Colors.success : Colors.danger}
                                 />
                                 <Text
                                     style={[
                                         styles.validationBadgeText,
-                                        Math.abs(totalPercentageSum - 100) < 0.1
+                                        Math.abs(totalPercentageSum - 100) <= 0.1
                                             ? { color: Colors.success }
                                             : { color: Colors.danger },
                                     ]}
                                 >
-                                    {Math.abs(totalPercentageSum - 100) < 0.1
+                                    {Math.abs(totalPercentageSum - 100) <= 0.1
                                         ? 'Total: 100% (distribuição completa)'
                                         : `Soma atual: ${totalPercentageSum.toFixed(1)}% de 100% (${totalPercentageSum < 100 ? `faltam ${(100 - totalPercentageSum).toFixed(1)}%` : `excedeu ${(totalPercentageSum - 100).toFixed(1)}%`})`}
                                 </Text>
@@ -699,20 +756,20 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                             <View
                                 style={[
                                     styles.validationBadge,
-                                    Math.abs(totalFixedSum - numericTotal) < 0.05 && numericTotal > 0
+                                    Math.abs(totalFixedSum - numericTotal) <= 0.05 && numericTotal > 0
                                         ? styles.validationBadgeSuccess
                                         : styles.validationBadgeWarning,
                                 ]}
                             >
                                 <Feather
                                     name={
-                                        Math.abs(totalFixedSum - numericTotal) < 0.05 && numericTotal > 0
+                                        Math.abs(totalFixedSum - numericTotal) <= 0.05 && numericTotal > 0
                                             ? 'check-circle'
                                             : 'alert-circle'
                                     }
                                     size={14}
                                     color={
-                                        Math.abs(totalFixedSum - numericTotal) < 0.05 && numericTotal > 0
+                                        Math.abs(totalFixedSum - numericTotal) <= 0.05 && numericTotal > 0
                                             ? Colors.success
                                             : Colors.danger
                                     }
@@ -720,12 +777,12 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                                 <Text
                                     style={[
                                         styles.validationBadgeText,
-                                        Math.abs(totalFixedSum - numericTotal) < 0.05 && numericTotal > 0
+                                        Math.abs(totalFixedSum - numericTotal) <= 0.05 && numericTotal > 0
                                             ? { color: Colors.success }
                                             : { color: Colors.danger },
                                     ]}
                                 >
-                                    {Math.abs(totalFixedSum - numericTotal) < 0.05 && numericTotal > 0
+                                    {Math.abs(totalFixedSum - numericTotal) <= 0.05 && numericTotal > 0
                                         ? `Total conferido: R$ ${formatBRL(totalFixedSum)}`
                                         : `Distribuído R$ ${formatBRL(totalFixedSum)} de R$ ${formatBRL(numericTotal)} (${totalFixedSum < numericTotal ? `restam R$ ${formatBRL(numericTotal - totalFixedSum)}` : `passou R$ ${formatBRL(totalFixedSum - numericTotal)}`})`}
                                 </Text>
@@ -766,7 +823,12 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
             </ScrollView>
 
             {/* Modal de Seleção de Categoria */}
-            <Modal visible={modalCategoryVisible} transparent animationType="fade">
+            <Modal
+                visible={modalCategoryVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setModalCategoryVisible(false)}
+            >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Selecione a Categoria</Text>
@@ -796,7 +858,12 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
             </Modal>
 
             {/* Modal de Seleção de Pagador (Outro Morador) */}
-            <Modal visible={modalPayerVisible} transparent animationType="fade">
+            <Modal
+                visible={modalPayerVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setModalPayerVisible(false)}
+            >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Quem realizou o pagamento?</Text>

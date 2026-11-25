@@ -181,7 +181,7 @@ export const CreateHouseScreen: React.FC<CreateHouseScreenProps> = ({
                     placeholder="Ex: 4"
                     placeholderTextColor={Colors.textSecondary}
                     value={residentsCount}
-                    onChangeText={setResidentsCount}
+                    onChangeText={(text) => setResidentsCount(text.replace(/[^0-9]/g, ''))}
                     keyboardType="numeric"
                   />
                 </View>

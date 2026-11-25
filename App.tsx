@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   View,
@@ -9,7 +9,12 @@ import {
   StyleSheet,
   Alert,
   Linking,
+  BackHandler,
+  AppState,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
+import * as SplashScreenNative from 'expo-splash-screen';
 import { Feather } from '@expo/vector-icons';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
 import { WelcomeScreen } from './src/screens/auth/WelcomeScreen';
@@ -57,6 +62,9 @@ import { supabase } from './src/services/supabase';
 import { MinhaMoradia, MembroMoradia, RegraMoradiaDB, RegraInput, ExpenseDetailsData } from './src/types/database';
 import { HouseRule } from './src/screens/profile/HouseRulesScreen';
 import { calculateLevelAndTitle } from './src/utils/gamification';
+
+WebBrowser.maybeCompleteAuthSession();
+SplashScreenNative.preventAutoHideAsync().catch(() => {});
 
 /** Cores aplicadas em ciclo aos ícones das regras da casa na visualização do estatuto. */
 const RULE_COLORS: Pick<HouseRule, 'iconBgColor' | 'iconColor'>[] = [
@@ -128,7 +136,10 @@ type Screen =
  */
 function MainApp() {
   const { user, profile, loading, signOut, refreshProfile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
+  const [splashDone, setSplashDone] = useState(false);
+  const [inviteSource, setInviteSource] = useState<'setup' | 'members'>('setup');
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [myHouse, setMyHouse] = useState<MinhaMoradia | null>(null);
@@ -140,7 +151,6 @@ function MainApp() {
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
   const [expensesList, setExpensesList] = useState<any[]>([]);
   const [selectedExpenseDetails, setSelectedExpenseDetails] = useState<ExpenseDetailsData | null>(null);
-  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
   const [taskValidation, setTaskValidation] = useState<{
     photoUrl: string | null;
     executorId: string | null;
@@ -159,75 +169,97 @@ function MainApp() {
     history: [],
   });
   const [recoveryEmail, setRecoveryEmail] = useState<string>('');
+  const openTaskRequestRef = useRef(0);
+  const openExpenseRequestRef = useRef(0);
 
   const isApprovedMember = myHouse?.status === 'aprovado';
   const isAdmin = isApprovedMember && myHouse?.papel === 'admin';
+  const isApprovedMemberRef = useRef(isApprovedMember);
+  const inviteSourceRef = useRef(inviteSource);
+  const appStateRef = useRef(AppState.currentState);
+
+  useEffect(() => {
+    isApprovedMemberRef.current = isApprovedMember;
+  }, [isApprovedMember]);
+
+  useEffect(() => {
+    inviteSourceRef.current = inviteSource;
+  }, [inviteSource]);
+
+  useEffect(() => {
+    SplashScreenNative.hideAsync().catch(() => {});
+  }, []);
 
   /**
    * Consulta a moradia do usuário logado e atualiza o estado local.
    */
-  const loadMyHouse = async (): Promise<MinhaMoradia | null> => {
-    try {
-      const house = await houseService.getMyHouse();
-      setMyHouse(house);
-      return house;
-    } catch {
-      return null;
-    }
-  };
+  const loadMyHouse = useCallback(async (): Promise<MinhaMoradia | null> => {
+    const house = await houseService.getMyHouse();
+    setMyHouse(house);
+    return house;
+  }, []);
 
   /**
    * Direciona o usuário após autenticação: casa aprovada -> home, solicitação -> pendente,
    * sem vínculo -> seleção de moradia.
    */
-  const routeAfterAuth = async () => {
-    const house = await loadMyHouse();
-    if (house?.status === 'aprovado') {
-      setCurrentScreen('home');
-    } else if (house?.status === 'pendente') {
-      setCurrentScreen('pending_request');
-    } else {
-      setCurrentScreen('house_selection');
-    }
-  };
-
-  const loadMembers = async (moradiaId: string) => {
+  const routeAfterAuth = useCallback(async () => {
     try {
-      const data = await houseService.listMembers(moradiaId);
-      setMembers(data);
-      loadRanking(moradiaId);
+      const house = await loadMyHouse();
+      if (house?.status === 'aprovado') {
+        setCurrentScreen('home');
+      } else if (house?.status === 'pendente') {
+        setCurrentScreen('pending_request');
+      } else {
+        setCurrentScreen('house_selection');
+      }
     } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar moradores.');
+      Alert.alert(
+        'Erro de conexão',
+        err instanceof Error ? err.message : 'Não foi possível carregar os dados da sua conta. Tente novamente.'
+      );
     }
-  };
+  }, [loadMyHouse]);
 
-  const loadRules = async (moradiaId: string) => {
-    try {
-      setHouseRules(await houseService.fetchRules(moradiaId));
-    } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar regras.');
-    }
-  };
-
-  const loadRanking = async (moradiaId: string) => {
+  const loadRanking = useCallback(async (moradiaId: string) => {
     try {
       const items = await rankingService.fetchRanking(moradiaId, user?.id);
       setRankingList(items || []);
     } catch (err) {
       console.warn('App: Erro ao carregar ranking:', err);
     }
-  };
+  }, [user?.id]);
 
-  const loadStore = async (moradiaId: string) => {
+  const loadMembers = useCallback(async (moradiaId: string, withRanking = false) => {
+    try {
+      const data = await houseService.listMembers(moradiaId);
+      setMembers(data);
+      if (withRanking) {
+        loadRanking(moradiaId);
+      }
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar moradores.');
+    }
+  }, [loadRanking]);
+
+  const loadRules = useCallback(async (moradiaId: string) => {
+    try {
+      setHouseRules(await houseService.fetchRules(moradiaId));
+    } catch (err) {
+      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao carregar regras.');
+    }
+  }, []);
+
+  const loadStore = useCallback(async (moradiaId: string) => {
     try {
       const items = await storeService.fetchStoreItems(moradiaId);
       setStoreItems(items);
     } catch (err) {
       console.warn('App: Erro ao carregar loja:', err);
     }
-  };
+  }, []);
 
-  const loadFinanceOverview = async (moradiaId: string) => {
+  const loadFinanceOverview = useCallback(async (moradiaId: string) => {
     if (!user) return;
     try {
       const settle = await financeService.fetchSettleUpData(moradiaId, user.id);
@@ -238,18 +270,18 @@ function MainApp() {
     } catch (err) {
       console.warn('App: Erro ao carregar balanço financeiro:', err);
     }
-  };
+  }, [user]);
 
-  const loadExpenses = async (moradiaId: string) => {
+  const loadExpenses = useCallback(async (moradiaId: string) => {
     try {
       const exp = await financeService.fetchExpenses(moradiaId);
       setExpensesList(exp || []);
     } catch (err) {
       console.warn('App: Erro ao carregar despesas:', err);
     }
-  };
+  }, []);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!user) return;
     try {
       const notes = await notificationsService.fetchNotifications(user.id, myHouse?.moradia_id);
@@ -257,7 +289,20 @@ function MainApp() {
     } catch (err) {
       console.warn('App: Erro ao carregar notificações:', err);
     }
-  };
+  }, [user, myHouse?.moradia_id]);
+
+  /** Recarrega tarefas da moradia. */
+  const reloadTasks = useCallback(async () => {
+    try {
+      const fetched = await tasksService.fetchTasks(
+        myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
+        user?.id
+      );
+      setTasks(fetched || []);
+    } catch (err) {
+      console.warn('App: Erro ao recarregar tarefas:', err);
+    }
+  }, [myHouse?.status, myHouse?.moradia_id, user?.id]);
 
   /** Notifica os demais moradores aprovados da moradia (cada um recebe a sua notificação). */
   const notifyHouse = (
@@ -274,46 +319,89 @@ function MainApp() {
     });
   };
 
-  // Atualiza notificações, tarefas e despesas periodicamente (ações de outros moradores)
+  // Atualiza notificações, tarefas e despesas periodicamente apenas com o app em primeiro plano
   useEffect(() => {
     if (!user || myHouse?.status !== 'aprovado') return;
-    const refresh = () => {
+    const houseId = myHouse.moradia_id;
+
+    const refreshAll = () => {
+      if (appStateRef.current !== 'active') return;
       loadNotifications();
       reloadTasks();
-      loadExpenses(myHouse.moradia_id);
+      loadExpenses(houseId);
     };
-    loadNotifications();
-    const timer = setInterval(refresh, 15000);
-    return () => clearInterval(timer);
-  }, [user?.id, myHouse?.moradia_id, myHouse?.status]);
 
-  // Escuta links profundos do app (confirmação de e-mail e recuperação de senha)
-  useEffect(() => {
-    const handleDeepLink = (url?: string | null) => {
-      if (!url) return;
-      try {
-        if (url.includes('reset-password') || url.includes('type=recovery')) {
-          setCurrentScreen('reset_password');
-        } else if (
-          url.includes('confirm-email') ||
-          url.includes('type=signup') ||
-          url.includes('type=email')
-        ) {
-          Alert.alert(
-            'E-mail ativado!',
-            'Sua conta foi confirmada com sucesso. Faça login para continuar.'
-          );
-          setCurrentScreen('login');
-        }
-      } catch (err) {
-        console.warn('App: Erro ao processar deep link:', err);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === 'active') {
+        refreshAll();
       }
-    };
+    });
 
-    Linking.getInitialURL().then(handleDeepLink);
+    loadNotifications();
+    const timer = setInterval(refreshAll, 15000);
+    return () => {
+      clearInterval(timer);
+      appStateSub.remove();
+    };
+  }, [user?.id, myHouse?.moradia_id, myHouse?.status, loadNotifications, reloadTasks, loadExpenses]);
+
+  const handleDeepLink = useCallback(async (url?: string | null) => {
+    if (!url) return;
+    try {
+      const queryPart = url.includes('?') ? url.split('?')[1].split('#')[0] : '';
+      const hashPart = url.includes('#') ? url.split('#')[1] : '';
+      const queryParams = new URLSearchParams(queryPart);
+      const hashParams = new URLSearchParams(hashPart);
+      const getParam = (key: string) => hashParams.get(key) || queryParams.get(key);
+
+      const code = getParam('code');
+      const accessToken = getParam('access_token');
+      const refreshToken = getParam('refresh_token');
+      const typeParam = getParam('type');
+
+      let establishedSession = false;
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error && data?.session) establishedSession = true;
+      } else if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (!error && data?.session) establishedSession = true;
+      }
+
+      if (url.includes('reset-password') || typeParam === 'recovery') {
+        setCurrentScreen('reset_password');
+      } else if (
+        url.includes('confirm-email') ||
+        typeParam === 'signup' ||
+        typeParam === 'email'
+      ) {
+        Alert.alert(
+          'E-mail ativado!',
+          'Sua conta foi confirmada com sucesso. Faça login para continuar.'
+        );
+        setCurrentScreen('login');
+      } else if (establishedSession || url.includes('auth-callback')) {
+        await routeAfterAuth();
+      }
+    } catch (err) {
+      console.warn('App: Erro ao processar deep link:', err);
+    }
+  }, [routeAfterAuth]);
+
+  // Escuta links profundos do app (OAuth, confirmação de e-mail e recuperação de senha)
+  useEffect(() => {
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) handleDeepLink(initialUrl);
+      })
+      .catch((err) => console.warn('App: Erro em getInitialURL:', err));
     const sub = Linking.addEventListener('url', (event) => handleDeepLink(event.url));
     return () => sub.remove();
-  }, []);
+  }, [handleDeepLink]);
 
   // Escuta evento de recuperação de senha disparado nativamente pelo Supabase Auth
   useEffect(() => {
@@ -327,34 +415,43 @@ function MainApp() {
     return () => subscription.unsubscribe();
   }, []);
 
-  /** Recarrega tarefas da moradia. */
-  const reloadTasks = async () => {
-    const fetched = await tasksService.fetchTasks(
-      myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
-      user?.id
-    );
-    setTasks(fetched || []);
-  };
-
   /** Abre a tarefa na tela adequada conforme o estado dela. */
   const openTask = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
     setSelectedTaskId(taskId);
     if (task.status === 'Aguardando validação') {
-      if (task.assignee === 'Você') {
+      if (task.assignee === 'Você' || (!!user?.id && task.assigneeId === user.id)) {
         Alert.alert('Aguardando validação', 'Sua tarefa foi enviada. Outro morador precisa aprová-la.');
         return;
       }
+      const reqId = ++openTaskRequestRef.current;
       setTaskValidation(null);
       setCurrentScreen('task_validation');
-      setTaskValidation(await tasksService.getPendingValidation(taskId));
+      try {
+        const validationData = await tasksService.getPendingValidation(taskId);
+        if (openTaskRequestRef.current === reqId) {
+          setTaskValidation(validationData);
+        }
+      } catch (err) {
+        console.warn('App: Erro ao carregar validação da tarefa:', err);
+      }
     } else if (task.status === 'Concluída') {
       Alert.alert('Tarefa concluída', 'Esta tarefa já foi validada e concluída.');
     } else {
       setCurrentScreen('task_details');
     }
   };
+
+  // Transição após Splash respeita o carregamento da sessão no AuthContext
+  useEffect(() => {
+    if (currentScreen !== 'splash' || !splashDone || loading) return;
+    if (user) {
+      routeAfterAuth();
+    } else {
+      setCurrentScreen('welcome');
+    }
+  }, [currentScreen, splashDone, loading, user, routeAfterAuth]);
 
   useEffect(() => {
     if (
@@ -382,13 +479,16 @@ function MainApp() {
       setNotificationsList([]);
       setExpensesList([]);
       setSelectedExpenseDetails(null);
-      setSelectedExpenseId(null);
+      setPendingPayments([]);
+      setSelectedPaymentId(null);
+      setSelectedTaskId(null);
+      setTaskValidation(null);
       setSettleUpData({ netBalance: 'R$ 0,00', isPositive: true, debts: [] });
       setReportData({ totalAmount: '0,00', averagePerResident: '0,00', history: [] });
       return;
     }
-    loadMyHouse();
-  }, [user]);
+    loadMyHouse().catch((err) => console.warn('App: Erro ao carregar moradia do usuário:', err));
+  }, [user, loadMyHouse]);
 
   useEffect(() => {
     if (!myHouse?.moradia_id || myHouse.status !== 'aprovado') {
@@ -398,48 +498,91 @@ function MainApp() {
       setStoreItems([]);
       return;
     }
-    loadMembers(myHouse.moradia_id);
-    loadRules(myHouse.moradia_id);
-    loadRanking(myHouse.moradia_id);
-    loadStore(myHouse.moradia_id);
+    const houseId = myHouse.moradia_id;
+    loadMembers(houseId, true);
+    loadRules(houseId);
+    loadStore(houseId);
     loadNotifications();
-    loadExpenses(myHouse.moradia_id);
-    loadFinanceOverview(myHouse.moradia_id);
-  }, [myHouse?.moradia_id, myHouse?.status]);
+    loadExpenses(houseId);
+    loadFinanceOverview(houseId);
+  }, [
+    myHouse?.moradia_id,
+    myHouse?.status,
+    loadMembers,
+    loadRules,
+    loadStore,
+    loadNotifications,
+    loadExpenses,
+    loadFinanceOverview,
+  ]);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadTasks() {
-      const fetched = await tasksService.fetchTasks(
-        myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
-        user?.id
-      );
-      setTasks(fetched || []);
-      if (myHouse?.moradia_id && myHouse.status === 'aprovado') {
-        loadRanking(myHouse.moradia_id);
+      try {
+        const fetched = await tasksService.fetchTasks(
+          myHouse?.status === 'aprovado' ? myHouse.moradia_id : undefined,
+          user?.id
+        );
+        if (!cancelled) {
+          setTasks(fetched || []);
+        }
+        if (!cancelled && myHouse?.moradia_id && myHouse.status === 'aprovado') {
+          loadRanking(myHouse.moradia_id);
+        }
+      } catch (err) {
+        console.warn('App: Erro ao carregar tarefas:', err);
       }
     }
     loadTasks();
-  }, [user, myHouse?.moradia_id, myHouse?.status]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, myHouse?.moradia_id, myHouse?.status, loadRanking]);
 
   useEffect(() => {
     if (!myHouse?.moradia_id || myHouse.status !== 'aprovado') return;
+    const houseId = myHouse.moradia_id;
     if (currentScreen === 'ranking') {
-      loadMembers(myHouse.moradia_id);
-      loadRanking(myHouse.moradia_id);
+      loadMembers(houseId, true);
     } else if (currentScreen === 'tasks_list' || currentScreen === 'home') {
-      loadMembers(myHouse.moradia_id);
-      tasksService.fetchTasks(myHouse.moradia_id, user?.id).then((t) => setTasks(t || []));
-      loadRanking(myHouse.moradia_id);
+      loadMembers(houseId, false);
+      reloadTasks();
+      loadRanking(houseId);
+      if (currentScreen === 'home') loadFinanceOverview(houseId);
+    } else if (currentScreen === 'expenses_list') {
+      loadExpenses(houseId);
     } else if (currentScreen === 'store') {
-      loadMembers(myHouse.moradia_id);
-      loadStore(myHouse.moradia_id);
+      loadMembers(houseId, false);
+      loadStore(houseId);
     } else if (currentScreen === 'notifications') {
       loadNotifications();
     }
-  }, [currentScreen, myHouse?.moradia_id, myHouse?.status]);
+  }, [
+    currentScreen,
+    myHouse?.moradia_id,
+    myHouse?.status,
+    user?.id,
+    loadMembers,
+    reloadTasks,
+    loadRanking,
+    loadFinanceOverview,
+    loadExpenses,
+    loadStore,
+    loadNotifications,
+  ]);
 
-  const approvedMembers = members.filter((m) => m.status === 'aprovado');
-  const pendingMembers = members.filter((m) => m.status === 'pendente');
+  const approvedMembers = useMemo(() => members.filter((m) => m.status === 'aprovado'), [members]);
+  const pendingMembers = useMemo(() => members.filter((m) => m.status === 'pendente'), [members]);
+
+  const newExpenseMembersList = useMemo(
+    () =>
+      approvedMembers.map((m) => ({
+        id: m.usuario_id,
+        name: m.usuario_id === user?.id ? `${m.nome || 'Você'} (Você)` : (m.nome || 'Morador'),
+      })),
+    [approvedMembers, user?.id]
+  );
 
   const effectiveRankingList: ResidentRankingItem[] =
     rankingList.length > 0
@@ -454,44 +597,58 @@ function MainApp() {
             initials: getInitials(m.nome),
             isCurrentUser: m.usuario_id === user?.id,
             tasksCompleted: tasks.filter(
-              (t) => (t.assigneeId === m.usuario_id || t.assignee.includes(m.nome || '')) && t.status === 'Concluída'
+              (t) =>
+                (t.assigneeId === m.usuario_id || (!!m.nome && t.assignee === m.nome)) &&
+                t.status === 'Concluída'
             ).length,
             coins: m.moedas || 0,
             xp: m.xp || 0,
-            level: m.nivel || 1,
+            level: Math.max(m.nivel || 1, calculateLevelAndTitle(m.xp || 0).level),
             pendingTasksCount: tasks.filter(
-              (t) => (t.assigneeId === m.usuario_id || t.assignee.includes(m.nome || '')) && t.status === 'Pendente'
+              (t) =>
+                (t.assigneeId === m.usuario_id || (!!m.nome && t.assignee === m.nome)) &&
+                t.status === 'Pendente'
             ).length,
           }));
 
   const currentMember = approvedMembers.find((m) => m.usuario_id === user?.id);
   const houseLeader = effectiveRankingList[0];
 
-  const newTaskMembersList = approvedMembers.map((m) => ({
-    id: m.usuario_id,
-    name:
-      m.usuario_id === user?.id
-        ? `${m.nome || 'Você'} (Você)`
-        : m.nome || 'Morador',
-    initials: getInitials(m.nome),
-  }));
+  const newTaskMembersList = useMemo(
+    () =>
+      approvedMembers.map((m) => ({
+        id: m.usuario_id,
+        name:
+          m.usuario_id === user?.id
+            ? `${m.nome || 'Você'} (Você)`
+            : m.nome || 'Morador',
+        initials: getInitials(m.nome),
+      })),
+    [approvedMembers, user?.id]
+  );
 
-  const leaveCandidates = approvedMembers
-    .filter((m) => m.usuario_id !== user?.id)
-    .map((m) => ({
-      id: m.id,
-      name: m.nome || 'Morador',
-      initials: getInitials(m.nome),
-      levelInfo: `Nível ${m.nivel} • ${m.xp} XP`,
-      avatarBg: '#2D2D2A',
-      avatarTextColor: '#FFFFFF',
-    }));
+  const leaveCandidates = useMemo(
+    () =>
+      approvedMembers
+        .filter((m) => m.usuario_id !== user?.id)
+        .map((m) => ({
+          id: m.id,
+          name: m.nome || 'Morador',
+          initials: getInitials(m.nome),
+          levelInfo: `Nível ${m.nivel} • ${m.xp} XP`,
+          avatarBg: '#2D2D2A',
+          avatarTextColor: '#FFFFFF',
+        })),
+    [approvedMembers, user?.id]
+  );
 
   const memberLevelDetails = calculateLevelAndTitle(currentMember?.xp || 0);
   const numericNetBalance = (settleUpData?.debts || []).reduce(
     (sum, d) => sum + (d.rawAmount || 0),
     0
   );
+
+  const unreadNotificationsCount = notificationsList.filter((n) => !n.isRead).length;
 
   const profileUserData = {
     name: profile?.nome_completo || 'Morador',
@@ -507,9 +664,12 @@ function MainApp() {
     completedTasks: tasks.filter(
       (t) =>
         t.status === 'Concluída' &&
-        (t.assignee === 'Você' || t.assignee.includes(profile?.nome_completo || ''))
+        (t.assignee === 'Você' ||
+          (!!user?.id && t.assigneeId === user.id) ||
+          (!!profile?.nome_completo && t.assignee === profile.nome_completo))
     ).length,
     onTimePercentage: 100,
+    unreadNotificationsCount,
   };
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
@@ -526,12 +686,90 @@ function MainApp() {
     currentScreenRef.current = currentScreen;
   }, [currentScreen]);
 
+  // Suporte nativo ao botão Voltar do Android para navegar para a tela anterior sem fechar o app
+  useEffect(() => {
+    const onHardwareBack = () => {
+      const screen = currentScreenRef.current;
+      switch (screen) {
+        case 'login':
+        case 'register':
+          setCurrentScreen('welcome');
+          return true;
+        case 'forgot_password':
+          setCurrentScreen('login');
+          return true;
+        case 'reset_password':
+          setCurrentScreen('forgot_password');
+          return true;
+        case 'create_house':
+        case 'join_house':
+          setCurrentScreen('house_selection');
+          return true;
+        case 'setup_rules':
+          setCurrentScreen('create_house');
+          return true;
+        case 'pending_request':
+          setCurrentScreen('house_selection');
+          return true;
+        case 'invite_qr':
+          setCurrentScreen(inviteSourceRef.current === 'members' ? 'manage_members' : 'home');
+          return true;
+        case 'manage_members':
+        case 'notifications':
+        case 'settle_up':
+        case 'report':
+          setCurrentScreen('home');
+          return true;
+        case 'store':
+          setCurrentScreen('ranking');
+          return true;
+        case 'propose_reward':
+          setCurrentScreen('store');
+          return true;
+        case 'new_expense':
+        case 'expense_details':
+          setCurrentScreen('expenses_list');
+          return true;
+        case 'new_task':
+        case 'task_details':
+        case 'task_validation':
+          setCurrentScreen('tasks_list');
+          return true;
+        case 'payment_validation':
+          setCurrentScreen('settle_up');
+          return true;
+        case 'edit_profile':
+        case 'house_rules':
+        case 'leave_house':
+          setCurrentScreen('profile');
+          return true;
+        case 'edit_house_rules':
+          setCurrentScreen('house_rules');
+          return true;
+        case 'expenses_list':
+        case 'tasks_list':
+        case 'ranking':
+        case 'profile':
+          setCurrentScreen('home');
+          return true;
+        default:
+          return false;
+      }
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => subscription.remove();
+  }, []);
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        if (currentScreenRef.current === 'expenses_list' && gestureState.y0 < 240) {
+          return false;
+        }
         return (
-          Math.abs(gestureState.dx) > 35 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5
+          Math.abs(gestureState.dx) > 45 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2
         );
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -587,8 +825,7 @@ function MainApp() {
       }
       await reloadTasks();
       if (myHouse?.moradia_id) {
-        loadMembers(myHouse.moradia_id);
-        loadRanking(myHouse.moradia_id);
+        loadMembers(myHouse.moradia_id, true);
       }
       setTaskValidation(null);
       setCurrentScreen('tasks_list');
@@ -632,13 +869,7 @@ function MainApp() {
 
       {currentScreen === 'splash' && (
         <SplashScreen
-          onFinish={() => {
-            if (user) {
-              routeAfterAuth();
-            } else {
-              setCurrentScreen('welcome');
-            }
-          }}
+          onFinish={() => setSplashDone(true)}
         />
       )}
 
@@ -657,11 +888,26 @@ function MainApp() {
           onRegisterPress={() => setCurrentScreen('register')}
           onGooglePress={async () => {
             try {
-              const { error } = await supabase.auth.signInWithOAuth({
+              const redirectTo =
+                Platform.OS === 'web' && typeof window !== 'undefined'
+                  ? window.location.origin
+                  : 'splithouse://auth-callback';
+              const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
+                options: {
+                  redirectTo,
+                  skipBrowserRedirect: Platform.OS !== 'web',
+                },
               });
               if (error) {
                 Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
+                return;
+              }
+              if (Platform.OS !== 'web' && data?.url) {
+                const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+                if (res.type === 'success' && res.url) {
+                  await handleDeepLink(res.url);
+                }
               }
             } catch (err: any) {
               Alert.alert('Login com Google', err?.message || 'Configuração OAuth do Google indisponível no momento.');
@@ -673,10 +919,20 @@ function MainApp() {
       {currentScreen === 'register' && (
         <RegisterScreen
           onBackPress={() => setCurrentScreen('welcome')}
-          onRegisterSubmit={(name, email, password) => setCurrentScreen('house_selection')}
+          onRegisterSubmit={() => routeAfterAuth()}
           onLoginPress={() => setCurrentScreen('login')}
-          onTermsPress={() => { }}
-          onPrivacyPress={() => { }}
+          onTermsPress={() =>
+            Alert.alert(
+              'Termos de Uso',
+              'Ao utilizar o SplitHouse, você concorda em registrar despesas, tarefas e comprovantes de forma verídica com os moradores da sua república.'
+            )
+          }
+          onPrivacyPress={() =>
+            Alert.alert(
+              'Política de Privacidade',
+              'Seus dados cadastrais, saldo e fotos comprobatórias são compartilhados apenas com os membros aprovados da sua moradia.'
+            )
+          }
         />
       )}
 
@@ -708,6 +964,7 @@ function MainApp() {
             profile?.nome_completo
               ? profile.nome_completo
                 .split(' ')
+                .filter(Boolean)
                 .map((n) => n[0])
                 .slice(0, 2)
                 .join('')
@@ -717,8 +974,11 @@ function MainApp() {
           onCreateHousePress={() => setCurrentScreen('create_house')}
           onJoinHousePress={() => setCurrentScreen('join_house')}
           onLogoutPress={async () => {
-            await signOut();
-            setCurrentScreen('welcome');
+            try {
+              await signOut();
+            } finally {
+              setCurrentScreen('welcome');
+            }
           }}
         />
       )}
@@ -749,17 +1009,11 @@ function MainApp() {
             const payload: RegraInput[] = rules
               .filter((r) => r.title.trim())
               .map((r) => ({ titulo: r.title.trim(), descricao: r.value.trim() }));
-            try {
-              await houseService.createHouse(houseDraft, payload);
-              await loadMyHouse();
-              setHouseDraft(null);
-              setCurrentScreen('invite_qr');
-            } catch (err) {
-              Alert.alert(
-                'Erro ao cadastrar moradia',
-                err instanceof Error ? err.message : 'Tente novamente.'
-              );
-            }
+            await houseService.createHouse(houseDraft, payload);
+            await loadMyHouse();
+            setHouseDraft(null);
+            setInviteSource('setup');
+            setCurrentScreen('invite_qr');
           }}
         />
       )}
@@ -768,7 +1022,7 @@ function MainApp() {
         <InviteQrScreen
           houseName={myHouse?.nome}
           houseCode={myHouse?.codigo_convite}
-          onBackPress={() => setCurrentScreen(isApprovedMember ? 'manage_members' : 'setup_rules')}
+          onBackPress={() => setCurrentScreen(inviteSource === 'members' ? 'manage_members' : 'home')}
           onContinuePress={() => setCurrentScreen('home')}
         />
       )}
@@ -800,12 +1054,21 @@ function MainApp() {
           houseName={myHouse?.nome}
           onBackPress={() => setCurrentScreen('join_house')}
           onRefreshPress={async () => {
-            const house = await loadMyHouse();
-            if (house?.status === 'aprovado') {
-              setCurrentScreen('home');
-            } else if (!house) {
-              Alert.alert('Solicitação recusada', 'O administrador não aprovou sua entrada.');
-              setCurrentScreen('house_selection');
+            try {
+              const house = await loadMyHouse();
+              if (house?.status === 'aprovado') {
+                setCurrentScreen('home');
+              } else if (!house) {
+                Alert.alert('Solicitação recusada', 'O administrador não aprovou sua entrada.');
+                setCurrentScreen('house_selection');
+              } else {
+                Alert.alert('Ainda pendente', 'Sua solicitação ainda aguarda aprovação do administrador.');
+              }
+            } catch (err) {
+              Alert.alert(
+                'Erro ao verificar',
+                err instanceof Error ? err.message : 'Não foi possível consultar o status agora.'
+              );
             }
           }}
           onCancelPress={async () => {
@@ -843,13 +1106,15 @@ function MainApp() {
               initials: getInitials(m.nome),
             }))}
           onBackPress={() => setCurrentScreen('home')}
-          onViewQrPress={() => setCurrentScreen('invite_qr')}
+          onViewQrPress={() => {
+            setInviteSource('members');
+            setCurrentScreen('invite_qr');
+          }}
           onApprove={async (memberId) => {
             try {
               await houseService.respondRequest(memberId, true);
               if (myHouse) {
-                await loadMembers(myHouse.moradia_id);
-                await loadRanking(myHouse.moradia_id);
+                await loadMembers(myHouse.moradia_id, true);
               }
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
@@ -859,8 +1124,7 @@ function MainApp() {
             try {
               await houseService.respondRequest(memberId, false);
               if (myHouse) {
-                await loadMembers(myHouse.moradia_id);
-                await loadRanking(myHouse.moradia_id);
+                await loadMembers(myHouse.moradia_id, true);
               }
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
@@ -869,7 +1133,7 @@ function MainApp() {
           onRemoveMember={async (memberId) => {
             try {
               await houseService.removeMember(memberId);
-              if (myHouse) await loadMembers(myHouse.moradia_id);
+              if (myHouse) await loadMembers(myHouse.moradia_id, true);
               Alert.alert('Sucesso', 'Morador removido da moradia.');
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
@@ -878,7 +1142,7 @@ function MainApp() {
           onPromoteAdmin={async (memberId) => {
             try {
               await houseService.promoteToAdmin(memberId);
-              if (myHouse) await loadMembers(myHouse.moradia_id);
+              if (myHouse) await loadMembers(myHouse.moradia_id, false);
               Alert.alert('Sucesso', 'Morador promovido a administrador.');
             } catch (err) {
               Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
@@ -895,18 +1159,22 @@ function MainApp() {
               houseName={myHouse?.nome || 'Sua moradia'}
               balanceAmount={settleUpData.netBalance.replace('R$ ', '').replace(' (Devedor)', '')}
               balanceStatus={settleUpData.isPositive ? (settleUpData.netBalance === 'R$ 0,00' ? 'Tudo em dia' : 'A receber') : 'A pagar'}
+              debtorText={
+                settleUpData.debts[0]
+                  ? `${settleUpData.debts[0].debtorName} (${settleUpData.debts[0].debtorStatus.toLowerCase()})`
+                  : undefined
+              }
+              debtorAmount={settleUpData.debts[0]?.debtAmount}
               leaderName={houseLeader?.name || (profile?.nome_completo || 'Você')}
               leaderXp={houseLeader?.xp || currentMember?.xp || 0}
               userLevel={profileUserData.level}
               pendingMembersCount={isAdmin ? pendingMembers.length : 0}
+              unreadNotificationsCount={unreadNotificationsCount}
               onExpensesTabPress={() => setCurrentScreen('expenses_list')}
               onTasksTabPress={() => setCurrentScreen('tasks_list')}
               onNewExpensePress={() => setCurrentScreen('new_expense')}
               onNewTaskPress={() => setCurrentScreen('new_task')}
-              onTaskPress={(title) => {
-                const found = tasks.find((t) => t.title === title);
-                if (found) openTask(found.id);
-              }}
+              onTaskPress={(taskId) => openTask(taskId)}
               onNotificationsPress={() => setCurrentScreen('notifications')}
               onRankingPress={() => setCurrentScreen('ranking')}
               onSettleUpPress={() => { if (myHouse?.moradia_id) loadFinanceOverview(myHouse.moradia_id); setCurrentScreen('settle_up'); }}
@@ -922,16 +1190,27 @@ function MainApp() {
               onAddPress={() => setCurrentScreen('new_expense')}
               onExpenseDetailsPress={async (expense) => {
                 if (!expense?.id) return;
-                setSelectedExpenseId(expense.id);
+                const reqId = ++openExpenseRequestRef.current;
                 setSelectedExpenseDetails(null);
                 setCurrentScreen('expense_details');
-                setSelectedExpenseDetails(await financeService.getExpenseDetails(expense.id));
+                try {
+                  const details = await financeService.getExpenseDetails(expense.id);
+                  if (openExpenseRequestRef.current === reqId) {
+                    setSelectedExpenseDetails(details);
+                  }
+                } catch (err) {
+                  Alert.alert(
+                    'Erro ao abrir despesa',
+                    err instanceof Error ? err.message : 'Não foi possível carregar os detalhes.'
+                  );
+                }
               }}
             />
           )}
 
           {currentScreen === 'tasks_list' && (
             <TasksListScreen
+              houseName={myHouse?.nome || 'Sua moradia'}
               tasks={tasks}
               onNewTaskPress={() => setCurrentScreen('new_task')}
               onValidatePress={(taskId) => {
@@ -951,21 +1230,21 @@ function MainApp() {
                 setCurrentScreen('store');
               }}
               onNudgePress={async (residentName, residentId) => {
+                let targetUserId = residentId;
+                const memberObj = members.find(
+                  (m) =>
+                    m.usuario_id === residentId ||
+                    m.id === residentId ||
+                    m.nome === residentName
+                );
+                if (memberObj) {
+                  targetUserId = memberObj.usuario_id;
+                }
+                if (!targetUserId || !myHouse || !user) {
+                  Alert.alert('Atenção', 'Morador não encontrado para enviar cutucada.');
+                  throw new Error('Morador não encontrado.');
+                }
                 try {
-                  let targetUserId = residentId;
-                  const memberObj = members.find(
-                    (m) =>
-                      m.usuario_id === residentId ||
-                      m.id === residentId ||
-                      m.nome === residentName
-                  );
-                  if (memberObj) {
-                    targetUserId = memberObj.usuario_id;
-                  }
-                  if (!targetUserId || !myHouse || !user) {
-                    Alert.alert('Atenção', 'Morador não encontrado para enviar cutucada.');
-                    return;
-                  }
                   await rankingService.sendNudge({
                     targetUserId,
                     targetName: residentName,
@@ -979,6 +1258,7 @@ function MainApp() {
                   );
                 } catch (err) {
                   Alert.alert('Erro ao cutucar', err instanceof Error ? err.message : 'Não foi possível registrar a cutucada.');
+                  throw err;
                 }
               }}
             />
@@ -998,8 +1278,11 @@ function MainApp() {
               onStorePress={() => setCurrentScreen('store')}
               onTasksPress={() => setCurrentScreen('tasks_list')}
               onLogoutPress={async () => {
-                await signOut();
-                setCurrentScreen('welcome');
+                try {
+                  await signOut();
+                } finally {
+                  setCurrentScreen('welcome');
+                }
               }}
             />
           )}
@@ -1017,6 +1300,7 @@ function MainApp() {
               setCurrentScreen('tasks_list');
             } catch (err: any) {
               Alert.alert('Erro ao cadastrar tarefa', err?.message || 'Falha ao salvar no banco.');
+              throw err;
             }
           }}
         />
@@ -1042,6 +1326,13 @@ function MainApp() {
               : undefined
           }
           onBackPress={() => setCurrentScreen('tasks_list')}
+          onOptionsPress={() => {
+            if (!selectedTask) return;
+            Alert.alert(
+              selectedTask.title,
+              `Tipo: ${selectedTask.type}\nCômodo: ${selectedTask.location}\nPrazo: ${selectedTask.deadline}\nRecompensa: +${selectedTask.xp} XP / ${selectedTask.points ?? 0} moedas`
+            );
+          }}
           canSubmit={!!selectedTask && selectedTask.assigneeId === user?.id}
           onSubmitValidation={async (photoUri) => {
             if (!selectedTaskId || !user || !myHouse) return;
@@ -1076,13 +1367,17 @@ function MainApp() {
                 id: selectedTask.id,
                 title: selectedTask.title,
                 executorName: selectedTask.assignee,
-                executedAt: taskValidation?.sentAt
-                  ? new Date(taskValidation.sentAt).toLocaleString('pt-BR')
-                  : '',
+                executedAt: (() => {
+                  if (!taskValidation?.sentAt) return '';
+                  const d = new Date(taskValidation.sentAt);
+                  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR');
+                })(),
                 photoUrl: taskValidation?.photoUrl,
-                photoTimestamp: taskValidation?.sentAt
-                  ? new Date(taskValidation.sentAt).toLocaleString('pt-BR')
-                  : '',
+                photoTimestamp: (() => {
+                  if (!taskValidation?.sentAt) return '';
+                  const d = new Date(taskValidation.sentAt);
+                  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR');
+                })(),
                 xp: selectedTask.xp,
                 points: selectedTask.points,
               }
@@ -1096,10 +1391,7 @@ function MainApp() {
 
       {currentScreen === 'new_expense' && (
         <NewExpenseScreen
-          membersList={approvedMembers.map((m) => ({
-            id: m.usuario_id,
-            name: m.usuario_id === user?.id ? `${m.nome || 'Você'} (Você)` : (m.nome || 'Morador'),
-          }))}
+          membersList={newExpenseMembersList}
           onBackPress={() => setCurrentScreen('expenses_list')}
           onSubmitPress={async (data) => {
             if (!user || !myHouse) {
@@ -1185,7 +1477,11 @@ function MainApp() {
           }))}
           onBackPress={() => setCurrentScreen('expenses_list')}
           onReceiptPress={() => {
-            if (selectedExpenseDetails?.receiptUrl) Linking.openURL(selectedExpenseDetails.receiptUrl);
+            if (selectedExpenseDetails?.receiptUrl) {
+              Linking.openURL(selectedExpenseDetails.receiptUrl).catch(() => {
+                Alert.alert('Comprovante indisponível', 'Não foi possível abrir o link do comprovante.');
+              });
+            }
           }}
           onNudgePress={() => {
             if (!selectedExpenseDetails) return;
@@ -1239,53 +1535,40 @@ function MainApp() {
             );
             Alert.alert('Lembrete enviado', `${debt.debtorName} foi notificado(a).`);
           }}
-          onPayPress={() => {
+          onPayDebt={async (debt) => {
             if (!user || !myHouse) return;
-            const owed = settleUpData.debts.filter((d) => d.rawAmount < 0);
-            if (owed.length === 0) {
-              Alert.alert('Nada a pagar', 'Você não possui dívidas pendentes com os moradores.');
+            const creditorId = debt.debtorId || debt.id;
+            const rawVal = Math.abs(debt.rawAmount || 0);
+            if (!creditorId || rawVal <= 0) return;
+
+            const uri = await pickImageWithPrompt('Comprovante do pagamento');
+            if (!uri) {
+              Alert.alert('Comprovante necessário', 'Anexe o comprovante para informar o pagamento.');
               return;
             }
-            const pay = async (debt: any) => {
-              const uri = await pickImageWithPrompt('Comprovante do pagamento');
-              if (!uri) {
-                Alert.alert('Comprovante necessário', 'Anexe o comprovante para informar o pagamento.');
-                return;
-              }
-              try {
-                const url = await uploadImage(uri, 'pagamentos');
-                await financeService.informPayment({
-                  moradiaId: myHouse.moradia_id,
-                  devedorId: user.id,
-                  credorId: debt.debtorId,
-                  valor: Math.abs(debt.rawAmount),
-                  comprovanteUrl: url,
-                });
-                notifyHouse(
-                  {
-                    tipo: 'Vencimento',
-                    categoryFilter: 'Finanças',
-                    titulo: 'Pagamento informado',
-                    descricao: `${profileUserData.name} informou um pagamento de ${debt.debtAmount}. Confirme o recebimento.`,
-                    actionText: 'Validar pagamento',
-                  },
-                  [debt.debtorId]
-                );
-                Alert.alert('Pagamento informado', `${debt.debtorName} precisa confirmar o recebimento.`);
-              } catch (err) {
-                Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
-              }
-            };
-            if (owed.length === 1) {
-              pay(owed[0]);
-            } else {
-              Alert.alert('Quem você pagou?', 'Selecione o morador.', [
-                ...owed.slice(0, 3).map((d) => ({
-                  text: `${d.debtorName} (${d.debtAmount})`,
-                  onPress: () => pay(d),
-                })),
-                { text: 'Cancelar', style: 'cancel' as const },
-              ]);
+            try {
+              const url = await uploadImage(uri, 'pagamentos');
+              await financeService.informPayment({
+                moradiaId: myHouse.moradia_id,
+                devedorId: user.id,
+                credorId: creditorId,
+                valor: rawVal,
+                comprovanteUrl: url,
+              });
+              notifyHouse(
+                {
+                  tipo: 'Vencimento',
+                  categoryFilter: 'Finanças',
+                  titulo: 'Pagamento informado',
+                  descricao: `${profileUserData.name} informou um pagamento de ${debt.debtAmount}. Confirme o recebimento.`,
+                  actionText: 'Validar pagamento',
+                },
+                [creditorId]
+              );
+              await loadFinanceOverview(myHouse.moradia_id);
+              Alert.alert('Pagamento informado', `${debt.debtorName} precisa confirmar o recebimento.`);
+            } catch (err) {
+              Alert.alert('Erro', err instanceof Error ? err.message : 'Tente novamente.');
             }
           }}
         />
@@ -1319,26 +1602,25 @@ function MainApp() {
           }}
           onProposePress={() => setCurrentScreen('propose_reward')}
           onRedeemPress={async (item) => {
-            if (!user || !myHouse) return;
-            try {
-              await storeService.redeemReward({
-                rewardId: item.id,
-                userId: user.id,
-                moradiaId: myHouse.moradia_id,
-                cost: item.cost,
-                rewardTitle: item.title,
-              });
-              if (myHouse.moradia_id) {
-                await loadMembers(myHouse.moradia_id);
-                await loadRanking(myHouse.moradia_id);
-                await loadStore(myHouse.moradia_id);
-              }
-            } catch (err) {
-              Alert.alert('Erro ao resgatar', err instanceof Error ? err.message : 'Não foi possível resgatar a recompensa.');
+            if (!user || !myHouse) {
+              throw new Error('Sessão ou moradia indisponível no momento.');
+            }
+            await storeService.redeemReward({
+              rewardId: item.id,
+              userId: user.id,
+              moradiaId: myHouse.moradia_id,
+              cost: item.cost,
+              rewardTitle: item.title,
+            });
+            if (myHouse.moradia_id) {
+              await loadMembers(myHouse.moradia_id, true);
+              await loadStore(myHouse.moradia_id);
             }
           }}
           onProposeSubmit={async (newItem) => {
-            if (!user || !myHouse) return;
+            if (!user || !myHouse) {
+              throw new Error('Sessão ou moradia indisponível no momento.');
+            }
             await storeService.proposeReward(
               {
                 title: newItem.title,
@@ -1364,7 +1646,9 @@ function MainApp() {
             setCurrentScreen('store');
           }}
           onSubmit={async (rewardData) => {
-            if (!user || !myHouse) return;
+            if (!user || !myHouse) {
+              throw new Error('Sessão ou moradia indisponível no momento.');
+            }
             await storeService.proposeReward(
               {
                 title: rewardData.title,
@@ -1388,7 +1672,7 @@ function MainApp() {
           onSave={async (data) => {
             const result = await profileService.updateProfile(data);
             await refreshProfile();
-            if (myHouse?.status === 'aprovado') await loadMembers(myHouse.moradia_id);
+            if (myHouse?.status === 'aprovado') await loadMembers(myHouse.moradia_id, false);
             return result;
           }}
           onSaveSuccess={() => setCurrentScreen('profile')}
@@ -1404,17 +1688,25 @@ function MainApp() {
               .filter(Boolean)
               .sort()
               .pop();
-            return latest ? new Date(latest).toLocaleDateString('pt-BR') : undefined;
+            if (!latest) return undefined;
+            const parsed = new Date(latest);
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed.toLocaleDateString('pt-BR');
           })()}
-          rules={houseRules.map((r, i): HouseRule => ({
-            id: r.id,
-            number: r.numero_ordem,
-            title: r.titulo,
-            highlight: r.destaque || '',
-            description: r.descricao,
-            iconName: (r.nome_icone as HouseRule['iconName']) || 'file-text',
-            ...RULE_COLORS[i % RULE_COLORS.length],
-          }))}
+          rules={houseRules.map((r, i): HouseRule => {
+            const safeIcon =
+              r.nome_icone && r.nome_icone in Feather.glyphMap
+                ? (r.nome_icone as HouseRule['iconName'])
+                : 'file-text';
+            return {
+              id: r.id,
+              number: r.numero_ordem,
+              title: r.titulo,
+              highlight: r.destaque || '',
+              description: r.descricao,
+              iconName: safeIcon,
+              ...RULE_COLORS[i % RULE_COLORS.length],
+            };
+          })}
           onBackPress={() => setCurrentScreen('profile')}
           canEdit={isAdmin}
           onEditPress={() => {
@@ -1449,13 +1741,34 @@ function MainApp() {
       {currentScreen === 'leave_house' && (
         <LeaveHouseScreen
           republicName={myHouse?.nome}
+          isAdmin={isAdmin}
           candidates={leaveCandidates}
           balance={numericNetBalance}
           onBackPress={() => setCurrentScreen('profile')}
           onCancelPress={() => setCurrentScreen('profile')}
-          onConfirmSuccess={async () => {
+          onConfirmSuccess={async (selectedCandidateId, password) => {
             try {
-              if (myHouse) await houseService.leaveHouse(myHouse.moradia_id);
+              if (numericNetBalance < -0.01) {
+                Alert.alert('Saldo pendente', 'Quite suas dívidas em aberto antes de sair da moradia.');
+                return;
+              }
+              if (!password || !password.trim()) {
+                Alert.alert('Senha obrigatória', 'Informe sua senha para confirmar a saída.');
+                return;
+              }
+              if (user?.email) {
+                const { error: passError } = await supabase.auth.signInWithPassword({
+                  email: user.email,
+                  password,
+                });
+                if (passError) {
+                  Alert.alert('Senha incorreta', 'A senha informada não confere com sua conta.');
+                  return;
+                }
+              }
+              if (myHouse) {
+                await houseService.leaveHouse(myHouse.moradia_id, selectedCandidateId);
+              }
               setMyHouse(null);
               setMembers([]);
               setHouseRules([]);
@@ -1474,58 +1787,74 @@ function MainApp() {
           onClearReadPress={async () => {
             if (user) {
               await notificationsService.clearReadNotifications(user.id);
-              loadNotifications();
+              await loadNotifications();
             }
           }}
           onNotificationAction={async (notification) => {
-            await notificationsService.markAsRead(notification.id);
-            loadNotifications();
-            if (notification.categoryFilter === 'Validações') {
-              await reloadTasks();
-              let targetTaskId: string | undefined;
-              if (notification.extraMeta) {
-                try {
-                  if (notification.extraMeta.startsWith('{')) {
-                    const parsed = JSON.parse(notification.extraMeta);
-                    targetTaskId = parsed.taskId;
-                  }
-                } catch {
-                  // ignorar erro de parsing se extraMeta for texto plano
-                }
-              }
-              const allTasks = await tasksService.fetchTasks(myHouse?.moradia_id, user?.id);
-              const pending = targetTaskId
-                ? allTasks.find((t) => t.id === targetTaskId) ||
-                  allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você')
-                : allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você');
+            try {
+              await notificationsService.markAsRead(notification.id);
+              loadNotifications();
 
-              if (pending) {
-                setSelectedTaskId(pending.id);
-                setTaskValidation(null);
-                setCurrentScreen('task_validation');
-                setTaskValidation(await tasksService.getPendingValidation(pending.id));
+              if (notification.actionText === 'Ver na loja') {
+                if (myHouse?.moradia_id) await loadStore(myHouse.moradia_id);
+                setCurrentScreen('store');
+                return;
+              }
+
+              if (notification.categoryFilter === 'Validações') {
+                await reloadTasks();
+                let targetTaskId: string | undefined;
+                if (notification.extraMeta) {
+                  try {
+                    if (notification.extraMeta.startsWith('{')) {
+                      const parsed = JSON.parse(notification.extraMeta);
+                      targetTaskId = parsed.taskId;
+                    }
+                  } catch {
+                    // ignorar erro de parsing se extraMeta for texto plano
+                  }
+                }
+                const allTasks = await tasksService.fetchTasks(myHouse?.moradia_id, user?.id);
+                const matchedTarget = targetTaskId ? allTasks.find((t) => t.id === targetTaskId) : undefined;
+                const pending =
+                  matchedTarget &&
+                  matchedTarget.status === 'Aguardando validação' &&
+                  matchedTarget.assignee !== 'Você'
+                    ? matchedTarget
+                    : allTasks.find((t) => t.status === 'Aguardando validação' && t.assignee !== 'Você');
+
+                if (pending) {
+                  setSelectedTaskId(pending.id);
+                  setTaskValidation(null);
+                  setCurrentScreen('task_validation');
+                  setTaskValidation(await tasksService.getPendingValidation(pending.id));
+                } else if (matchedTarget) {
+                  openTask(matchedTarget.id);
+                } else {
+                  setCurrentScreen('tasks_list');
+                }
+              } else if (notification.categoryFilter === 'Finanças') {
+                if (myHouse?.moradia_id) {
+                  loadExpenses(myHouse.moradia_id);
+                  loadFinanceOverview(myHouse.moradia_id);
+                }
+                setCurrentScreen(
+                  notification.actionText === 'Validar pagamento' || notification.actionText === 'Ver acertos'
+                    ? 'settle_up'
+                    : 'expenses_list'
+                );
               } else {
                 setCurrentScreen('tasks_list');
               }
-            } else if (notification.categoryFilter === 'Finanças') {
-              if (myHouse?.moradia_id) {
-                loadExpenses(myHouse.moradia_id);
-                loadFinanceOverview(myHouse.moradia_id);
-              }
-              setCurrentScreen(
-                notification.actionText === 'Validar pagamento' || notification.actionText === 'Ver acertos'
-                  ? 'settle_up'
-                  : 'expenses_list'
-              );
-            } else {
-              setCurrentScreen('tasks_list');
+            } catch (err) {
+              Alert.alert('Erro', err instanceof Error ? err.message : 'Não foi possível abrir a notificação.');
             }
           }}
         />
       )}
 
       {isMainTabScreen && (
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom + 8, Platform.OS === 'ios' ? 32 : 20) }]}>
           <TouchableOpacity
             style={styles.navTab}
             activeOpacity={0.7}
@@ -1637,9 +1966,11 @@ function MainApp() {
  */
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

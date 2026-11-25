@@ -7,10 +7,12 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
   StatusBar as RNStatusBar,
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -54,6 +56,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   const [limit, setLimit] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const categories: RewardCategory[] = [
     'Folga',
@@ -62,13 +65,15 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   ];
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!title.trim()) {
       Alert.alert('Atenção', 'Informe o título da recompensa.');
       return;
     }
-    const costNum = Number(cost.trim());
-    if (!cost.trim() || isNaN(costNum) || costNum <= 0) {
-      Alert.alert('Atenção', 'Informe um valor válido e positivo em moedas.');
+    const normalizedCost = cost.trim().replace(',', '.');
+    const costNum = Number(normalizedCost);
+    if (!normalizedCost || !Number.isInteger(costNum) || costNum <= 0) {
+      Alert.alert('Atenção', 'Informe um número inteiro válido e positivo em moedas.');
       return;
     }
 
@@ -86,7 +91,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
 
       Alert.alert(
         'Recompensa Proposta!',
-        `A recompensa "${title}" foi adicionada à loja da república.`,
+        `A recompensa "${title.trim()}" foi adicionada à loja da república.`,
         [
           {
             text: 'OK',
@@ -96,7 +101,8 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
               }
             },
           },
-        ]
+        ],
+        { cancelable: false }
       );
     } catch (err) {
       Alert.alert(
@@ -109,7 +115,10 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.glowTop}>
         <Svg width="340" height="340" viewBox="0 0 340 340">
           <Defs>
@@ -148,6 +157,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
@@ -202,7 +212,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
             <TextInput
               style={styles.costInput}
               value={cost}
-              onChangeText={setCost}
+              onChangeText={(t) => setCost(t.replace(/[^0-9]/g, ''))}
               keyboardType="numeric"
               placeholder="75"
               placeholderTextColor="#84828F"
@@ -244,7 +254,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'android' ? 24 : 20) }]}>
         <TouchableOpacity
           style={[styles.submitButton, isSubmitting && { opacity: 0.6 }]}
           activeOpacity={0.8}
@@ -256,7 +266,7 @@ export const ProposeRewardScreen: React.FC<ProposeRewardScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -264,7 +274,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {
     position: 'absolute',

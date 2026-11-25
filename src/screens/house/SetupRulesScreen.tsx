@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 
@@ -35,7 +36,7 @@ export interface SetupRulesScreenProps {
   /** Callback para voltar à tela anterior */
   onBackPress?: () => void;
   /** Callback de submissão do conjunto de regras configuradas */
-  onSubmit?: (rules: RuleItem[]) => void;
+  onSubmit?: (rules: RuleItem[]) => Promise<void> | void;
 }
 
 /**
@@ -49,8 +50,18 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
   onBackPress,
   onSubmit,
 }) => {
+  const insets = useSafeAreaInsets();
   const [rules, setRules] = useState<RuleItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const ruleSeqRef = useRef(1);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const updateRuleTitle = (id: string, text: string) => {
     setRules((prev) =>
@@ -65,7 +76,7 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
   };
 
   const handleAddRule = () => {
-    const newId = String(Date.now());
+    const newId = `rule-${ruleSeqRef.current++}`;
     setRules((prev) => [
       ...prev,
       {
@@ -97,7 +108,17 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
       </Svg>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop:
+              Math.max(
+                insets.top,
+                Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
+              ) + 12,
+            paddingBottom: Math.max(insets.bottom, 20) + 16,
+          },
+        ]}
         bounces={false}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -209,7 +230,11 @@ export const SetupRulesScreen: React.FC<SetupRulesScreenProps> = ({
                   await onSubmit(rules);
                 }
               } catch {
-                setIsSubmitting(false);
+                // erro tratado pelo caller
+              } finally {
+                if (mountedRef.current) {
+                  setIsSubmitting(false);
+                }
               }
             }}
           >

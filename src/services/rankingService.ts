@@ -35,107 +35,111 @@ export const rankingService = {
     moradiaId: string,
     currentUserId?: string
   ): Promise<ResidentRankingItem[]> {
-    try {
-      if (!moradiaId) return [];
+    if (!moradiaId) return [];
 
-      // 1. Busca os membros da moradia (suporta 'aprovado', 'ativo' ou legado sem status)
-      const { data: membros, error: membError } = await supabase
-        .from('membros_moradia')
-        .select('id, usuario_id, papel, status, nivel, xp, moedas, entrou_em')
-        .eq('moradia_id', moradiaId);
+    // 1. Busca os membros da moradia (suporta 'aprovado', 'ativo' ou legado sem status)
+    const { data: membros, error: membError } = await supabase
+      .from('membros_moradia')
+      .select('id, usuario_id, papel, status, nivel, xp, moedas, entrou_em')
+      .eq('moradia_id', moradiaId);
 
-      if (membError || !membros) {
-        console.warn('rankingService.fetchRanking: Erro ao listar membros:', membError?.message);
-        return [];
-      }
+    if (membError) {
+      console.warn('rankingService.fetchRanking: Erro ao listar membros:', membError.message);
+      throw new Error(membError.message || 'Falha ao carregar o ranking.');
+    }
 
-      const membrosAtivos = membros.filter(
-        (m) => m.status === 'aprovado' || m.status === 'ativo' || !m.status
-      );
+    const membrosAtivos = (membros || []).filter(
+      (m) => m.status === 'aprovado' || m.status === 'ativo' || !m.status
+    );
 
-      if (membrosAtivos.length === 0) {
-        return [];
-      }
-
-      // 2. Busca nomes e perfis dos membros
-      const userIds = membrosAtivos.map((m) => m.usuario_id);
-      const { data: perfis } = await supabase
-        .from('perfis')
-        .select('id, nome_completo, email')
-        .in('id', userIds);
-
-      const perfilMap = new Map<string, { nome_completo: string; email: string }>();
-      (perfis || []).forEach((p) => {
-        perfilMap.set(p.id, p);
-      });
-
-      // 3. Busca tarefas da moradia para contabilizar conclusões e pendências reais
-      const { data: tarefas } = await supabase
-        .from('tarefas')
-        .select('id, responsavel_id, status')
-        .eq('moradia_id', moradiaId);
-
-      const tarefasList = tarefas || [];
-
-      // 4. Mapeia cada morador com contadores reais
-      const mapped = membrosAtivos.map((m) => {
-        const perfil = perfilMap.get(m.usuario_id);
-        const nome = perfil?.nome_completo || 'Morador';
-
-        // Tarefas concluídas por este morador
-        const completedCount = tarefasList.filter(
-          (t) =>
-            t.responsavel_id === m.usuario_id &&
-            (t.status === 'concluida' || t.status === 'Concluída')
-        ).length;
-
-        // Tarefas pendentes aguardando este morador
-        const pendingCount = tarefasList.filter(
-          (t) =>
-            t.responsavel_id === m.usuario_id &&
-            (t.status === 'pendente' || t.status === 'Pendente')
-        ).length;
-
-        return {
-          id: m.id,
-          userId: m.usuario_id,
-          name: nome,
-          initials: getInitials(nome),
-          isCurrentUser: m.usuario_id === currentUserId,
-          tasksCompleted: completedCount,
-          coins: m.moedas || 0,
-          xp: m.xp || 0,
-          level: m.nivel || calculateLevel(m.xp || 0),
-          pendingTasksCount: pendingCount,
-          highlightNudge: pendingCount > 0,
-        };
-      });
-
-      // 5. Ordena por XP decrescente (desempate por tarefas concluídas)
-      mapped.sort((a, b) => {
-        if (b.xp !== a.xp) return b.xp - a.xp;
-        return b.tasksCompleted - a.tasksCompleted;
-      });
-
-      // 6. Atribui a posição no ranking (1º, 2º, ...)
-      return mapped.map((item, index) => ({
-        id: item.id,
-        userId: item.userId,
-        rank: index + 1,
-        name: item.name,
-        initials: item.initials,
-        isCurrentUser: item.isCurrentUser,
-        tasksCompleted: item.tasksCompleted,
-        coins: item.coins,
-        xp: item.xp,
-        level: item.level,
-        pendingTasksCount: item.pendingTasksCount,
-        highlightNudge: item.highlightNudge,
-      }));
-    } catch (err) {
-      console.warn('rankingService.fetchRanking: exceção capturada:', err);
+    if (membrosAtivos.length === 0) {
       return [];
     }
+
+    // 2. Busca nomes e perfis dos membros
+    const userIds = membrosAtivos.map((m) => m.usuario_id);
+    const { data: perfis, error: perfisError } = await supabase
+      .from('perfis')
+      .select('id, nome_completo, email')
+      .in('id', userIds);
+
+    if (perfisError) {
+      console.warn('rankingService.fetchRanking: Aviso ao buscar perfis:', perfisError.message);
+    }
+
+    const perfilMap = new Map<string, { nome_completo: string; email: string }>();
+    (perfis || []).forEach((p) => {
+      perfilMap.set(p.id, p);
+    });
+
+    // 3. Busca tarefas da moradia para contabilizar conclusões e pendências reais
+    const { data: tarefas, error: tarefasError } = await supabase
+      .from('tarefas')
+      .select('id, responsavel_id, status')
+      .eq('moradia_id', moradiaId);
+
+    if (tarefasError) {
+      console.warn('rankingService.fetchRanking: Aviso ao buscar tarefas:', tarefasError.message);
+    }
+
+    const tarefasList = tarefas || [];
+
+    // 4. Mapeia cada morador com contadores reais
+    const mapped = membrosAtivos.map((m) => {
+      const perfil = perfilMap.get(m.usuario_id);
+      const nome = perfil?.nome_completo || 'Morador';
+
+      // Tarefas concluídas por este morador
+      const completedCount = tarefasList.filter(
+        (t) =>
+          t.responsavel_id === m.usuario_id &&
+          (t.status === 'concluida' || t.status === 'Concluída')
+      ).length;
+
+      // Tarefas pendentes aguardando este morador
+      const pendingCount = tarefasList.filter(
+        (t) =>
+          t.responsavel_id === m.usuario_id &&
+          (t.status === 'pendente' || t.status === 'Pendente')
+      ).length;
+
+      const xp = m.xp || 0;
+      return {
+        id: m.id,
+        userId: m.usuario_id,
+        name: nome,
+        initials: getInitials(nome),
+        isCurrentUser: m.usuario_id === currentUserId,
+        tasksCompleted: completedCount,
+        coins: m.moedas || 0,
+        xp,
+        level: Math.max(m.nivel || 1, calculateLevel(xp)),
+        pendingTasksCount: pendingCount,
+        highlightNudge: pendingCount > 0,
+      };
+    });
+
+    // 5. Ordena por XP decrescente (desempate por tarefas concluídas)
+    mapped.sort((a, b) => {
+      if (b.xp !== a.xp) return b.xp - a.xp;
+      return b.tasksCompleted - a.tasksCompleted;
+    });
+
+    // 6. Atribui a posição no ranking (1º, 2º, ...)
+    return mapped.map((item, index) => ({
+      id: item.id,
+      userId: item.userId,
+      rank: index + 1,
+      name: item.name,
+      initials: item.initials,
+      isCurrentUser: item.isCurrentUser,
+      tasksCompleted: item.tasksCompleted,
+      coins: item.coins,
+      xp: item.xp,
+      level: item.level,
+      pendingTasksCount: item.pendingTasksCount,
+      highlightNudge: item.highlightNudge,
+    }));
   },
 
   /**
@@ -155,30 +159,30 @@ export const rankingService = {
 
       let { error } = await supabase.from('notificacoes').insert({
         moradia_id: moradiaId,
-        destinatario_id: targetUserId,
+        usuario_id: targetUserId,
         remetente_id: senderUserId || null,
         tipo: 'Cutucada',
-        filtro_categoria: 'Cutucadas',
+        category_filter: 'Cutucadas',
         titulo: 'Cutucada de Tarefas!',
         descricao: `${senderName || 'Um morador'} te cutucou no ranking! Você tem tarefas pendentes na residência.`,
-        texto_acao: 'Ver tarefas',
-        tipo_acao: 'primaria',
-        metadados_extras: 'Ranking da casa',
+        action_text: 'Ver tarefas',
+        extra_meta: 'Ranking da casa',
+        has_coin_icon: false,
         lida: false,
       });
 
-      if (error && error.code === '42703') {
+      if (error && (error.code === '42703' || error.code === 'PGRST204')) {
         const retry = await supabase.from('notificacoes').insert({
           moradia_id: moradiaId,
-          usuario_id: targetUserId,
+          destinatario_id: targetUserId,
           remetente_id: senderUserId || null,
           tipo: 'Cutucada',
-          category_filter: 'Cutucadas',
+          filtro_categoria: 'Cutucadas',
           titulo: 'Cutucada de Tarefas!',
           descricao: `${senderName || 'Um morador'} te cutucou no ranking! Você tem tarefas pendentes na residência.`,
-          action_text: 'Ver tarefas',
-          extra_meta: 'Ranking da casa',
-          has_coin_icon: false,
+          texto_acao: 'Ver tarefas',
+          tipo_acao: 'primaria',
+          metadados_extras: 'Ranking da casa',
           lida: false,
         });
         error = retry.error;

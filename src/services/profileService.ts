@@ -103,8 +103,11 @@ export const profileService = {
 
     let senhaAlterada = false;
     if (novaSenha) {
+      if (!authUser.email) {
+        throw new Error('E-mail atual da conta indisponível para validar a senha.');
+      }
       const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email: authUser.email || email,
+        email: authUser.email,
         password: senhaAtual,
       });
       if (reauthError) {
@@ -120,16 +123,24 @@ export const profileService = {
 
     const { error: perfilError } = await supabase
       .from('perfis')
-      .update({
-        nome_completo: nome,
-        chave_pix: pix || null,
-      })
-      .eq('id', authUser.id);
+      .upsert(
+        {
+          id: authUser.id,
+          nome_completo: nome,
+          email: authUser.email || email,
+          chave_pix: pix || null,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
     if (perfilError) {
       throw toError(perfilError, 'Não foi possível salvar os dados do perfil.');
     }
 
-    await supabase.auth.updateUser({ data: { full_name: nome } });
+    const { error: metaError } = await supabase.auth.updateUser({ data: { full_name: nome } });
+    if (metaError) {
+      console.warn('profileService.updateProfile aviso metadata:', metaError.message);
+    }
 
     let emailPendente = false;
     if (email !== (authUser.email || '').toLowerCase()) {
@@ -139,7 +150,13 @@ export const profileService = {
       }
 
       if (updated.user?.email?.toLowerCase() === email) {
-        await supabase.from('perfis').update({ email }).eq('id', authUser.id);
+        const { error: emailSyncError } = await supabase
+          .from('perfis')
+          .update({ email, atualizado_em: new Date().toISOString() })
+          .eq('id', authUser.id);
+        if (emailSyncError) {
+          throw toError(emailSyncError, 'Não foi possível sincronizar o e-mail no perfil.');
+        }
       } else {
         emailPendente = true;
       }

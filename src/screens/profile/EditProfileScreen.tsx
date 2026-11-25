@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
   StatusBar as RNStatusBar,
   Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Colors } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +48,19 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (profile?.nome_completo && !name) {
+      setName(profile.nome_completo);
+    }
+    if ((user?.email || profile?.email) && !email) {
+      setEmail(user?.email || profile?.email || '');
+    }
+    if (profile?.chave_pix !== undefined && !pixKey) {
+      setPixKey(profile.chave_pix || '');
+    }
+  }, [profile, user?.email]);
 
   const initials =
     name
@@ -96,7 +111,8 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
       Alert.alert(
         'Perfil Atualizado',
         ['Suas alterações foram salvas com sucesso!', ...detalhes].join('\n\n'),
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }],
+        { cancelable: false }
       );
     } catch (err) {
       Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao salvar o perfil.');
@@ -106,7 +122,10 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.glowTop}>
         <Svg width="340" height="340" viewBox="0 0 340 340">
           <Defs>
@@ -145,6 +164,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.avatarSection}>
@@ -217,7 +237,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, Platform.OS === 'android' ? 24 : 20) }]}>
         <TouchableOpacity
           style={[styles.saveButton, saving && { opacity: 0.7 }]}
           activeOpacity={0.8}
@@ -229,7 +249,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -237,7 +257,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FCFCFC',
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 44,
+    paddingTop: Platform.OS === 'android' ? (RNStatusBar.currentHeight || 24) : 44,
   },
   glowTop: {
     position: 'absolute',

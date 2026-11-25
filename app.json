@@ -14,16 +14,20 @@
       "backgroundColor": "#5E2B97"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.splithouse"
     },
     "android": {
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#5E2B97",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-foreground.png"
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.splithouse"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,7 +35,44 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "expo-status-bar"
-    ]
+      [
+        "expo-status-bar",
+        {
+          "style": "dark"
+        }
+      ],
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#5E2B97",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O SplitHouse precisa acessar suas fotos para anexar comprovantes.",
+          "cameraPermission": "O SplitHouse precisa da câmera para fotografar comprovantes e tarefas.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O SplitHouse precisa da câmera para escanear o QR Code da moradia.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "36535b34-f385-435d-9b13-3b0c915ea99f"
+      }
+    },
+    "owner": "limalimoeiro"
   }
 }

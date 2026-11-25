@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.rateios_despesa (
     valor_parte NUMERIC(10, 2) NOT NULL CHECK (valor_parte >= 0),
     status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago')),
     pago_em TIMESTAMPTZ,
+    criado_em TIMESTAMPTZ DEFAULT now(),
     UNIQUE (despesa_id, usuario_id)
 );
 

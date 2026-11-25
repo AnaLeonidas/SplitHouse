@@ -37,7 +37,7 @@ export interface TarefaDB {
   /** Identificador único da tarefa (UUID) */
   id: string;
   /** Identificador da moradia à qual a tarefa pertence */
-  moradia_id: string;
+  moradia_id: string | null;
   /** Título descritivo da atividade */
   titulo: string;
   /** Descrição detalhada das orientações da tarefa */
@@ -46,21 +46,27 @@ export interface TarefaDB {
   comodo: string;
   /** Tipologia de rotatividade da tarefa */
   tipo: 'Rotativa' | 'Fixa' | 'Emergencial';
-  /** UUID do morador atribuído como responsável (referencia public.perfis.id) */
-  responsavel_id: string;
-  /** Dados do perfil do responsável obtidos via join */
+  /** UUID do morador atribuído como responsável (referencia auth.users.id) */
+  responsavel_id: string | null;
+  /** Nome em cache do responsável (esquema legado) */
+  responsavel_nome?: string | null;
+  /** Dados do perfil do responsável obtidos via consulta em 'perfis' */
   responsavel?: TarefaResponsavelResumo | null;
+  /** Texto de prazo amigável (esquema legado) */
+  prazo?: string | null;
   /** Prazo limite de conclusão (timestamptz) */
-  prazo_limite: string;
+  prazo_limite: string | null;
   /** Quantidade de pontos de experiência (XP) concedidos */
   recompensa_xp: number;
   /** Quantidade de moedas distribuídas */
   recompensa_moedas: number;
   /** Indica se a conclusão requer validação por pares com foto */
   requer_validacao: boolean;
+  /** Informações do executor em validação */
+  executor_info?: string | null;
   /** Estado atual da tarefa no banco */
-  status: 'pendente' | 'em_validacao' | 'concluida' | 'expirada';
-  /** UUID do criador da tarefa (referencia public.perfis.id) */
+  status: 'pendente' | 'em_validacao' | 'concluida' | 'expirada' | 'Pendente' | 'Concluída' | 'Aguardando validação';
+  /** UUID do criador da tarefa (referencia auth.users.id) */
   criado_por?: string | null;
   /** Timestamp de criação do registro */
   criado_em?: string;

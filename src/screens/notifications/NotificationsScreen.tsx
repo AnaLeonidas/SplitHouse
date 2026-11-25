@@ -50,9 +50,9 @@ export interface NotificationsScreenProps {
   /** Lista dinâmica de notificações do Supabase */
   notifications?: NotificationItem[];
   /** Callback disparado ao clicar no botão de ação de um item */
-  onNotificationAction?: (notification: NotificationItem) => void;
+  onNotificationAction?: (notification: NotificationItem) => Promise<void> | void;
   /** Callback para limpar as notificações já lidas */
-  onClearReadPress?: () => void;
+  onClearReadPress?: () => Promise<void> | void;
 }
 
 /**
@@ -99,6 +99,8 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
     setNotifications(initialNotifications ?? []);
   }, [initialNotifications]);
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('Todas');
+  const [busyNotificationId, setBusyNotificationId] = useState<string | null>(null);
+  const [clearingRead, setClearingRead] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -112,24 +114,42 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
       ? notifications
       : notifications.filter((n) => n.categoryFilter === activeFilter);
 
-  const handleClearRead = () => {
+  const handleClearRead = async () => {
+    if (clearingRead) return;
     const hasRead = notifications.some((n) => n.isRead);
     if (!hasRead) {
       Alert.alert('Sem notificações lidas', 'Todas as notificações ainda não foram lidas.');
       return;
     }
+    const previous = notifications;
     setNotifications((prev) => prev.filter((n) => !n.isRead));
     if (onClearReadPress) {
-      onClearReadPress();
+      try {
+        setClearingRead(true);
+        await onClearReadPress();
+      } catch (err) {
+        setNotifications(previous);
+        Alert.alert('Erro', err instanceof Error ? err.message : 'Não foi possível limpar as notificações.');
+      } finally {
+        setClearingRead(false);
+      }
     }
   };
 
-  const handleAction = (item: NotificationItem) => {
+  const handleAction = async (item: NotificationItem) => {
+    if (busyNotificationId) return;
     setNotifications((prev) =>
       prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
     );
     if (onNotificationAction) {
-      onNotificationAction(item);
+      try {
+        setBusyNotificationId(item.id);
+        await onNotificationAction(item);
+      } catch (err) {
+        Alert.alert('Erro', err instanceof Error ? err.message : 'Não foi possível abrir a notificação.');
+      } finally {
+        setBusyNotificationId(null);
+      }
     } else {
       Alert.alert(item.title, item.description);
     }

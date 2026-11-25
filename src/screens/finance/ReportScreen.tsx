@@ -7,6 +7,7 @@ import {
     ScrollView,
     Platform,
     StatusBar as RNStatusBar,
+    Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
@@ -61,12 +62,23 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                         <Feather name="chevron-left" size={22} color={Colors.text} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.monthSelector}>
+                    <TouchableOpacity
+                        style={styles.monthSelector}
+                        onPress={() => Alert.alert('Período', 'Exibindo todas as movimentações do ciclo atual.')}
+                    >
                         <Text style={styles.monthText}>Mês Atual</Text>
                         <Feather name="chevron-down" size={16} color={Colors.text} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.backButton}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() =>
+                            Alert.alert(
+                                'Resumo do Relatório',
+                                `Total da casa: R$ ${totalAmount}\nMédia por morador: R$ ${averagePerResident}\nLançamentos recentes: ${history.length}`
+                            )
+                        }
+                    >
                         <Feather name="download" size={18} color={Colors.textSecondary} />
                     </TouchableOpacity>
                 </View>

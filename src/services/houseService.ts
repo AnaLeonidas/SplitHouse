@@ -98,21 +98,30 @@ export const houseService = {
     }
 
     const qtd = parseInt(input.residentsCount, 10);
-    const { data: moradia, error } = await supabase
-      .from('moradias')
-      .insert({
-        nome: input.name.trim(),
-        endereco: input.address.trim(),
-        tipo: input.type === 'house' ? 'casa' : 'apartamento',
-        estimativa_moradores: Number.isNaN(qtd) ? null : qtd,
-        codigo_convite: codigo,
-        criado_por: userId,
-      })
-      .select()
-      .single();
+    let moradia: any = null;
+    let lastError: any = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const codeAttempt = attempt === 0 ? codigo : randomCode();
+      const res = await supabase
+        .from('moradias')
+        .insert({
+          nome: input.name.trim(),
+          endereco: input.address.trim(),
+          tipo: input.type === 'house' ? 'casa' : 'apartamento',
+          estimativa_moradores: Number.isNaN(qtd) ? null : qtd,
+          codigo_convite: codeAttempt,
+          criado_por: userId,
+        })
+        .select()
+        .single();
+      moradia = res.data;
+      lastError = res.error;
+      if (!lastError && moradia) break;
+      if (lastError?.code !== '23505') break;
+    }
 
-    if (error || !moradia) {
-      throw toError(error, 'Não foi possível cadastrar a moradia.');
+    if (lastError || !moradia) {
+      throw toError(lastError, 'Não foi possível cadastrar a moradia.');
     }
 
     const { error: memberError } = await supabase.from('membros_moradia').insert({
@@ -177,12 +186,16 @@ export const houseService = {
     }
 
     // Cancela solicitações pendentes anteriores em outras moradias para não haver múltiplos vínculos conflitantes
-    await supabase
+    const { error: cancelPrevError } = await supabase
       .from('membros_moradia')
       .update({ status: 'recusado' })
       .eq('usuario_id', userId)
       .eq('status', 'pendente')
       .neq('moradia_id', moradia.id);
+
+    if (cancelPrevError) {
+      throw toError(cancelPrevError, 'Não foi possível atualizar sua solicitação anterior.');
+    }
 
     const mesmoLugar = existentes.find((v) => v.moradia_id === moradia.id);
     if (mesmoLugar) {
@@ -298,13 +311,15 @@ export const houseService = {
    * @param approve true para aprovar, false para recusar.
    */
   async respondRequest(membroId: string, approve: boolean): Promise<void> {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('membros_moradia')
       .update({ status: approve ? 'aprovado' : 'recusado' })
       .eq('id', membroId)
-      .eq('status', 'pendente');
+      .eq('status', 'pendente')
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !data) {
       throw toError(error, 'Não foi possível responder à solicitação.');
     }
   },
@@ -363,7 +378,15 @@ export const houseService = {
     );
     if (error) {
       if (existingRules && existingRules.length > 0) {
-        await supabase.from('regras_moradia').insert(existingRules);
+        const sanitized = existingRules.map((r: any, idx: number) => ({
+          moradia_id: r.moradia_id,
+          numero_ordem: r.numero_ordem ?? idx + 1,
+          titulo: r.titulo,
+          destaque: r.destaque ?? null,
+          descricao: r.descricao,
+          nome_icone: r.nome_icone ?? 'file-text',
+        }));
+        await supabase.from('regras_moradia').insert(sanitized);
       }
       throw toError(error, 'Não foi possível salvar as regras.');
     }
@@ -371,11 +394,12 @@ export const houseService = {
 
   /**
    * Remove o usuário da moradia (status 'saiu'), também usado para cancelar solicitação pendente.
-   * Se for o único admin e restarem moradores aprovados, o mais antigo vira admin.
+   * Se for o único admin e restarem moradores aprovados, promove o sucessor escolhido (ou o mais antigo).
    *
    * @param moradiaId UUID da moradia.
+   * @param nextAdminMemberId UUID opcional do registro em membros_moradia do próximo administrador.
    */
-  async leaveHouse(moradiaId: string): Promise<void> {
+  async leaveHouse(moradiaId: string, nextAdminMemberId?: string): Promise<void> {
     const userId = await currentUserId();
 
     const { data: meu, error } = await supabase
@@ -390,34 +414,52 @@ export const houseService = {
     }
 
     const vinculo = meu as MembroMoradiaDB;
+
+    // Se o administrador atual sair e houver outros moradores, promove o sucessor ANTES de perder o papel admin no RLS
+    if (vinculo.status === 'aprovado' && vinculo.papel === 'admin') {
+      const { data: restantes, error: restError } = await supabase
+        .from('membros_moradia')
+        .select('id, papel')
+        .eq('moradia_id', moradiaId)
+        .eq('status', 'aprovado')
+        .neq('id', vinculo.id)
+        .order('entrou_em', { ascending: true });
+
+      if (restError) {
+        throw toError(restError, 'Não foi possível verificar os moradores restantes.');
+      }
+
+      const lista = (restantes || []) as Pick<MembroMoradiaDB, 'id' | 'papel'>[];
+      if (lista.length > 0 && !lista.some((m) => m.papel === 'admin')) {
+        const successor = nextAdminMemberId
+          ? lista.find((m) => m.id === nextAdminMemberId)
+          : lista[0];
+
+        if (!successor) {
+          throw new Error('Selecione um morador válido para assumir a administração.');
+        }
+
+        const { data: promoted, error: promoteError } = await supabase
+          .from('membros_moradia')
+          .update({ papel: 'admin' })
+          .eq('id', successor.id)
+          .eq('status', 'aprovado')
+          .select('id')
+          .single();
+
+        if (promoteError || !promoted) {
+          console.warn('houseService.leaveHouse: Falha ao promover novo administrador:', promoteError?.message);
+          throw toError(promoteError, 'Falha ao transferir a administração da moradia para o próximo morador.');
+        }
+      }
+    }
+
     const { error: upError } = await supabase
       .from('membros_moradia')
       .update({ status: 'saiu', papel: 'morador' })
       .eq('id', vinculo.id);
     if (upError) {
       throw toError(upError, 'Não foi possível sair da moradia.');
-    }
-
-    if (vinculo.status === 'aprovado' && vinculo.papel === 'admin') {
-      const { data: restantes } = await supabase
-        .from('membros_moradia')
-        .select('id, papel')
-        .eq('moradia_id', moradiaId)
-        .eq('status', 'aprovado')
-        .order('entrou_em', { ascending: true });
-
-      const lista = (restantes || []) as Pick<MembroMoradiaDB, 'id' | 'papel'>[];
-      if (lista.length > 0 && !lista.some((m) => m.papel === 'admin')) {
-        const { error: promoteError } = await supabase
-          .from('membros_moradia')
-          .update({ papel: 'admin' })
-          .eq('id', lista[0].id);
-
-        if (promoteError) {
-          console.warn('houseService.leaveHouse: Falha ao promover novo administrador:', promoteError.message);
-          throw toError(promoteError, 'Falha ao transferir a administração da moradia para o próximo morador.');
-        }
-      }
     }
   },
 
@@ -427,13 +469,15 @@ export const houseService = {
    * @param memberId UUID do registro em membros_moradia.
    */
   async removeMember(memberId: string): Promise<void> {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('membros_moradia')
-      .update({ status: 'saiu' })
+      .update({ status: 'saiu', papel: 'morador' })
       .eq('id', memberId)
-      .eq('status', 'aprovado');
+      .eq('status', 'aprovado')
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !data) {
       throw toError(error, 'Não foi possível remover o morador da moradia.');
     }
   },
@@ -444,13 +488,15 @@ export const houseService = {
    * @param memberId UUID do registro em membros_moradia.
    */
   async promoteToAdmin(memberId: string): Promise<void> {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('membros_moradia')
       .update({ papel: 'admin' })
       .eq('id', memberId)
-      .eq('status', 'aprovado');
+      .eq('status', 'aprovado')
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !data) {
       throw toError(error, 'Não foi possível promover o morador a administrador.');
     }
   },

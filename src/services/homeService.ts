@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { HomeDashboardData, Perfil } from '../types/database';
 import { tasksService } from './tasksService';
 import { financeService } from './financeService';
+import { rankingService } from './rankingService';
 import { TaskItem } from '../screens/tasks/TasksListScreen';
 
 /**
@@ -66,27 +67,46 @@ export const homeService = {
       }
     }
 
+    let userLevel = 1;
+    let leaderName = nome;
+    let leaderXp = 0;
+
+    if (houseId) {
+      try {
+        const ranking = await rankingService.fetchRanking(houseId, currentProfile?.id);
+        if (ranking.length > 0) {
+          leaderName = ranking[0].name;
+          leaderXp = ranking[0].xp;
+          const me = ranking.find((r) => r.userId === currentProfile?.id);
+          if (me) userLevel = me.level;
+        }
+      } catch {
+        // Fallback para valores padrão caso o ranking não carregue
+      }
+    }
+
     const defaultData: HomeDashboardData = {
       userName: nome,
       userInitials: initials,
-      userLevel: 1,
+      userLevel,
       houseName: houseName || 'Sua Moradia',
       balanceAmount,
       balanceStatus,
       debtorText,
       debtorAmount,
-      leaderName: nome,
-      leaderXp: 0,
+      leaderName,
+      leaderXp,
     };
 
     try {
-      const allTasks = await tasksService.fetchTasks(houseId);
+      const allTasks = await tasksService.fetchTasks(houseId, currentProfile?.id);
 
       const todayTasks = allTasks.filter((t) => {
-        const prazo = t.deadline.toLowerCase();
+        const prazo = (t.deadline || '').toLowerCase();
         return (
+          t.assignee === 'Você' &&
           t.status !== 'Concluída' &&
-          (prazo.includes('hoje') || prazo.includes('14:00') || prazo.includes('19:00')) &&
+          prazo.includes('hoje') &&
           !prazo.includes('amanhã')
         );
       });

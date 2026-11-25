@@ -36,6 +36,7 @@ export function formatTimeAgo(isoString?: string | null): string {
   if (!isoString) return 'Agora';
   try {
     const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return 'Recente';
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
@@ -152,44 +153,39 @@ export const notificationsService = {
    * @returns Lista de notificações formatadas da mais recente para a mais antiga.
    */
   async fetchNotifications(userId: string, moradiaId?: string): Promise<NotificationItem[]> {
-    try {
-      if (!userId) return [];
+    if (!userId) return [];
 
-      // Consulta por destinatario_id (esquema do banco existente) ou usuario_id (fallback)
-      let { data, error } = await supabase
+    // Consulta canônica por usuario_id (com fallback para esquema legado destinatario_id)
+    let { data, error } = await supabase
+      .from('notificacoes')
+      .select('*')
+      .eq('usuario_id', userId)
+      .order('criado_em', { ascending: false });
+
+    if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+      const retry = await supabase
         .from('notificacoes')
         .select('*')
         .eq('destinatario_id', userId)
         .order('criado_em', { ascending: false });
+      data = retry.data;
+      error = retry.error;
+    }
 
-      if (error && error.code === '42703') {
-        const retry = await supabase
-          .from('notificacoes')
-          .select('*')
-          .eq('usuario_id', userId)
-          .order('criado_em', { ascending: false });
-        data = retry.data;
-        error = retry.error;
-      }
-
-      if (error) {
-        console.error('notificationsService.fetchNotifications erro:', error.message, error.details);
-        return [];
-      }
-      if (!data) {
-        return [];
-      }
-
-      // Se moradiaId estiver especificado, filtra em memória preservando notificações globais ou da moradia
-      const filtered = moradiaId
-        ? (data as any[]).filter((n) => !n.moradia_id || n.moradia_id === moradiaId)
-        : (data as any[]);
-
-      return filtered.map(mapRowToNotificationItem);
-    } catch (err) {
-      console.error('notificationsService.fetchNotifications exceção:', err);
+    if (error) {
+      console.error('notificationsService.fetchNotifications erro:', error.message, error.details);
+      throw new Error(error.message || 'Falha ao carregar notificações.');
+    }
+    if (!data) {
       return [];
     }
+
+    // Se moradiaId estiver especificado, filtra em memória preservando notificações globais ou da moradia
+    const filtered = moradiaId
+      ? (data as any[]).filter((n) => !n.moradia_id || n.moradia_id === moradiaId)
+      : (data as any[]);
+
+    return filtered.map(mapRowToNotificationItem);
   },
 
   /**
@@ -221,14 +217,14 @@ export const notificationsService = {
       let { error } = await supabase
         .from('notificacoes')
         .delete()
-        .eq('destinatario_id', userId)
+        .eq('usuario_id', userId)
         .eq('lida', true);
 
-      if (error && error.code === '42703') {
+      if (error && (error.code === '42703' || error.code === 'PGRST204')) {
         const retry = await supabase
           .from('notificacoes')
           .delete()
-          .eq('usuario_id', userId)
+          .eq('destinatario_id', userId)
           .eq('lida', true);
         error = retry.error;
       }
@@ -255,37 +251,37 @@ export const notificationsService = {
       );
       if (uniqueRecipients.length === 0) return true;
 
-      const rowsCompat = uniqueRecipients.map((destinatario_id) => ({
+      const rowsCanonical = uniqueRecipients.map((usuario_id) => ({
         moradia_id: payload.moradiaId,
-        destinatario_id,
+        usuario_id,
         remetente_id: payload.senderId || null,
-        tipo: normalizeTipoNotificacao(payload.tipo),
-        filtro_categoria: normalizeFiltroCategoria(payload.categoryFilter),
+        tipo: payload.tipo,
+        category_filter: payload.categoryFilter,
         titulo: payload.titulo,
         descricao: payload.descricao,
-        texto_acao: payload.actionText || null,
-        tipo_acao: payload.actionText ? 'primaria' : 'secundaria',
-        metadados_extras: payload.extraMeta || null,
+        action_text: payload.actionText || null,
+        extra_meta: payload.extraMeta || null,
+        has_coin_icon: payload.hasCoinIcon || false,
         lida: false,
       }));
 
-      let { error } = await supabase.from('notificacoes').insert(rowsCompat);
+      let { error } = await supabase.from('notificacoes').insert(rowsCanonical);
 
-      if (error && (error.code === '42703' || error.code === '23514')) {
-        const rowsAlt = uniqueRecipients.map((usuario_id) => ({
+      if (error && (error.code === '42703' || error.code === 'PGRST204' || error.code === '23514')) {
+        const rowsCompat = uniqueRecipients.map((destinatario_id) => ({
           moradia_id: payload.moradiaId,
-          usuario_id,
+          destinatario_id,
           remetente_id: payload.senderId || null,
-          tipo: payload.tipo,
-          category_filter: payload.categoryFilter,
+          tipo: normalizeTipoNotificacao(payload.tipo),
+          filtro_categoria: normalizeFiltroCategoria(payload.categoryFilter),
           titulo: payload.titulo,
           descricao: payload.descricao,
-          action_text: payload.actionText || null,
-          extra_meta: payload.extraMeta || null,
-          has_coin_icon: payload.hasCoinIcon || false,
+          texto_acao: payload.actionText || null,
+          tipo_acao: payload.actionText ? 'primaria' : 'secundaria',
+          metadados_extras: payload.extraMeta || null,
           lida: false,
         }));
-        const retry = await supabase.from('notificacoes').insert(rowsAlt);
+        const retry = await supabase.from('notificacoes').insert(rowsCompat);
         error = retry.error;
       }
 
