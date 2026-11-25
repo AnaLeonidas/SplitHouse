@@ -15,6 +15,7 @@ import {
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreenNative from 'expo-splash-screen';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Feather } from '@expo/vector-icons';
 import { SplashScreen } from './src/screens/auth/SplashScreen';
 import { WelcomeScreen } from './src/screens/auth/WelcomeScreen';
@@ -65,6 +66,11 @@ import { calculateLevelAndTitle } from './src/utils/gamification';
 
 WebBrowser.maybeCompleteAuthSession();
 SplashScreenNative.preventAutoHideAsync().catch(() => {});
+if (Platform.OS !== 'web') {
+  GoogleSignin.configure({
+    webClientId: '218838549404-7v52lhu60s63f629b4ovr6endbjvnhn8.apps.googleusercontent.com',
+  });
+}
 
 /** Cores aplicadas em ciclo aos ícones das regras da casa na visualização do estatuto. */
 const RULE_COLORS: Pick<HouseRule, 'iconBgColor' | 'iconColor'>[] = [
@@ -888,28 +894,39 @@ function MainApp() {
           onRegisterPress={() => setCurrentScreen('register')}
           onGooglePress={async () => {
             try {
+              if (Platform.OS !== 'web') {
+                await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+                const response = await GoogleSignin.signIn();
+                const idToken = response?.data?.idToken;
+                if (!idToken) {
+                  Alert.alert('Login com Google', 'Não foi possível obter o token de autenticação do Google.');
+                  return;
+                }
+                const { error } = await supabase.auth.signInWithIdToken({
+                  provider: 'google',
+                  token: idToken,
+                });
+                if (error) {
+                  Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
+                  return;
+                }
+                await routeAfterAuth();
+                return;
+              }
+
               const redirectTo =
-                Platform.OS === 'web' && typeof window !== 'undefined'
-                  ? window.location.origin
-                  : 'splithouse://auth-callback';
-              const { data, error } = await supabase.auth.signInWithOAuth({
+                typeof window !== 'undefined' ? window.location.origin : 'splithouse://auth-callback';
+              const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
-                options: {
-                  redirectTo,
-                  skipBrowserRedirect: Platform.OS !== 'web',
-                },
+                options: { redirectTo },
               });
               if (error) {
                 Alert.alert('Login com Google', error.message || 'Não foi possível autenticar com o Google.');
-                return;
-              }
-              if (Platform.OS !== 'web' && data?.url) {
-                const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-                if (res.type === 'success' && res.url) {
-                  await handleDeepLink(res.url);
-                }
               }
             } catch (err: any) {
+              if (err?.code === statusCodes.SIGN_IN_CANCELLED) {
+                return;
+              }
               Alert.alert('Login com Google', err?.message || 'Configuração OAuth do Google indisponível no momento.');
             }
           }}

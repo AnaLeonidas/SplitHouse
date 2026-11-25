@@ -6,6 +6,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~58.0.15",
     "@expo/vector-icons": "^15.1.1",
+    "@react-native-google-signin/google-signin": "^17.0.0",
     "@supabase/supabase-js": "^2.117.3",
     "expo": "~58.0.26",
     "expo-camera": "~58.0.14",
