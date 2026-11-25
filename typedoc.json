@@ -7,6 +7,7 @@
   "readme": "README.md",
   "includeVersion": true,
   "cleanOutputDir": true,
+  "customCss": "./docs/custom.css",
   "excludePrivate": true,
   "excludeInternal": true,
   "navigation": {

@@ -1646,3 +1646,81 @@
         }
     }
 }
+
+/* =========================================================
+   SplitHouse Custom Docstrings Theme (Clean & Simple)
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --light-color-link: #5e2b97;
+  --light-color-focus-outline: #5e2b97;
+  --light-color-active-menu-item: #f5ecf3;
+  --dark-color-link: #c39bf5;
+  --dark-color-focus-outline: #9e6be3;
+  --dark-color-active-menu-item: rgba(94, 43, 151, 0.22);
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  letter-spacing: -0.01em;
+}
+
+code, pre, .tsd-signature {
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace !important;
+}
+
+/* Barra superior mais elegante com detalhe roxo */
+.tsd-page-toolbar {
+  border-bottom: 2px solid rgba(94, 43, 151, 0.35) !important;
+  backdrop-filter: blur(8px);
+}
+
+.tsd-page-toolbar .title {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+/* Títulos das páginas */
+.tsd-page-title h1 {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+/* Cards e blocos de código com cantos suaves */
+.tsd-panel,
+pre,
+.tsd-signature {
+  border-radius: 8px !important;
+  transition: border-color 0.2s ease;
+}
+
+/* Menu lateral com espaçamento suave e confortável */
+.site-menu a,
+.page-menu a {
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.site-menu a:hover,
+.page-menu a:hover {
+  color: var(--dark-color-link);
+}
+
+/* Scrollbar sutil */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 43, 151, 0.5);
+}
+

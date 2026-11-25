@@ -4,12 +4,14 @@
 O SplitHouse é uma aplicação mobile estruturada para centralizar a gestão de despesas e tarefas domésticas em moradias compartilhadas (repúblicas). O foco principal do sistema é substituir o gerenciamento manual por processos automatizados, promovendo transparência, organização financeira, divisão de responsabilidades e convivência harmoniosa entre os moradores de um imóvel.
 
 ## Status do Projeto
-O projeto está em fase ativa de desenvolvimento.
+O projeto concluiu a integração dos módulos principais, a atualização das docstrings e a suíte de testes unitários e de integração, encontrando-se atualmente em **fase de preparação para deploy (geração do APK)**.
 - **Autenticação e Perfis (#60):** Integrado ao Supabase Auth com persistência de credenciais em armazenamento seguro nativo (SecureStore), criação automática de perfil em PostgreSQL via triggers e recuperação de senha.
 - **Home e Tarefas Domésticas (#61):** Integrado ao Supabase com tabelas relacionais (`tarefas` e `validacoes_tarefa`), políticas de segurança por linha (RLS), serviços dedicados (`tasksService` e `homeService`), ciclo de vida de tarefas, auditoria por pares com envio de foto comprobatória e fallback transparente para execução offline.
 - **Moradia, Membros e Regras:** Conectado ao Supabase com fluxo completo de cadastro da residência, código de convite dinâmico `SPLIT-XXXX`, fila de espera, aprovação de novos membros e persistência de estatuto com regras de convivência (`houseService` e `profileService`).
+- **Gestão Financeira e Despesas:** Integrado ao Supabase com tabelas `despesas`, `rateios_despesa` e `pagamentos_acerto`, serviço dedicado (`financeService`), divisão automatizada de despesas coletivas, cálculo de balanço líquido bilateral, fluxo de confirmação de liquidações via Pix e relatório financeiro consolidado.
 - **Ranking e Loja de Recompensas (#64):** Integrado ao Supabase com tabelas `recompensas_loja`, `resgates_recompensa` e `notificacoes`, serviços dedicados (`storeService`, `rankingService` e `notificationsService`), ordenação de ranking dinâmico por XP com contadores reais de tarefas cumpridas, débito transacional de moedas em resgates, catálogo de recompensas da república e envio de cutucadas interativas.
-- **Próximas Etapas:** Divisão automatizada de despesas financeiras e liquidação de rateios via Pix.
+- **Testes e Documentação:** Suíte de testes automatizados (unitários e de integração com o Supabase) concluída e docstrings TSDoc/JSDoc atualizadas em todo o projeto.
+- **Próximas Etapas:** Preparação para deploy da aplicação mobile com geração do pacote instalável **APK** para Android.
 
 ## Funcionalidades e Módulos do Sistema
 A interface do sistema está estruturada e modularizada em diretórios:
@@ -53,7 +55,7 @@ O banco de dados relacional foi estruturado em tabelas modulares com Row Level S
 Para provisionar, basta executar o conteúdo dos arquivos no **SQL Editor** do dashboard do Supabase.
 
 ## Testes Automatizados e Qualidade de Código
-O projeto conta com suíte abrangente de **29 testes automatizados** e verificação estática de tipos:
+O projeto conta com verificação estática de tipos e suíte abrangente de **testes unitários e de integração com o Supabase**:
 
 ```bash
 npm test
@@ -61,10 +63,19 @@ npm test
 
 O comando executa:
 1. **Verificação de Tipos:** `npx tsc --noEmit` garantindo tipagem estrita e ausência de inconsistências em tempo de compilação.
-2. **Suíte de Esquema SQL (`tests/schemaValidation.test.js`):** Valida a integridade do arquivo DDL `schema_tarefas_home.sql`, conferindo tabelas, constraints de integridade e políticas RLS.
-3. **Suíte de Ranking e Loja (`tests/rankingStoreLogic.test.js`):** Valida DDL de recompensas, resgates e notificações (`schema_ranking_loja.sql`), ordenação de ranking por XP, desempate por tarefas concluídas, highlight de cutucadas, débito transacional de moedas e validação de propostas.
-4. **Suíte de Tarefas (`tests/tasksBusinessLogic.test.js`):** Testa mapeamento de registros, ciclo de vida de validação, aprovação, recusa justificada e bloqueio de autofraude (regra RN-09).
-5. **Suíte do Painel Home (`tests/homeDashboardLogic.test.js`):** Testa extração de iniciais de perfis, cálculo de pendências e filtragem prioritária de tarefas para a tela inicial.
+2. **Testes Unitários:**
+   - **Esquema SQL (`tests/schemaValidation.test.js`):** Valida a integridade do arquivo DDL `schema_tarefas_home.sql`, conferindo tabelas, constraints de integridade e políticas RLS.
+   - **Autenticação e Recuperação (`tests/authEmailAndRecoveryLogic.test.js`):** Valida erros de e-mail não confirmado, roteamento de deep links e regras de senha.
+   - **Finanças e Moradia (`tests/financeAndHouseLogic.test.js`):** Valida ajuste de centavos em rateios, quitação ordenada de pendências e seleção de vínculo de moradia.
+   - **Gamificação (`tests/gamificationLogic.test.js`):** Testa progressão de níveis e títulos de reputação por XP.
+   - **QR Code (`tests/qrCodeGenerator.test.js`):** Valida a geração dinâmica de QR Code para convites.
+   - **Ranking e Loja (`tests/rankingStoreLogic.test.js`):** Valida DDL de recompensas, resgates e notificações (`schema_ranking_loja.sql`), ordenação de ranking por XP, desempate por tarefas concluídas, highlight de cutucadas, débito transacional de moedas e validação de propostas.
+   - **Tarefas (`tests/tasksBusinessLogic.test.js`):** Testa mapeamento de registros, ciclo de vida de validação, aprovação, recusa justificada e bloqueio de autofraude (regra RN-09).
+   - **Painel Home (`tests/homeDashboardLogic.test.js`):** Testa extração de iniciais de perfis, cálculo de pendências e filtragem prioritária de tarefas para a tela inicial.
+3. **Testes de Integração com o Supabase:**
+   - **Moradias e Membros (`tests/integrationMoradias.test.js`):** Valida a conexão real com o Supabase e a integridade dos dados nas tabelas `moradias`, `regras_moradia` e `membros_moradia`.
+   - **Finanças e Rateios (`tests/integrationFinancas.test.js`):** Verifica em banco real a estrutura e tipagem das tabelas `despesas`, `rateios_despesa` e `pagamentos_acerto`.
+   - **Tarefas e Auditoria (`tests/integrationTarefas.test.js`):** Valida em banco real a consulta de `tarefas`, campos de gamificação, filtragem por status e estrutura de auditoria por pares em `validacoes_tarefa` (RN-09).
 
 ## Como Executar a Aplicação
 
@@ -97,6 +108,9 @@ npx expo start --lan -c
 
 ### 4. Abrir no dispositivo móvel
 - Escaneie o QR Code gerado no terminal usando o aplicativo **Expo Go** no Android ou a câmera nativa no iOS.
+
+## Preparação para Deploy (Geração do APK)
+Com os módulos integrados, docstrings atualizadas e testes unitários e de integração concluídos, o projeto encontra-se na etapa de preparação para build e deploy com a geração do arquivo instalável **`.apk`** para dispositivos Android.
 
 ## Documentação Técnica (Swagger e TypeDoc)
 O repositório disponibiliza dois portais estáticos de documentação em `docs/`:
