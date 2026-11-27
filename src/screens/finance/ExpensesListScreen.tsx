@@ -40,10 +40,12 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
     const [activeTab, setActiveTab] = useState('Todos');
     const tabs = ['Todos', 'Pendentes', 'Pagas', 'Recorrentes'];
 
+    const isPaidStatus = (status?: string) => status === 'quitada' || status === 'pago';
+
     const filteredExpenses = expenses.filter((e) => {
         if (activeTab === 'Todos') return true;
         if (activeTab === 'Pendentes') return e.status === 'pendente' || e.status === 'parcial';
-        if (activeTab === 'Pagas') return e.status === 'pago';
+        if (activeTab === 'Pagas') return isPaidStatus(e.status);
         if (activeTab === 'Recorrentes') return e.status === 'recorrente';
         return true;
     });
@@ -142,9 +144,9 @@ export const ExpensesListScreen: React.FC<ExpensesListScreenProps> = ({
                                     </View>
                                     <View style={styles.cardValues}>
                                         <Text style={styles.totalValue}>R$ {expense.valor || '0,00'}</Text>
-                                        <View style={expense.status === 'pago' ? styles.badgeGreenOutline : styles.badgeGray}>
-                                            <Text style={expense.status === 'pago' ? styles.badgeGreenOutlineText : styles.badgeGrayText}>
-                                                {expense.status === 'pago' ? 'Pago' : (expense.status === 'recorrente' ? 'Recorrente' : 'Pendente')}
+                                        <View style={isPaidStatus(expense.status) ? styles.badgeGreenOutline : styles.badgeGray}>
+                                            <Text style={isPaidStatus(expense.status) ? styles.badgeGreenOutlineText : styles.badgeGrayText}>
+                                                {isPaidStatus(expense.status) ? 'Pago' : (expense.status === 'recorrente' ? 'Recorrente' : 'Pendente')}
                                             </Text>
                                         </View>
                                     </View>

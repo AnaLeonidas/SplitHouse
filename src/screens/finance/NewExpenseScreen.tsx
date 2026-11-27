@@ -443,7 +443,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                                 insets.top,
                                 Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 16
                             ) + 12,
-                        paddingBottom: Math.max(insets.bottom, 20) + 24,
+                        paddingBottom: Math.max(insets.bottom + 32, 80),
                     },
                 ]}
                 keyboardShouldPersistTaps="handled"
@@ -635,7 +635,7 @@ export const NewExpenseScreen: React.FC<NewExpenseScreenProps> = ({
                             <View style={styles.divisionSummaryBox}>
                                 <Feather name="pie-chart" size={16} color={Colors.primary} />
                                 <Text style={styles.divisionSummaryText}>
-                                    {selectedEqualMembers.length} pessoas • <Text style={{ fontWeight: 'bold' }}>R$ {formatBRL(equalPerPerson)}</Text> por morador
+                                    {selectedEqualMembers.length === 1 ? '1 pessoa' : `${selectedEqualMembers.length} pessoas`} • <Text style={{ fontWeight: 'bold' }}>R$ {formatBRL(equalPerPerson)}</Text> por morador
                                 </Text>
                             </View>
                         </View>

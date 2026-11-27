@@ -418,7 +418,7 @@ export type CategoriaDespesa = 'Utilidades' | 'Aluguel' | 'Mercado' | 'Limpeza' 
 /**
  * Status de quitação da despesa coletiva.
  */
-export type StatusDespesa = 'pendente' | 'pago' | 'parcial' | 'recorrente';
+export type StatusDespesa = 'pendente' | 'quitada' | 'pago' | 'parcial' | 'recorrente';
 
 /**
  * Modalidades de rateio de despesa.

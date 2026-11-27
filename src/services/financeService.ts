@@ -130,7 +130,7 @@ export const financeService = {
     if (statusFilter === 'Pendentes') {
       query = query.eq('status', 'pendente');
     } else if (statusFilter === 'Pagas') {
-      query = query.eq('status', 'pago');
+      query = query.in('status', ['quitada', 'pago']);
     } else if (statusFilter === 'Recorrentes') {
       query = query.eq('status', 'recorrente');
     }
@@ -218,7 +218,7 @@ export const financeService = {
         data_vencimento: input.dataVencimento || null,
         tipo_divisao: input.tipoDivisao || 'igualitaria',
         pagador_id: input.pagadorId,
-        status: willAllBePaid ? 'pago' : 'pendente',
+        status: willAllBePaid ? 'quitada' : 'pendente',
         comprovante_url: input.comprovanteUrl || null,
       })
       .select()
@@ -660,13 +660,13 @@ export const financeService = {
           if (settledIds.length > 0) {
             await supabase
               .from('despesas')
-              .update({ status: 'pago', atualizado_em: nowIso })
+              .update({ status: 'quitada', atualizado_em: nowIso })
               .in('id', settledIds);
           }
           if (partialIds.length > 0) {
             await supabase
               .from('despesas')
-              .update({ status: 'parcial', atualizado_em: nowIso })
+              .update({ status: 'pendente', atualizado_em: nowIso })
               .in('id', partialIds);
           }
         }

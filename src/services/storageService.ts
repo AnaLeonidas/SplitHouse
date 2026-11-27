@@ -143,6 +143,11 @@ export async function uploadImage(uri: string, folder: string): Promise<string> 
     upsert: false,
   });
   if (error) {
+    if (error.message?.toLowerCase().includes('bucket not found')) {
+      throw new Error(
+        `Bucket "${STORAGE_BUCKET}" não encontrado no Supabase Storage. Crie-o no painel do Supabase (Storage -> New bucket -> "${STORAGE_BUCKET}", público) ou execute o arquivo supabase/schema_storage_notificacoes.sql.`
+      );
+    }
     throw new Error(`Falha no envio da imagem: ${error.message}`);
   }
 
