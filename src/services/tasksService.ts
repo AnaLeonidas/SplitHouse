@@ -318,20 +318,20 @@ export const tasksService = {
   },
 
   /**
-   * Envia uma tarefa para validação comunitária anexando a foto real tirada pelo executor.
+   * Envia uma tarefa para validação comunitária, com foto opcional tirada pelo executor.
    *
    * @param taskId Identificador da tarefa.
-   * @param photoUri URI local da foto capturada (será enviada ao Storage).
+   * @param photoUri URI local da foto capturada (opcional; será enviada ao Storage se informada).
    * @param executorId UUID do usuário executor.
-   * @returns URL pública da foto enviada.
+   * @returns URL pública da foto enviada ou null se enviada sem foto.
    * @throws Error se o upload ou a gravação falharem.
    */
   async submitTaskValidation(
     taskId: string,
-    photoUri: string,
+    photoUri: string | null | undefined,
     executorId: string
-  ): Promise<string> {
-    const photoUrl = await uploadImage(photoUri, 'tarefas');
+  ): Promise<string | null> {
+    const photoUrl = photoUri && photoUri.trim() ? await uploadImage(photoUri, 'tarefas') : '';
 
     const { data: valInserted, error: valError } = await supabase
       .from('validacoes_tarefa')
@@ -387,7 +387,7 @@ export const tasksService = {
       );
     }
 
-    return photoUrl;
+    return photoUrl || null;
   },
 
   /**

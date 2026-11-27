@@ -1596,7 +1596,9 @@ function MainApp() {
                 tipo: 'Validação',
                 categoryFilter: 'Validações',
                 titulo: `${profileUserData.name} concluiu uma tarefa`,
-                descricao: `"${selectedTask?.title}" foi finalizada com foto anexada para revisão.`,
+                descricao: photoUri
+                  ? `"${selectedTask?.title}" foi finalizada com foto anexada para revisão.`
+                  : `"${selectedTask?.title}" foi finalizada e aguarda validação.`,
                 actionText: 'Validar agora',
                 extraMeta: JSON.stringify({
                   taskId: selectedTaskId,

@@ -228,7 +228,7 @@ export const ValidateTaskScreen: React.FC<ValidateTaskScreenProps> = ({
               <View style={styles.photoGraphicBox}>
                 <Feather name="image" size={36} color="#D4D4D8" />
                 <Text style={styles.photoFilename}>
-                  {imageFailed ? 'Falha ao carregar foto' : 'Foto não disponível'}
+                  {imageFailed ? 'Falha ao carregar foto' : 'Sem foto anexada'}
                 </Text>
               </View>
             )}

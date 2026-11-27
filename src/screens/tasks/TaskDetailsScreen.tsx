@@ -52,8 +52,8 @@ export interface TaskDetailsScreenProps {
   onBackPress?: () => void;
   /** Callback para opções avançadas de edição ou exclusão */
   onOptionsPress?: () => void;
-  /** Callback para envio da tarefa para validação com a foto tirada (URI local) */
-  onSubmitValidation?: (photoUri: string) => void | Promise<void>;
+  /** Callback para envio da tarefa para validação com foto opcional (URI local ou null) */
+  onSubmitValidation?: (photoUri: string | null) => void | Promise<void>;
   /** Se o usuário logado é o responsável e pode enviar a conclusão */
   canSubmit?: boolean;
 }
@@ -107,18 +107,6 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       showAlert('Apenas o responsável', 'Somente o morador responsável pode enviar esta tarefa para validação.');
       return;
     }
-    if (!photoUri) {
-      showAlert(
-        'Foto necessária',
-        'Tire uma foto como comprovante antes de enviar a tarefa para validação.',
-        [
-          { text: 'Tirar foto agora', onPress: handlePhotoPress },
-          { text: 'Cancelar', style: 'cancel' },
-        ]
-      );
-      return;
-    }
-
     if (onSubmitValidation) {
       try {
         setSubmitting(true);
@@ -230,12 +218,12 @@ export const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             </View>
           )}
           <Text style={styles.evidenceTitle}>
-            {hasPhoto ? 'Foto anexada com sucesso' : 'Tirar foto da tarefa concluída'}
+            {hasPhoto ? 'Foto anexada com sucesso' : 'Tirar foto da tarefa (opcional)'}
           </Text>
           <Text style={styles.evidenceSubtitle}>
             {hasPhoto
               ? 'Toque para tirar outra foto de comprovante.'
-              : 'A foto servirá como comprovante para que outro morador valide sua conclusão.'}
+              : 'Se desejar, anexe uma foto como comprovante para outro morador validar sua conclusão.'}
           </Text>
         </TouchableOpacity>
 
